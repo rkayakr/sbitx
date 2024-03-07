@@ -7,7 +7,7 @@ A preconfigured, downloadable Raspberry Pi 4 image file is available as a beta r
 
 ****Download****
 
-
+A new beta version is coming soon!!
 [64bit](https://github.com/drexjj/sbitx/releases/tag/sBitx-v3.02-64-Bit)
 
 
