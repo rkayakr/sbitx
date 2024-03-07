@@ -5,7 +5,9 @@
 F=$@
 echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 date
-cd /home/pi/sbitx
-git pull
+cd $HOME/sbitx/ft8_lib
+make
+sudo make install
+cd ..
 ./build sbitx
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"

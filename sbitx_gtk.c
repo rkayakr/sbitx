@@ -512,7 +512,7 @@ struct field main_controls[] = {
 		"", 50, 5000, 50,COMMON_CONTROL},
 
 	{ "r1:mode", NULL, 5, 5, 40, 40, "MODE", 40, "USB", FIELD_SELECTION, FONT_FIELD_VALUE, 
-		"USB/LSB/CW/CWR/FT8/PSK31/RTTY/DIGITAL/2TONE", 0,0,0, COMMON_CONTROL},
+		"USB/LSB/CW/CWR/FT8/DIGITAL/2TONE", 0,0,0, COMMON_CONTROL},
 
 	/* logger controls */
 
