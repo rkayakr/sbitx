@@ -5,6 +5,8 @@
 F=$@
 echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 date
+cd $HOME/sbitx
+git pull
 cd $HOME/sbitx/ft8_lib
 make
 sudo make install
