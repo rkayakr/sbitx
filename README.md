@@ -12,5 +12,17 @@ A new beta version is coming soon!!
 [64bit](https://github.com/drexjj/sbitx/releases/tag/sBitx-v3.02-64-Bit)
 
 
-
 ![sbitx64](sbitx64.JPG)
+
+
+Installation
+-----
+
+Open terminal and type:
+
+```console
+cd $HOME
+git clone https://github.com/drexjj/sbitx.git
+cd sbitx
+./sbitx
+```
