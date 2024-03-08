@@ -8,8 +8,7 @@ The stand-alone version of sBitx toolbox for 64 bit is available [HERE](https://
 
 ****Download****
 
-A new beta version is coming soon!!
-[64bit](https://github.com/drexjj/sbitx/releases/tag/sBitx-v3.02-64-Bit)
+A new beta version is available [HERE](https://github.com/drexjj/sbitx/releases/tag/sBitx-v3.02-64-Bit)
 
 
 ![sbitx64](sbitx64.JPG)
