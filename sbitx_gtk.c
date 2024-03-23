@@ -2299,8 +2299,6 @@ static void focus_field(struct field *f){
 
 time_t time_sbitx(){
 	if (time_delta)
-		return  (millis()/1000l) + time_delta;
-	else
 		return time(NULL);
 }
 
