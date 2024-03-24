@@ -2035,26 +2035,29 @@ static void layout_ui(){
 		break;
 		case MODE_CW:
 		case MODE_CWR:
-			field_move("CONSOLE", 5, y1, 350, y2-y1-55);
-			field_move("SPECTRUM", 360, y1, x2-365, 60);
-			field_move("WATERFALL", 360, y1+60, x2-365, y2-y1-115);
+			field_move("CONSOLE", 5, y1, 350, y2-y1-110);
+			field_move("SPECTRUM", 360, y1, x2-365, 70);
+			field_move("WATERFALL", 360, y1+60, x2-365, y2-y1-110);
 			// first line below the decoder/waterfall
-			field_move("ESC", 5, y2-50, 40, 45);
-			field_move("F1", 50, y2-50, 45, 45);
-			field_move("F2", 95, y2-50, 45, 45);
-			field_move("F3", 140, y2-50, 45, 45);
-			field_move("F4", 185, y2-50, 45, 45);
-			field_move("F5", 130, y2-50, 45, 45);
-			field_move("F6", 175, y2-50, 45, 45);
-			field_move("F7", 220, y2-50, 45, 45);
-			field_move("F8", 265, y2-50, 45, 45);
-			field_move("F9", 310, y2-50, 45, 45);
-			field_move("F10", 355, y2-50, 45, 45);
-			field_move("WPM",410, y2-50, 50, 45);
-			field_move("PITCH", 460, y2-50, 50, 45);
-			field_move("CW_DELAY", 510, y2-50,75, 45);
-			field_move("CW_INPUT", 585, y2-50, 75 , 45);
-			field_move("SIDETONE", 660, y2-50, 75, 45);
+			y1 = y2 - 97;
+			field_move("ESC", 5, y1, 70, 45);
+			field_move("WPM",75, y1, 75, 45);
+			field_move("PITCH", 150, y1, 75, 45);
+			field_move("CW_DELAY", 225, y1, 75, 45);
+			field_move("CW_INPUT", 375, y1, 75 , 45);
+			field_move("SIDETONE", 450, y1, 75, 45);
+
+			y1 += 50;
+			field_move("F1", 5, y1, 70, 45);
+			field_move("F2", 75, y1, 75, 45);
+			field_move("F3", 150, y1, 75, 45);
+			field_move("F4", 225, y1, 75, 45);
+			field_move("F5", 300, y1, 75, 45);
+			field_move("F6", 375, y1, 75, 45);
+			field_move("F7", 450, y1, 75, 45);
+			field_move("F8", 525, y1, 75, 45);
+			field_move("F9", 600, y1, 75, 45);
+			field_move("F10", 675, y1, 70, 45);
 			break;
 		case MODE_USB:
 		case MODE_LSB:
