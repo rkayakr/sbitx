@@ -4,7 +4,7 @@ An improved version of the sBitx application designed for the sBitx hardware. Cr
 
 Honorable mentions to Rafael D., Dave C., and Jerry P. for carving the path for us with library conversion and instructions. This version was recompiled and modified by J. Kujawa.
 
-The files here are to designed to replace the sBitx application and work on the default, 32bit (stock) sBitx as shipped and the modified, 64bit version provided in the *Releases* section.
+The files here are to designed to replace the sBitx application and work on the default, 32 bit (stock) sBitx as shipped and the modified, 64 bit version provided in the *Releases* section.
 
 
 The stand-alone version of sBitx toolbox for 32 bit is available [HERE](https://github.com/drexjj/sBITX-toolbox)
