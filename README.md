@@ -57,3 +57,14 @@ A 32 bit image will be available in the future. It is highly advised to NOT use 
 The 32 bit version will be provided for experimental use or to reload back to the stock configuration.
 
 
+Become A Supporter
+-----
+If you find these enhancements valuable or have benefited from using it, consider supporting us. Every donation, big or small, helps us keep the lights on and the code flowing.
+
+🌟 [Donate](https://www.paypal.com/donate/?hosted_button_id=SWPB76LVNUHEY) 🌟
+
+
+Not in a position to donate? No worries! Contributing code, documentation, or simply spreading the word about this effort also goes a long way.
+
+Thank you for your support and belief in my project!
+
