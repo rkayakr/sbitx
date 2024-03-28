@@ -12,6 +12,21 @@ The stand-alone version of sBitx toolbox for 32 bit is available [HERE](https://
 The stand-alone version of sBitx toolbox for 64 bit is available [HERE](https://github.com/drexjj/sBITX-toolbox64)
 
 
+****Backup Your Data First!****
+-----
+It is important to backup your existing sbitx/data and sbitx/web folders to a safe place before installing this version. A good data backup strategy is important so you do not lose your logbook, hardware calibration, and user settings.
+
+You can make a copy of your original sbitx folder in entirety by using this set of commands from terminal
+```console
+cd $HOME
+mv sbitx sbitx_orig
+```
+You can restore the sbitx/data and sbitx/web folders from your backup to the newly installed sbitx folder using these commands from terminal
+```console
+cd $HOME
+cp -r sbitx_orig/web/* sbitx/web/
+cp -r sbitx_orig/data/* sbitx/data/
+```
 
 ****Download The 64 Bit Image****
 -----
