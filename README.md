@@ -24,7 +24,7 @@ A new beta version is available [HERE](https://github.com/drexjj/sbitx/releases/
 
 ****Download The 32 Bit Image****
 -----
-A 32Bit image will be available in the future. It is highly advised to NOT use 32 bit because support for the operating system will no longer provide security patches or feature enhancements in June 2024.
+A 32 bit image will be available in the future. It is highly advised to NOT use 32 bit because support for the operating system will no longer provide security patches or feature enhancements in June 2024.
 
 The 32 bit version will be provided for experimental use or to reload back to the stock configuration.
 
@@ -32,7 +32,7 @@ The 32 bit version will be provided for experimental use or to reload back to th
 sBitx App Installation
 -----
 
-Open terminal and type (or copy and paste this in terminal):
+Open terminal and type (or copy and paste this):
 
 ```console
 cd $HOME
