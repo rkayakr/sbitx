@@ -14,6 +14,7 @@ The stand-alone version of sBitx toolbox for 64 bit is available [HERE](https://
 
 
 ****Download The 64 Bit Image****
+-----
 A preconfigured, downloadable Raspberry Pi 4 image file is available as a beta release. This Pi image is designed to fit a 32GB SD card or USB drive and installed with Balena Etcher.
 
 As a bonus, sBITX Toolbox is preinstalled on the image as well as other useful tools for ham radio use.
@@ -22,6 +23,7 @@ A new beta version is available [HERE](https://github.com/drexjj/sbitx/releases/
 
 
 ****Download The 32 Bit Image****
+-----
 A 32Bit image will be available in the future. It is highly advised to NOT use 32 bit because support for the operating system will no longer provide security patches or feature enhancements in June 2024.
 
 The 32 bit version will be provided for experimental use or to reload back to the stock configuration.
