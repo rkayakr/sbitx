@@ -14,6 +14,9 @@ A preconfigured, downloadable Raspberry Pi 4 image file is available as a beta r
 A new beta version is available [HERE](https://github.com/drexjj/sbitx/releases/tag/sBitx-v3.02-64-Bit)
 
 
+****Download The 32 Bit Image****
+A 32Bit image will be available in the future. It is highly advised to NOT use 32 bit because support for the operating system will no longer provide security patches or feature enhancements in June 2024. The 32 bit version will be provided for experimental use or to reload back to the stock configuration.
+
 
 sBitx App Installation
 -----
