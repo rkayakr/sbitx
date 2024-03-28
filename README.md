@@ -28,6 +28,19 @@ cp -r sbitx_orig/web/* sbitx/web/
 cp -r sbitx_orig/data/* sbitx/data/
 ```
 
+sBitx App Installation
+-----
+
+Open terminal and type (or copy and paste this):
+
+```console
+cd $HOME
+git clone https://github.com/drexjj/sbitx.git
+cd sbitx
+./update
+```
+
+
 ****Download The 64 Bit Image****
 -----
 A preconfigured, downloadable Raspberry Pi 4 image file is available as a beta release. This Pi image is designed to fit a 32GB SD card or USB drive and installed with Balena Etcher.
@@ -44,14 +57,3 @@ A 32 bit image will be available in the future. It is highly advised to NOT use 
 The 32 bit version will be provided for experimental use or to reload back to the stock configuration.
 
 
-sBitx App Installation
------
-
-Open terminal and type (or copy and paste this):
-
-```console
-cd $HOME
-git clone https://github.com/drexjj/sbitx.git
-cd sbitx
-./update
-```
