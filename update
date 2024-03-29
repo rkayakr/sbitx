@@ -15,8 +15,8 @@ cd ..
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 
 # Create a desktop menu shortcut
-echo -e "[Desktop Entry]\nType=Application\nName=sBitx\nExec=/home/pi/sbitx/sbitx\nIcon=/home/pi/sbitx/sbitx_icon.png\nTerminal=true\n" | sudo tee /usr/share/applications/sbitx.desktop > /dev/null
-echo -e "[Desktop Entry]\nType=Application\nName=sBitx\nExec=/home/pi/sbitx/sbitx\nIcon=/home/pi/sbitx/sbitx_icon.png\nTerminal=true\n" | sudo tee /home/pi/Desktop/sbitx.desktop > /dev/null
+echo -e "[Desktop Entry]\nType=Application\nName=sBitx\nExec=/home/pi/sbitx/sbitx\nIcon=/home/pi/sbitx/sbitx_icon.png\nTerminal=true\n" | tee /usr/share/applications/sbitx.desktop > /dev/null
+echo -e "[Desktop Entry]\nType=Application\nName=sBitx\nExec=/home/pi/sbitx/sbitx\nIcon=/home/pi/sbitx/sbitx_icon.png\nTerminal=true\n" | tee /home/pi/Desktop/sbitx.desktop > /dev/null
 
 # Update the menu
 sudo update-desktop-database
