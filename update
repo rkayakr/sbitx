@@ -14,4 +14,4 @@ cd ..
 ./build sbitx
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 
-echo "sbitx has been installed successfully. The  application has been added to the Pi menu and desktop. You can now close this window."
+echo "sbitx has been installed successfully. You can now close this window."
