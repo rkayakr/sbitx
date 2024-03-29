@@ -118,6 +118,7 @@
 			<select id="STEP" class="sbitx-selection sbitxv3-selection">
 				<option value="10H">10H</option>
 				<option value="100H">100H</option>
+				<option value="500H">500H</option>
 				<option value="1K">1K</option>
 				<option value="10K">10K</option>
 				<option value="100K">100K</option>
@@ -774,6 +775,7 @@ function tuning_knob_handler(position_now){
 	switch(step_text){
 		case "10H": step_size = 10; break;
 		case "100H": step_size = 100; break;
+		case "500H": step_size = 500; break;
 		case "1K": step_size = 1000; break;
 		case "10K": step_size = 10000; break;
 		case "100K": step_size = 100000; break;
