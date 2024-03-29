@@ -14,16 +14,4 @@ cd ..
 ./build sbitx
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 
-# Copy the desktop file to the applications directory
-sudo cp "$HOME/sbitx/sbitx.desktop" /usr/share/applications/
-
-# Copy the desktop file to the desktop for easy access
-cp "$HOME/sbitx/sbitx.desktop" "$HOME/Desktop/"
-
-# Ensure the copied desktop file on the desktop is executable
-chmod +x "$HOME/Desktop/sbitx.desktop"
-
-# Update the menu
-sudo update-desktop-database
-
 echo "sbitx has been installed successfully. The  application has been added to the Pi menu and desktop. You can now close this window."
