@@ -850,6 +850,26 @@ function waterfall_init(){
 	ctx.putImageData(waterfall_image, 0, 0);
 }
 
+// created by OZ7BX
+function getMousePosition(canvas, event) {
+  let rect = canvas.getBoundingClientRect();
+  let x = event.clientX - rect.left;
+  let w = rect.width;
+  console.log("waterfall click " +  x + ", " + w);
+  let freq = parseInt(el('FREQ').value);
+  let span = parseFloat(el('SPAN').value)*1000;
+  freq = Math.round((freq-span/2 + (span/w)*x)/100)*100;
+  console.log("waterfall freq " +  freq);
+  update_freq(freq);	
+}
+
+canvasElem = el("waterfall");
+
+$('#waterfall').mousedown(function(e) {
+  getMousePosition(canvasElem, e);
+});
+// created by OZ7BX
+	
 var nbins = 0;
 
 function spectrum_update(update){
