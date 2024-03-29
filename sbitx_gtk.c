@@ -497,7 +497,7 @@ struct field main_controls[] = {
 		"", 0, 100, 1,COMMON_CONTROL},
 
 	{"#step", NULL, 560, 5 ,40, 40, "STEP", 1, "10Hz", FIELD_SELECTION, FONT_FIELD_VALUE, 
-		"10K/1K/100H/10H", 0,0,0,COMMON_CONTROL},
+		"10K/1K/500H/100H/10H", 0,0,0,COMMON_CONTROL},
 	{"#span", NULL, 560, 50 , 40, 40, "SPAN", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE, 
 		"25K/10K/6K/2.5K", 0,0,0,COMMON_CONTROL},
 
@@ -4170,6 +4170,8 @@ void do_control_action(char *cmd){
 		tuning_step = 10000;
 	else if (!strcmp(request, "STEP 1K"))
 		tuning_step = 1000;
+	else if (!strcmp(request, "STEP 500H"))
+		tuning_step = 500;
 	else if (!strcmp(request, "STEP 100H"))
 		tuning_step = 100;
 	else if (!strcmp(request, "STEP 10H"))
