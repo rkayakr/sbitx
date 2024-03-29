@@ -14,9 +14,14 @@ cd ..
 ./build sbitx
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 
-# Create a desktop menu shortcut
-echo -e "[Desktop Entry]\nType=Application\nName=sBitx\nExec=/home/pi/sbitx/sbitx\nIcon=/home/pi/sbitx/sbitx_icon.png\nTerminal=true\n" | tee /usr/share/applications/sbitx.desktop > /dev/null
-echo -e "[Desktop Entry]\nType=Application\nName=sBitx\nExec=/home/pi/sbitx/sbitx\nIcon=/home/pi/sbitx/sbitx_icon.png\nTerminal=true\n" | tee /home/pi/Desktop/sbitx.desktop > /dev/null
+# Copy the desktop file to the applications directory
+sudo cp "$HOME/sbitx/sbitx.desktop" /usr/share/applications/
+
+# Copy the desktop file to the desktop for easy access
+cp "$HOME/sbitx/sbitx.desktop" "$HOME/Desktop/"
+
+# Ensure the copied desktop file on the desktop is executable
+chmod +x "$HOME/Desktop/sbitx.desktop"
 
 # Update the menu
 sudo update-desktop-database
