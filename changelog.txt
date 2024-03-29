@@ -5,4 +5,4 @@ Macro button display fix by JJ
 Non-functional modes removed by JJ
 FT8library compatibiliy with 32 bit and 64 bit by Jerry P.
 ./Update script changes by JJ
-500H step size added to local app
+500H step size added to local and web app
