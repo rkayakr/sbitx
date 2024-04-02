@@ -1,4 +1,4 @@
-![sBitx image](sbitx.JPG)
+
 
 An improved version of the sBitx application designed for the sBitx hardware. Credit goes to the developers at HF Signals and A. Farhan for writing the initial code. 
 
