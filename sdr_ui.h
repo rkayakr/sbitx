@@ -48,4 +48,4 @@ void update_log_ed();
 void write_call_log();
 time_t time_sbitx();
 
-#define VER_STR "sbitx v3.02x64"
+#define VER_STR "sbitx v3.02_JJ"
