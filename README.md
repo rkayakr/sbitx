@@ -47,7 +47,7 @@ A preconfigured, downloadable Raspberry Pi 4 image file is available as a beta r
 
 As a bonus, sBITX Toolbox is preinstalled on the image as well as other useful tools for ham radio use.
 
-A new beta version is available [HERE](https://github.com/drexjj/sbitx/releases/tag/sBitx-v3.02-64-Bit)
+A new beta version is available [HERE](https://github.com/drexjj/sbitx/releases)
 
 
 ****Download The 32 Bit Image****
