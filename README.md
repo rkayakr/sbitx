@@ -7,7 +7,7 @@ Honorable mentions to Rafael D., Dave C., and Jerry P. for carving the path for 
 The files here are to designed to replace the sBitx application and work on the default, 32 bit (stock) sBitx as shipped and the modified, 64 bit version provided in the *Releases* section.
 
 
-The stand-alone version of sBitx toolbox for 32 bit is available [HERE](https://github.com/drexjj/sBITX-toolbox)
+The stand-alone version of sBitx toolbox for 32 bit (original version from HF Signals) is available [HERE](https://github.com/drexjj/sBITX-toolbox)
 
 The stand-alone version of sBitx toolbox for 64 bit is available [HERE](https://github.com/drexjj/sBITX-toolbox64)
 
@@ -15,6 +15,8 @@ The stand-alone version of sBitx toolbox for 64 bit is available [HERE](https://
 ****Backup Your Data First!****
 -----
 It is important to backup your existing sbitx/data and sbitx/web folders to a safe place before installing this version. A good data backup strategy is important so you do not lose your logbook, hardware calibration, and user settings.
+
+There are two methods that you can use to perform a backup. I wrote a handy, backup utility for the original and modified versions of sBitx software. It can be installed from sBitx Toolbox and is called sBITX EZ Data. This will copy your critical, data files to a USB drive. Check it out from the links above. Or you can continue below and copy the contents to a USB drive manually.
 
 You can make a copy of your original sbitx folder in entirety by using this set of commands from terminal
 ```console
@@ -54,7 +56,7 @@ Release v1.0 is scheduled be to available in June 2024
 
 ****Download The 32 Bit Image****
 -----
-A 32 bit image will be available in the future. It is highly advised to NOT use 32 bit because support for the operating system will no longer provide security patches or feature enhancements in June 2024.
+A 32 bit image will be available in the future. It is highly advised to NOT use 32 bit because support for the operating system no longer provides security patches or feature enhancements as of June 2024.
 
 The 32 bit version will be provided for experimental use or to reload back to the stock configuration.
 
