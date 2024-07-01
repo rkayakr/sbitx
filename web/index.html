@@ -60,6 +60,7 @@
 				<option value="FT8">FT8</option>
 				<option value="DIGITAL">DIGITAL</option> 
 				<option value="2TONE">2TONE</option>
+        <option value="AM">AM</option>
 			</select>
 		</div><div class="sbitxv3-control" id="dial">
     	<span id="current_freq">A:00.000.000</span> 
@@ -89,6 +90,23 @@
       	<input type="range" class="linear-slider"
         	id="slider_BW" max="5000" min="50" step="50" value="13" />
 			</div>
+    
+   <!--  
+    	</div><div class="linear rx-control" id="LOW">
+    	<div class="linear-label">LOW</div>
+    	<input type="number" id="LOW" min="0" max="4000" class="linear-value" />
+     	<div class="linear-dropdown">
+      	<input type="range" class="linear-slider"
+        	id="slider_LOW" max="4000" min="50" step="10" value="13" /> 
+			</div>
+            	</div><div class="linear rx-control" id="HIGH">
+    	<div class="linear-label">HIGH</div>
+    	<input type="number" id="HIGH" min="50" max="4000" class="linear-value" />
+     	<div class="linear-dropdown">
+      	<input type="range" class="linear-slider"
+        	id="slider_HIGH" max="4000" min="50" step="10" value="13" /> 
+			</div>
+   -->
 		</div><div class="linear rx-control" id="linear_IF">
     	<div class="linear-label">IF</div>
     	<input type="number" id="IF" min="0" max="100" class="linear-value" />
@@ -136,6 +154,12 @@
 		</div><div class="sbitxv3-control">
 			<div class="sbitxv3-label">RIT</div>
 			<select class="sbitxv3-selection sbitx-selection" id="RIT">
+				<option value="OFF">OFF</option>
+				<option value="ON">ON</option>
+			</select>
+      </div><div class="sbitxv3-control">
+			<div class="sbitxv3-label">QRO</div>
+			<select class="sbitxv3-selection sbitx-selection" id="QRO">
 				<option value="OFF">OFF</option>
 				<option value="ON">ON</option>
 			</select>
@@ -576,6 +600,8 @@ function do_login() {
 		audio_start();
 }
 
+
+
 // ui panel switchers
 function show_login(){
 	$("#login_panel").show();
@@ -873,31 +899,42 @@ $('#waterfall').mousedown(function(e) {
 var nbins = 0;
 
 function spectrum_update(update){
-	var w = el("spectrum");
-	var ctx = w.getContext("2d");
-	nbins = update.length - 3; //the first three characters are the  status
- 	var scale = w.width/nbins;
-	var height = w.height - 15;
-	ctx.fillStyle = "#000";
-	ctx.fillRect(0,0,w.width, w.height);
+    var w = el("spectrum");
+    var ctx = w.getContext("2d");
+    nbins = update.length - 3; //the first three characters are the status
+    var scale = w.width / nbins;
+    var height = w.height - 15;
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, w.width, w.height);
 
-	//draw the filter block
-	var low = el("LOW").value;
-	var high = el("HIGH").value;
-	var mode = el("MODE").value;
-	var status = el("STATUS").value;
-	var calculated_span = nbins * 46.875; //this comes from the sampling rate of the sdr
-	var hz_per_pixel = w.width / calculated_span;
-	
-	ctx.fillStyle = "#444";
-	if (mode == 'LSB' || mode == 'CWR'){
-		ctx.fillRect(w.width/2 - (hz_per_pixel * high), 0, 
-			(high-low) * hz_per_pixel, height);
-	}
-	else { 
-		ctx.fillRect(w.width/2 + (hz_per_pixel * low), 0, 
-			(high-low) * hz_per_pixel, height);
-	}
+    //draw the filter block
+    var bw = parseFloat(el("BW").value); // Use BW setting for bandwidth
+    var low = parseFloat(el("LOW").value);
+    var high = parseFloat(el("HIGH").value);
+    var mode = el("MODE").value;
+    var status = el("STATUS").value;
+    var calculated_span = nbins * 46.875; //this comes from the sampling rate of the sdr
+    var hz_per_pixel = w.width / calculated_span;
+    
+    ctx.fillStyle = "#444";
+    if (mode == 'LSB' || mode == 'CWR'){
+        ctx.fillRect(w.width/2 - (hz_per_pixel * high), 0, 
+            (high - low) * hz_per_pixel, height); // existing logic for LSB and CWR modes
+    } else if (mode == 'AM') {
+        var centerFrequency = w.width / 2;
+        var blockWidth = bw * hz_per_pixel * 2; // cover both sidebands
+
+        ctx.fillRect(centerFrequency - blockWidth / 2, 0, blockWidth, height);
+    } else { 
+        if (mode == 'USB') {
+            ctx.fillRect(w.width/2 + (hz_per_pixel * low), 0, 
+                (high - low) * hz_per_pixel, height); // USB mode
+        } else {
+            ctx.fillRect(w.width/2 + (hz_per_pixel * low), 0, 
+                (high - low) * hz_per_pixel, height); // other modes
+        }
+    }
+
 
 	//draw the grid
 	ctx.beginPath();
@@ -962,6 +999,20 @@ function spectrum_update(update){
 		ctx.lineTo(w.width/2 - (rx_pitch * hz_per_pixel), height);
 		ctx.fillText("RX", w.width/2 - (rx_pitch * hz_per_pixel)-10, height+12);
 	}
+ //W2JON
+ else if (mode == 'AM') {
+    // Draw RX line for AM centered
+    ctx.moveTo(w.width/2, 0);
+    ctx.lineTo(w.width/2, height);
+    ctx.fillText("RX", w.width/2 - 10, height + 12);
+
+    // Optionally, we can draw TX line for AM bu tthere is ZERO reason to do so
+    //ctx.moveTo(w.width/2 + (tx_pitch * hz_per_pixel), 0);
+    //ctx.lineTo(w.width/2 + (tx_pitch * hz_per_pixel), height);
+    //ctx.fillText("TX", w.width/2 + (tx_pitch * hz_per_pixel) - 10, height + 12);
+    //ctx.fillText("TX", w.width/2 - 10, height + 12);
+}
+ //-
 	else{
 		ctx.moveTo(w.width/2 + (rx_pitch * hz_per_pixel), 0);
 		ctx.lineTo(w.width/2 + (rx_pitch * hz_per_pixel), height);
@@ -969,7 +1020,7 @@ function spectrum_update(update){
 	}
 	ctx.stroke();
 
-
+//
 	//draw the tx line separately only for FT8 
 	if (mode != "FT8")
 		return;
@@ -983,6 +1034,20 @@ function spectrum_update(update){
 		ctx.lineTo(w.width/2 - (tx_pitch * hz_per_pixel), height);
 		ctx.fillText("TX", w.width/2 - (tx_pitch * hz_per_pixel)-10, height+12);
 	}
+  //W2JON
+ else if (mode == 'AM') {
+    // Draw RX line for AM centered
+    ctx.moveTo(w.width/2, 0);
+    ctx.lineTo(w.width/2, height);
+    ctx.fillText("RX", w.width/2 - 10, height + 12);
+
+    // Optionally, we can draw TX line for AM 
+    ctx.moveTo(w.width/2 + (tx_pitch * hz_per_pixel), 0);
+    ctx.lineTo(w.width/2 + (tx_pitch * hz_per_pixel), height);
+    //ctx.fillText("TX", w.width/2 + (tx_pitch * hz_per_pixel) - 10, height + 12);
+    //ctx.fillText("TX", w.width/2 - 10, height + 12);
+}
+ //-
 	else{
 		ctx.moveTo(w.width/2 + (tx_pitch * hz_per_pixel), 0);
 		ctx.lineTo(w.width/2 + (tx_pitch * hz_per_pixel), height);
