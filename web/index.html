@@ -1004,28 +1004,6 @@ function spectrum_update(update){
 		ctx.lineTo(w.width/2 - (rx_pitch * hz_per_pixel), height);
 		ctx.fillText("RX", w.width/2 - (rx_pitch * hz_per_pixel)-10, height+12);
 	}
- //W2JON
- else if (mode == 'AM') {
-    // Draw RX line for AM centered
-    ctx.moveTo(w.width/2, 0);
-    ctx.lineTo(w.width/2, height);
-    ctx.fillText("RX", w.width/2 - 10, height + 12);
-
-    // Optionally, we can draw TX line for AM bu tthere is ZERO reason to do so
-    ctx.moveTo(w.width/2 + (tx_pitch * hz_per_pixel), 0);
-    ctx.lineTo(w.width/2 + (tx_pitch * hz_per_pixel), height);
-    //ctx.fillText("TX", w.width/2 + (tx_pitch * hz_per_pixel) - 10, height + 12);
-    //ctx.fillText("TX", w.width/2 - 10, height + 12);
-}
- //-
-	else{
-		ctx.moveTo(w.width/2 + (rx_pitch * hz_per_pixel), 0);
-		ctx.lineTo(w.width/2 + (rx_pitch * hz_per_pixel), height);
-		ctx.fillText("RX", w.width/2 + (rx_pitch * hz_per_pixel)-10, height+12);
-	}
-	ctx.stroke();
-
-//
 	//draw the tx line separately only for FT8 
 	if (mode != "FT8")
 		return;
@@ -2065,6 +2043,7 @@ function mode_set(new_mode){
 			$("#CW_ui").show();
 			logger_set_macro("CW1");
 		break;
+    case "AM":
 		case "LSB":
 		case "USB":
 		case "2TONE":
