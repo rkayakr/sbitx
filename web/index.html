@@ -988,8 +988,13 @@ function spectrum_update(update){
 
 	//now, draw the tx and rx lines
 	var rx_pitch = el("PITCH").value;
+ 
+ if (mode == 'AM') {
+  var tx_pitch = 0;
+  }else{
 	var tx_pitch = el("TX_PITCH").value;
-
+  }
+  
 	ctx.beginPath();
 	ctx.font = "12px Sans";
 	ctx.strokeStyle = "cyan";
@@ -1007,8 +1012,8 @@ function spectrum_update(update){
     ctx.fillText("RX", w.width/2 - 10, height + 12);
 
     // Optionally, we can draw TX line for AM bu tthere is ZERO reason to do so
-    //ctx.moveTo(w.width/2 + (tx_pitch * hz_per_pixel), 0);
-    //ctx.lineTo(w.width/2 + (tx_pitch * hz_per_pixel), height);
+    ctx.moveTo(w.width/2 + (tx_pitch * hz_per_pixel), 0);
+    ctx.lineTo(w.width/2 + (tx_pitch * hz_per_pixel), height);
     //ctx.fillText("TX", w.width/2 + (tx_pitch * hz_per_pixel) - 10, height + 12);
     //ctx.fillText("TX", w.width/2 - 10, height + 12);
 }
