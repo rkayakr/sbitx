@@ -21,8 +21,7 @@ There are two methods that you can use to perform a backup. I wrote a handy, bac
 
 You can make a copy of your original sbitx folder in entirety by using this set of commands from terminal
 ```console
-cd $HOME
-mv sbitx sbitx_orig
+cd $HOME && mv sbitx sbitx_orig
 ```
 You can restore the sbitx/data and sbitx/web folders from your backup to the newly installed sbitx folder using these commands from terminal
 ```console
