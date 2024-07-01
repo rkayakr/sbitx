@@ -42,6 +42,8 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "i2cbb.h"
 #include "webserver.h"
 #include "logbook.h"
+#include "ntputil.h"
+
 
 #define FT8_START_QSO 1
 #define FT8_CONTINUE_QSO 0
@@ -461,8 +463,8 @@ int current_layout = LAYOUT_KBD;
 // the cmd fields that have '#' are not to be sent to the sdr
 struct field main_controls[] = {
 	/* band stack registers */
-	{"#10m", NULL, 50, 5, 40, 40, "10M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
-		"", 0,0,0,COMMON_CONTROL},
+ 	{"#10m", NULL, 50, 5, 40, 40, "10M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+  	"", 0,0,0,COMMON_CONTROL},
 	{"#12m", NULL, 90, 5, 40, 40, "12M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 0,0,0,COMMON_CONTROL},
 	{"#15m", NULL, 130, 5, 40, 40, "15M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
@@ -488,34 +490,28 @@ struct field main_controls[] = {
 		"OFF/SLOW/MED/FAST", 0, 1024, 1,COMMON_CONTROL},
 	{ "tx_power", NULL, 455, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 1, 100, 1,COMMON_CONTROL},
-
-
 	{ "r1:freq", do_tuning, 600, 0, 150, 49, "FREQ", 5, "14000000", FIELD_NUMBER, FONT_LARGE_VALUE, 
 		"", 500000, 30000000, 100,COMMON_CONTROL},
-
 	{ "r1:volume", NULL, 755, 5, 40, 40, "AUDIO", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 0, 100, 1,COMMON_CONTROL},
-
 	{"#step", NULL, 560, 5 ,40, 40, "STEP", 1, "10Hz", FIELD_SELECTION, FONT_FIELD_VALUE, 
 		"10K/1K/500H/100H/10H", 0,0,0,COMMON_CONTROL},
 	{"#span", NULL, 560, 50 , 40, 40, "SPAN", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE, 
 		"25K/10K/6K/2.5K", 0,0,0,COMMON_CONTROL},
-
 	{"#rit", NULL, 600, 50, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,0,0,COMMON_CONTROL},
 	{"#vfo", NULL, 640, 50 , 40, 40, "VFO", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE, 
 		"A/B", 0,0,0,COMMON_CONTROL},
 	{"#split", NULL, 680, 50, 40, 40, "SPLIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,0,0,COMMON_CONTROL},
-
+	{"#qro", NULL, 473, 50, 40, 40, "QRO", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF", 0,0,0,COMMON_CONTROL},
 	{ "#bw", do_bandwidth, 495, 5, 40, 40, "BW", 40, "", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 50, 5000, 50,COMMON_CONTROL},
-
 	{ "r1:mode", NULL, 5, 5, 40, 40, "MODE", 40, "USB", FIELD_SELECTION, FONT_FIELD_VALUE, 
-		"USB/LSB/CW/CWR/FT8/DIGITAL/2TONE", 0,0,0, COMMON_CONTROL},
+		"USB/LSB/CW/CWR/FT8/AM/DIGITAL/2TONE", 0,0,0, COMMON_CONTROL},
 
 	/* logger controls */
-
 	{"#contact_callsign", do_text, 5, 50, 85, 20, "CALL", 70, "", FIELD_TEXT, FONT_LOG, 
 		"", 0,11,0,COMMON_CONTROL},
 	{"#rst_sent", do_text, 90, 50, 50, 20, "SENT", 70, "", FIELD_TEXT, FONT_LOG, 
@@ -546,11 +542,11 @@ struct field main_controls[] = {
 
 	{ "tx_compress", NULL, 600, -350, 50, 50, "COMP", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,100,10, VOICE_CONTROL},
+   
 	{ "#tx_wpm", NULL, 650, -350, 50, 50, "WPM", 40, "12", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 1, 50, 1, CW_CONTROL},
 	{ "rx_pitch", do_pitch, 700, -350, 50, 50, "PITCH", 40, "600", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 100, 3000, 10, FT8_CONTROL | DIGITAL_CONTROL},
-	
 
 	{ "#tx", NULL, 1000, -1000, 50, 50, "TX", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"RX/TX", 0,0, 0, VOICE_CONTROL},
@@ -558,11 +554,10 @@ struct field main_controls[] = {
 	{ "#rx", NULL, 650, -400, 50, 50, "RX", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"RX/TX", 0,0, 0, VOICE_CONTROL | DIGITAL_CONTROL},
 	
-
 	{"r1:low", NULL, 660, -350, 50, 50, "LOW", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100,4000, 50, 0, DIGITAL_CONTROL},
+		"", 100,5000, 50, 0, DIGITAL_CONTROL},
 	{"r1:high", NULL, 580, -350, 50, 50, "HIGH", 40, "3000", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100, 10000, 50, 0, DIGITAL_CONTROL},
+		"", 100, 5000, 50, 0, DIGITAL_CONTROL},
 
 	{"spectrum", do_spectrum, 400, 101, 400, 100, "SPECTRUM", 70, "7000 KHz", FIELD_STATIC, FONT_SMALL, 
 		"", 0,0,0, COMMON_CONTROL},  
@@ -576,6 +571,7 @@ struct field main_controls[] = {
 
 	{"#log_ed", NULL, 0, 480, 480, 20, "", 70, "", FIELD_STATIC, FONT_LOG, 
 		"nothing valuable", 0,128,0, 0},
+   
   // other settings - currently off screen
   { "reverse_scrolling", NULL, 1000, -1000, 50, 50, "RS", 40, "ON", FIELD_TOGGLE, FONT_FIELD_VALUE,
     "ON/OFF", 0,0,0, 0},
@@ -634,6 +630,8 @@ struct field main_controls[] = {
     "", 300, 3000, 50, 0},
   {"#bw_digital", NULL, 1000, -1000, 50, 50, "BW_DIGITAL", 40, "3000", FIELD_NUMBER, FONT_FIELD_VALUE,
     "", 300, 3000, 50, 0},
+  {"#bw_am", NULL, 1000, -1000, 50, 50, "BW_AM", 40, "5000", FIELD_NUMBER, FONT_FIELD_VALUE,
+    "", 300, 6000, 50, 0 },
 
 	//FT8 controls
 	{"#ft8_auto", NULL, 1000, -1000, 50, 50, "FT8_AUTO", 40, "ON", FIELD_TOGGLE, FONT_FIELD_VALUE, 
@@ -729,11 +727,9 @@ struct field main_controls[] = {
 
 	//row 3
 
-
-
 	{"#mfedit", do_macro, 195, 1440, 65, 40, "Edit", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,0}, 
 
-	{"#mfspot"	, do_macro, 260, 1440, 70, 40, "Spot", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,0}, 
+	{"#mfspot", do_macro, 260, 1440, 70, 40, "Spot", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,0}, 
 
 	{"#mfkbd", do_macro, 330, 1440, 70, 40, "Kbd", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,0}, 
 
@@ -1670,33 +1666,43 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 	//calculate the position of bandwidth strip
 	int filter_start, filter_width;
 
-	if(!strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "LSB")){
-	 	filter_start = f_spectrum->x + (f_spectrum->width/2) - 
-			((f_spectrum->width * bw_high)/(span * 1000)); 
-		if (filter_start < f_spectrum->x){
-	 	  filter_width = ((f_spectrum->width * (bw_high -bw_low))/(span * 1000)) - (f_spectrum->x - filter_start); 
-			filter_start = f_spectrum->x;
+if(!strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "LSB")){
+    filter_start = f_spectrum->x + (f_spectrum->width/2) - 
+        ((f_spectrum->width * bw_high)/(span * 1000)); 
+    if (filter_start < f_spectrum->x){
+        filter_width = ((f_spectrum->width * (bw_high -bw_low))/(span * 1000)) - (f_spectrum->x - filter_start); 
+        filter_start = f_spectrum->x;
     } else {
-	 	  filter_width = (f_spectrum->width * (bw_high -bw_low))/(span * 1000); 
+        filter_width = (f_spectrum->width * (bw_high -bw_low))/(span * 1000); 
     }
-		if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
-			filter_width = f_spectrum->x + f_spectrum->width - filter_start;
-		pitch = f_spectrum->x + (f_spectrum->width/2) -
-			((f_spectrum->width * pitch)/(span * 1000));
-	}
-	else {
-		filter_start = f_spectrum->x + (f_spectrum->width/2) + 
-			((f_spectrum->width * bw_low)/(span * 1000)); 
-		if (filter_start < f_spectrum->x)
-			filter_start = f_spectrum->x;
-		filter_width = (f_spectrum->width * (bw_high-bw_low))/(span * 1000); 
-		if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
-			filter_width = f_spectrum->x + f_spectrum->width - filter_start;
-		pitch = f_spectrum->x + (f_spectrum->width/2) + 
-			((f_spectrum->width * pitch)/(span * 1000));
-		tx_pitch = f_spectrum->x + (f_spectrum->width/2) + 
-			((f_spectrum->width * tx_pitch)/(span * 1000));
-	}
+    if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
+        filter_width = f_spectrum->x + f_spectrum->width - filter_start;
+    pitch = f_spectrum->x + (f_spectrum->width/2) -
+        ((f_spectrum->width * pitch)/(span * 1000));
+} else if (!strcmp(mode_f->value, "AM")) {
+    // For AM mode, cover both sidebands
+    filter_start = f_spectrum->x + (f_spectrum->width/2) - 
+        ((f_spectrum->width * bw_high)/(span * 1000)); 
+    if (filter_start < f_spectrum->x)
+        filter_start = f_spectrum->x;
+    filter_width = (f_spectrum->width * (bw_high + bw_low))/(span * 1000); 
+    if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
+        filter_width = f_spectrum->x + f_spectrum->width - filter_start;
+    pitch = f_spectrum->x + (f_spectrum->width/2);  // Center pitch for AM
+} else {
+    filter_start = f_spectrum->x + (f_spectrum->width/2) + 
+        ((f_spectrum->width * bw_low)/(span * 1000)); 
+    if (filter_start < f_spectrum->x)
+        filter_start = f_spectrum->x;
+    filter_width = (f_spectrum->width * (bw_high - bw_low))/(span * 1000); 
+    if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
+        filter_width = f_spectrum->x + f_spectrum->width - filter_start;
+    pitch = f_spectrum->x + (f_spectrum->width/2) + 
+        ((f_spectrum->width * pitch)/(span * 1000));
+    tx_pitch = f_spectrum->x + (f_spectrum->width/2) + 
+        ((f_spectrum->width * tx_pitch)/(span * 1000));
+}
+
 	// clear the spectrum	
 	f = f_spectrum;
 	fill_rect(gfx, f->x,f->y, f->width, f->height, SPECTRUM_BACKGROUND);
@@ -2460,8 +2466,10 @@ void save_bandwidth(int hz){
 		case MODE_USB:
 		case MODE_LSB:
 		case MODE_NBFM:
+			field_set("BW_VOICE", bw);
+			break;
 		case MODE_AM:
-			field_set("BW_VOICE",bw); 
+			field_set("BW_AM",bw); 
 			break;
 		default:
 			field_set("BW_DIGITAL",bw); 
@@ -2492,6 +2500,11 @@ void set_filter_high_low(int hz){
 		case MODE_DIGITAL:
 			low = atoi(f_pitch->value) - (hz/2);
 			high = atoi(f_pitch->value) + (hz/2);
+			break;
+		case MODE_AM:
+		//	low = 50;
+			low = hz;
+			high = hz;
 			break;
 		case MODE_FT8:
 			low = 50;
@@ -2633,6 +2646,9 @@ int do_pitch(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 			case MODE_USB:
 			case MODE_LSB:
 				bw = field_int("BW_VOICE");
+				break;
+			case MODE_AM:
+				bw = field_int("BW_AM");
 				break;
 			case MODE_FT8:
 				bw = 4000;
@@ -2951,6 +2967,17 @@ void tx_on(int trigger){
 		return;
 	}
 
+//------Added to toggle QRO enable/disable W2JON
+	struct field* qro = get_field("#qro");
+	if (qro) {
+		if (!strcmp(qro->value, "ON")) {
+			ext_ptt_enable = 1;
+		}
+		else if (!strcmp(qro->value, "OFF")) {
+			ext_ptt_enable = 0;
+		}
+	}
+//-----------
 	struct field *f = get_field("r1:mode");
 	if (f){
 		if (!strcmp(f->value, "CW"))
@@ -2979,6 +3006,7 @@ void tx_on(int trigger){
 		set_operating_freq(atoi(freq->value), response);
 		update_field(get_field("r1:freq"));
 		printf("TX\n");
+    printf("ext_ptt_enable value: %d\n", ext_ptt_enable); //Added to debug the switch. W2JON
 	}
 
 	tx_start_time = millis();
@@ -3681,6 +3709,9 @@ void set_radio_mode(char *mode){
 		case MODE_USB:
 			new_bandwidth = field_int("BW_VOICE");
 			break;
+		case MODE_AM:
+			new_bandwidth = field_int("BW_AM");
+			break;
 		case MODE_FT8:
 			new_bandwidth = 4000;
 			break;
@@ -3769,6 +3800,9 @@ gboolean ui_tick(gpointer gook){
 		case MODE_FT8:
 			tick_count = 200;
 			break;
+    case MODE_AM:
+      tick_count = 50;
+      break;  
 		default:
 			tick_count = 100; 
 	}
@@ -3860,8 +3894,8 @@ gboolean ui_tick(gpointer gook){
  
 	f = get_field("r1:mode");
 	//straight key in CW
-	if (f && (!strcmp(f->value, "2TONE") || !strcmp(f->value, "LSB") || 
-	!strcmp(f->value, "USB"))){
+	if (f && (!strcmp(f->value, "2TONE") || !strcmp(f->value, "LSB") 
+	|| !strcmp(f->value, "AM") || !strcmp(f->value, "USB"))){
 		if (digitalRead(PTT) == LOW && in_tx == 0)
 			tx_on(TX_PTT);
 		else if (digitalRead(PTT) == HIGH && in_tx  == TX_PTT)
@@ -4528,7 +4562,10 @@ int main( int argc, char* argv[] ) {
 	q_init(&q_remote_commands, 1000); //not too many commands
 	q_init(&q_tx_text, 100); //best not to have a very large q 
 	setup();
-
+// --- Check time against NTP sevrer
+	const char* ntp_server = "pool.ntp.org";
+	sync_system_time(ntp_server);
+// ---
 	rtc_sync();
 
 	struct field *f;
@@ -4604,10 +4641,12 @@ int main( int argc, char* argv[] ) {
 	set_field("#text_in", "");
 	field_set("REC", "OFF");
 	field_set("KBD", "OFF");
+    field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
 
 	// you don't want to save the recently loaded settings
 	settings_updated = 0;
-  hamlib_start();
+	
+	hamlib_start();
 	remote_start();
 
 	rtc_read();
