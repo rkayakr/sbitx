@@ -412,7 +412,7 @@ void tx_init(int frequency, short mode, int bpf_low, int bpf_high){
 	//the tuning can go up and down only by 22 KHz from the center_freq
 
 	tx_filter = filter_new(1024, 1025);
-//	filter_tune(tx_filter, (1.0 * bpf_low)/96000.0, (1.0 * bpf_high)/96000.0 , 5);
+	//filter_tune(tx_filter, (1.0 * bpf_low)/96000.0, (1.0 * bpf_high)/96000.0 , 5);
 }
 
 struct rx *add_tx(int frequency, short mode, int bpf_low, int bpf_high){
@@ -1383,7 +1383,7 @@ void setup(){
 	add_rx(7000000, MODE_LSB, -3000, -300);
 	add_tx(7000000, MODE_LSB, -3000, -300);
 	rx_list->tuned_bin = 512;
-  tx_list->tuned_bin = 512;
+	tx_list->tuned_bin = 512;
 	tx_init(7000000, MODE_LSB, -3000, -150);
 
 	//detect the version of sbitx
@@ -1457,8 +1457,8 @@ void sdr_request(char *request, char *response){
 		// the IF now is going to be 34 - 7.001 MHz = 26.999 MHz which 
 		// converts to a second IF of 26.999 - 27.025 = 26 KHz
 		// Effectively, if a signal moves up, so does the second IF
-
-		if (rx_list->mode == MODE_AM){
+   
+			if (rx_list->mode == MODE_AM){
 			puts("\n\n\ntx am filter ");
 			filter_tune(tx_list->filter, 
 				(1.0 * 20000)/96000.0, 
@@ -1468,27 +1468,28 @@ void sdr_request(char *request, char *response){
 				(1.0 * 20000)/96000.0, 
 				(1.0 * 30000)/96000.0 , 
 				5);
-		}
+		} 
+
 		else if (rx_list->mode == MODE_LSB || rx_list->mode == MODE_CWR){
 			puts("\n\n\ntx LSB filter ");
 			filter_tune(tx_list->filter, 
-				(1.0 * -3000)/96000.0, 
-				(1.0 * -300)/96000.0 , 
+				(1.0 * -3500)/96000.0, 
+				(1.0 * -100)/96000.0 , 
 				5);
 			filter_tune(tx_filter, 
-				(1.0 * -3000)/96000.0, 
-				(1.0 * -300)/96000.0 , 
+				(1.0 * -3500)/96000.0, 
+				(1.0 * -100)/96000.0 , 
 				5);
 		}
 		else { 
 			puts("\n\n\ntx USB filter ");
 			filter_tune(tx_list->filter, 
 				(1.0 * 300)/96000.0, 
-				(1.0 * 3000)/96000.0 , 
+				(1.0 * 3500)/96000.0 , 
 				5);
 			filter_tune(tx_filter, 
 				(1.0 * 300)/96000.0, 
-				(1.0 * 3000)/96000.0 , 
+				(1.0 * 3500)/96000.0 , 
 				5);
 		}
 	
