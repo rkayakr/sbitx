@@ -45,6 +45,8 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "ntputil.h"
 
 
+
+
 #define FT8_START_QSO 1
 #define FT8_CONTINUE_QSO 0
 void ft8_process(char *received, int operation);
@@ -442,6 +444,7 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_pitch(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_toggle_menu(struct field* f, cairo_t* gfx, int event, int a, int b, int c);
 int do_mouse_move(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
@@ -534,6 +537,7 @@ struct field main_controls[] = {
 		"ON/OFF", 0,0, 0,COMMON_CONTROL},
 
 
+
 /* end of common controls */
 
 	//tx 
@@ -553,7 +557,10 @@ struct field main_controls[] = {
 
 	{ "#rx", NULL, 650, -400, 50, 50, "RX", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"RX/TX", 0,0, 0, VOICE_CONTROL | DIGITAL_CONTROL},
-	
+
+	{ "#toggle_menu", do_toggle_menu, 500, -500, 40, 40, "MENU", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF", 0,0, 0,VOICE_CONTROL},
+
 	{"r1:low", NULL, 660, -350, 50, 50, "LOW", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 100,5000, 50, 0, DIGITAL_CONTROL},
 	{"r1:high", NULL, 580, -350, 50, 50, "HIGH", 40, "3000", FIELD_NUMBER, FONT_FIELD_VALUE, 
@@ -2078,6 +2085,7 @@ static void layout_ui(){
 			field_move("HIGH", 160, y1, 95, 45);
 			field_move("TX", 260, y1, 95, 45);
 			field_move("RX", 360, y1, 95, 45);
+			field_move("MENU", 460, y1, 45, 45);
 		break;
 		default:
 			field_move("CONSOLE", 5, y1, 350, y2-y1-110);
@@ -2837,7 +2845,13 @@ int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	}
 	return 0;
 }
-
+int do_toggle_menu(struct field* f, cairo_t* gfx, int event, int a, int b, int c) {
+	if (event == GDK_BUTTON_PRESS) {
+		//THIS SPACE FOR RENT-W2JON
+		return 1;
+	}
+	return 0;
+}
 
 void open_url(char *url){
 	char temp_line[200];
@@ -4562,11 +4576,11 @@ int main( int argc, char* argv[] ) {
 	q_init(&q_remote_commands, 1000); //not too many commands
 	q_init(&q_tx_text, 100); //best not to have a very large q 
 	setup();
-// --- Check time against NTP sevrer
-	const char* ntp_server = "pool.ntp.org";
-	sync_system_time(ntp_server);
-// ---
-	rtc_sync();
+    // --- Check time against NTP server
+    const char* ntp_server = "pool.ntp.org";
+    sync_system_time(ntp_server);
+    // ---
+  rtc_sync();
 
 	struct field *f;
 	f = active_layout;
