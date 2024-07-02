@@ -558,8 +558,9 @@ struct field main_controls[] = {
 	{ "#rx", NULL, 650, -400, 50, 50, "RX", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"RX/TX", 0,0, 0, VOICE_CONTROL | DIGITAL_CONTROL},
 
-	{ "#toggle_menu", do_toggle_menu, 500, -500, 40, 40, "MENU", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
-		"ON/OFF", 0,0, 0,VOICE_CONTROL},
+// This control is being saved for a possible sub menu where audio tools or other settings may be reviewed and edited
+//	{ "#toggle_menu", do_toggle_menu, 500, -500, 40, 40, "MENU", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+//		"ON/OFF", 0,0, 0,VOICE_CONTROL},
 
 	{"r1:low", NULL, 660, -350, 50, 50, "LOW", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 100,5000, 50, 0, DIGITAL_CONTROL},
