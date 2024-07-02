@@ -1458,7 +1458,7 @@ void sdr_request(char *request, char *response){
 		// converts to a second IF of 26.999 - 27.025 = 26 KHz
 		// Effectively, if a signal moves up, so does the second IF
    
-			if (rx_list->mode == MODE_AM){
+		if (rx_list->mode == MODE_AM){
 			puts("\n\n\ntx am filter ");
 			filter_tune(tx_list->filter, 
 				(1.0 * 20000)/96000.0, 
