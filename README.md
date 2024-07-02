@@ -28,23 +28,10 @@ You can restore the sbitx/data and sbitx/web folders from your backup to the new
 cd $HOME && cp -r sbitx_orig/web/* sbitx/web/ && cp -r sbitx_orig/data/* sbitx/data/
 ```
 
-sBitx App First Installation
+sBitx App First Installation anf Upgrades
 -----
 
-Open terminal and type (or copy and paste this):
-
-```console
-cd $HOME && git clone https://github.com/drexjj/sbitx.git && cd sbitx && ./update
-```
-
-sBitx App Upgrade
------
-
-Open terminal and type (or copy and paste this):
-
-```console
-cd $HOME && cd sbitx && ./update
-```
+Visit the new Wiki page for more information [HERE](https://github.com/drexjj/sbitx/wiki/How-to-install-upgrade-your-sBitx-application)  
 
 
 ****Download The 64 Bit Image****
@@ -53,7 +40,7 @@ A preconfigured, downloadable Raspberry Pi 4 image file is available as a beta r
 
 As a bonus, sBITX Toolbox is preinstalled on the image as well as other useful tools for ham radio use.
 
-A new production version is available [HERE](https://github.com/drexjj/sbitx/releases)
+A new, production version is available [HERE](https://github.com/drexjj/sbitx/releases)
 
 
 ****Download The 32 Bit Image****
