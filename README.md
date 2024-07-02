@@ -31,7 +31,7 @@ cd $HOME && cp -r sbitx_orig/web/* sbitx/web/ && cp -r sbitx_orig/data/* sbitx/d
 sBitx App First Installation anf Upgrades
 -----
 
-Visit the new Wiki page for more information [HERE](https://github.com/drexjj/sbitx/wiki/How-to-install-upgrade-your-sBitx-application)  
+Visit the new Wiki page for more information [HERE](https://github.com/drexjj/sbitx/wiki/How-to-install-or-upgrade-your-sBitx-application)  
 
 
 ****Download The 64 Bit Image****
