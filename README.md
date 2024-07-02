@@ -28,7 +28,7 @@ You can restore the sbitx/data and sbitx/web folders from your backup to the new
 cd $HOME && cp -r sbitx_orig/web/* sbitx/web/ && cp -r sbitx_orig/data/* sbitx/data/
 ```
 
-sBitx App First Installation anf Upgrades
+sBitx App First Installation and Upgrades
 -----
 
 Visit the new Wiki page for more information [HERE](https://github.com/drexjj/sbitx/wiki/How-to-install-or-upgrade-your-sBitx-application)  
