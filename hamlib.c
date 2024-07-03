@@ -231,39 +231,28 @@ void hamlib_slice(){
     incoming_ptr = 0;
     data_socket = e;
     fcntl(data_socket, F_SETFL, fcntl(data_socket, F_GETFL) | O_NONBLOCK);
-  }
-  else { 
-    len = recv(data_socket, buffer, sizeof(buffer), 0);
-    if (len >= 0){
-      buffer[len] = 0;
-      hamlib_handler(buffer, len);
     }
-    else {
-      //e = errno();
-      if (errno == EAGAIN || errno == EWOULDBLOCK)
-        return;
-      //for other errors, just close the socket
-			puts("Hamlib connection dropped. Restarting to listen ..."); 
-      close(data_socket);
-      data_socket = -1;      
+        // closing blocks modified by JJ W9JES
+        else {
+        len = recv(data_socket, buffer, sizeof(buffer), 0);
+        if (len > 0) {
+            buffer[len] = 0;
+            hamlib_handler(buffer, len);
+        } else if (len == 0) {
+            // Connection closed by client
+            puts("Client disconnected. Restarting to listen ...");
+            close(data_socket);
+            data_socket = -1;
+        } else {
+            // len < 0 indicates error
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                return;
+            }
+            // For other errors, close the socket
+            puts("Hamlib connection dropped. Restarting to listen ...");
+            close(data_socket);
+            data_socket = -1;     
     }
   } 
 }
-/*
-int main(){
-  struct sockaddr_storage serverStorage;
-  socklen_t addr_size;
-  char buffer[1024];
-  int len;
-
-  puts("Starting server\n");
-  hamlib_start();
-  puts("Server started\n");
-  while (1){
-    hamlib_slice();
-    usleep(1000);
-  }
-  return 0;
-}
-*/
 
