@@ -2050,8 +2050,10 @@ static void layout_ui(){
 		case MODE_CW:
 		case MODE_CWR:
 			field_move("CONSOLE", 5, y1, 350, y2-y1-110);
-			field_move("SPECTRUM", 360, y1, x2-365, 70);
-			field_move("WATERFALL", 360, y1+60, x2-365, y2-y1-110);
+			//field_move("SPECTRUM", 360, y1, x2-365, 100);
+			//field_move("WATERFALL", 360, y1+100, x2-365, y2-y1-110);
+			field_move("SPECTRUM", 360, y1, x2-365, 70);  //fixed W9JES
+			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);  //fixed W9JES
 			// first line below the decoder/waterfall
 			y1 = y2 - 97;
 			field_move("ESC", 5, y1, 70, 45);
