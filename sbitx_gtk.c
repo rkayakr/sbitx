@@ -381,7 +381,6 @@ static int xit = 512;
 static long int tuning_step = 1000;
 static int tx_mode = MODE_USB;
 
-
 #define BAND80M	0
 #define BAND40M	1
 #define BAND30M 2	
@@ -507,9 +506,11 @@ struct field main_controls[] = {
 		"A/B", 0,0,0,COMMON_CONTROL},
 	{"#split", NULL, 680, 50, 40, 40, "SPLIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,0,0,COMMON_CONTROL},
-	{"#qro", NULL, 473, 50, 40, 40, "QRO", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+  {"#qro", NULL, 473, 50, 40, 40, "QRO", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF", 0,0,0,COMMON_CONTROL},
-	{ "#bw", do_bandwidth, 495, 5, 40, 40, "BW", 40, "", FIELD_NUMBER, FONT_FIELD_VALUE, 
+  {"#qro_control", NULL, 1000, -1000, 40, 40, "QRO_CONTROL", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF", 0,0,0,COMMON_CONTROL},
+  { "#bw", do_bandwidth, 495, 5, 40, 40, "BW", 40, "", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 50, 5000, 50,COMMON_CONTROL},
 	{ "r1:mode", NULL, 5, 5, 40, 40, "MODE", 40, "USB", FIELD_SELECTION, FONT_FIELD_VALUE, 
 		"USB/LSB/CW/CWR/FT8/AM/DIGITAL/2TONE", 0,0,0, COMMON_CONTROL},
@@ -2016,7 +2017,23 @@ static void layout_ui(){
 	field_move("VFO", x2-245, 50, 40, 40);
 	field_move("SPAN", x2-205, 50, 40, 40);
 	
+ 
+ 
+  //place the QRO control button off screen until the user manually enables it with \qro_control on (qro_control = ON) -W2JON
+   	struct field* qro_control = get_field("#qro_control");
+	if (qro_control) {
+		if (!strcmp(qro_control->value, "ON")) {
+     printf("QRO Control Enabled\n");
+     field_move("QRO",473, 50, 40, 40);
+ 		}
+		else if (!strcmp(qro_control->value, "OFF")) {
+     field_move("QRO",-1000,50,40,40);
+  	}
+	}
+  
 
+  
+  
 	if (!strcmp(field_str("KBD"), "ON")){
 		//take out 3 button widths from the bottom
 		y2 = screen_height - 150;
@@ -2984,17 +3001,18 @@ void tx_on(int trigger){
 		return;
 	}
 
-//------Added to toggle QRO enable/disable W2JON
+//------Added for QRO PTT enable/disable W2JON
 	struct field* qro = get_field("#qro");
 	if (qro) {
 		if (!strcmp(qro->value, "ON")) {
-			ext_ptt_enable = 1;
+    	ext_ptt_enable = 1;
 		}
 		else if (!strcmp(qro->value, "OFF")) {
 			ext_ptt_enable = 0;
 		}
 	}
-//-----------
+
+
 	struct field *f = get_field("r1:mode");
 	if (f){
 		if (!strcmp(f->value, "CW"))
@@ -4658,7 +4676,8 @@ int main( int argc, char* argv[] ) {
 	set_field("#text_in", "");
 	field_set("REC", "OFF");
 	field_set("KBD", "OFF");
-    field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
+  field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
+  
 
 	// you don't want to save the recently loaded settings
 	settings_updated = 0;
