@@ -481,11 +481,11 @@ struct field main_controls[] = {
 		"", 0,0,0,COMMON_CONTROL},
 	{"#80m", NULL, 330, 5, 40, 40, "80M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 0,0,0,COMMON_CONTROL},
-	{ "#record", do_record, 380, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
+	{ "#record", do_record, 378, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,0, 0,COMMON_CONTROL},
-	{ "#web", NULL, 420,5,  40, 40, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	{ "#web", NULL, 418,5,  40, 40, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 0,0, 0,COMMON_CONTROL},
-	{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL}, 
+	{"#set", NULL, 458, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL}, 
 	{ "r1:gain", NULL, 375, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 0, 100, 1,COMMON_CONTROL},
 	{ "r1:agc", NULL, 415, 5, 40, 40, "AGC", 40, "SLOW", FIELD_SELECTION, FONT_FIELD_VALUE, 
@@ -2004,15 +2004,15 @@ static void layout_ui(){
 	field_move("KBD", screen_width - 47, screen_height-47, 45, 45);
 
 	//now, move the main radio controls to the right
-	field_move("FREQ", x2-205, 0, 180, 40);
+	field_move("FREQ", x2-212, 0, 180, 40);
 	field_move("AUDIO", x2-45, 5, 40, 40);
 	field_move("IF", x2-45, 50, 40, 40);
 	field_move("DRIVE", x2-85, 50, 40, 40);
 	field_move("BW", x2-125, 50, 40, 40);
 	field_move("AGC", x2-165, 50, 40, 40);
 
-	field_move("STEP", x2-245, 5, 40, 40);
-	field_move("RIT", x2-285, 5, 40, 40);
+	field_move("STEP", x2-252, 5, 40, 40);
+	field_move("RIT", x2-292, 5, 40, 40);
 	field_move("SPLIT", x2-285, 50, 40, 40);
 	field_move("VFO", x2-245, 50, 40, 40);
 	field_move("SPAN", x2-205, 50, 40, 40);
