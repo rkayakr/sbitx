@@ -1,2 +1,7 @@
 data/hw_settings.ini
 data/user_settings.ini
+data/sbit.db
+sbitx
+sbit-fast
+audio/
+.vs/
