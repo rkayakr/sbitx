@@ -43,8 +43,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "webserver.h"
 #include "logbook.h"
 #include "ntputil.h"
-
-
+#include "para_eq.h"
 
 
 #define FT8_START_QSO 1
@@ -2577,6 +2576,15 @@ int do_status(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	return 0;
 }
 
+
+
+
+
+
+
+
+
+
 void execute_app(char *app){
 	char buff[1000];
 
@@ -2992,6 +3000,48 @@ int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	}
 	return 0;
 }
+
+
+//Functions to modify the Parametric EQ settings. W2JON
+
+void modify_eq_band_frequency(ParametricEQ *eq, int band_index, double new_frequency) {
+    if (band_index >= 0 && band_index < NUM_BANDS) {
+        eq->bands[band_index].frequency = new_frequency;
+    } else {
+        printf("Invalid Band Index Selected");
+    }
+}
+
+// Example usage: modify_eq_band_frequency(&eq, 3, 4105.0);  // Change frequency of band 3 to 4105.0 Hz
+
+void modify_eq_band_gain(ParametricEQ *eq, int band_index, double new_gain) {
+    // Limit gain range -16 to +16 dB
+    if (band_index >= 0 && band_index < NUM_BANDS) {
+        // Clamp gain within range
+        if (new_gain < -16.0) {
+            new_gain = -16.0;
+        } else if (new_gain > 16.0) {
+            new_gain = 16.0;
+        }
+        eq->bands[band_index].gain = new_gain;
+    } else {
+         printf("Invalid Band Index Selected");
+    }
+}
+
+// Example usage: modify_eq_band_gain(&eq, 1, 4.5);  // Change gain of band 1 to 4.5 dB
+
+void modify_eq_band_bandwidth(ParametricEQ *eq, int band_index, double new_bandwidth) {
+    if (band_index >= 0 && band_index < NUM_BANDS) {
+        eq->bands[band_index].bandwidth = new_bandwidth;
+    } else {
+         printf("Invalid Band Index Selected");
+    }
+}
+
+// Example usage: modify_eq_band_bandwidth(&eq, 2, 0.8);  // Change bandwidth of band 2 to 0.8
+
+
 
 void tx_on(int trigger){
 	char response[100];

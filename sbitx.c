@@ -21,10 +21,92 @@
 #include "i2cbb.h"
 #include "si5351.h"
 #include "ini.h"
+#include "para_eq.h"
 #define DEBUG 0
 int ext_ptt_enable = 0; //ADDED BY KF7YDU.  Can be used by external software to enable/disable external PTT.  1=enabled, 0=disabled. Disabled by default.
 char audio_card[32];
 static int tx_shift = 512;
+
+//Parametric EQ implementation W2JON
+//Set up nice and flat to begin with.
+//Note: limit gain range -16 to +16 (further limitation testing required)
+void init_eq(ParametricEQ *eq) {
+
+    eq->bands[0].frequency = 100.0;
+    eq->bands[0].gain = 0.0;
+    eq->bands[0].bandwidth = 1.0;
+
+    eq->bands[1].frequency = 250.0;
+    eq->bands[1].gain = 0.0;
+    eq->bands[1].bandwidth = 1.0;
+
+    eq->bands[2].frequency = 1000.0;
+    eq->bands[2].gain = 0.0;
+    eq->bands[2].bandwidth = 1.0;
+
+    eq->bands[3].frequency = 4000.0;
+    eq->bands[3].gain = 0.0;
+    eq->bands[3].bandwidth = 1.0;
+
+    eq->bands[4].frequency = 8000.0;
+    eq->bands[4].gain = 0.0;
+    eq->bands[4].bandwidth = 1.0;
+}
+
+typedef struct {
+    double a0, a1, a2, b0, b1, b2;
+    double x1, x2, y1, y2;
+} Biquad;
+
+void calculate_coefficients(EQBand *band, double sample_rate, Biquad *filter) {
+    double A = pow(10.0, band->gain / 40.0);
+    double omega = 2.0 * M_PI * band->frequency / sample_rate;
+    double alpha = sin(omega) * sinh(log(2.0) / 2.0 * band->bandwidth * omega / sin(omega));
+
+    filter->b0 = 1.0 + alpha * A;
+    filter->b1 = -2.0 * cos(omega);
+    filter->b2 = 1.0 - alpha * A;
+    filter->a0 = 1.0 + alpha / A;
+    filter->a1 = -2.0 * cos(omega);
+    filter->a2 = 1.0 - alpha / A;
+
+    // Normalize the coefficients
+    filter->b0 /= filter->a0;
+    filter->b1 /= filter->a0;
+    filter->b2 /= filter->a0;
+    filter->a1 /= filter->a0;
+    filter->a2 /= filter->a0;
+    filter->a0 = 1.0;
+}
+
+int32_t process_sample(Biquad *filter, int32_t sample) {
+    double result = filter->b0 * sample + filter->b1 * filter->x1 + filter->b2 * filter->x2
+                  - filter->a1 * filter->y1 - filter->a2 * filter->y2;
+    filter->x2 = filter->x1;
+    filter->x1 = sample;
+    filter->y2 = filter->y1;
+    filter->y1 = result;
+    return (int32_t)result;
+}
+
+void apply_eq(ParametricEQ *eq, int32_t *samples, int num_samples, double sample_rate) {
+    Biquad filters[5];
+    for (int i = 0; i < 5; i++) {
+        calculate_coefficients(&eq->bands[i], sample_rate, &filters[i]);
+    }
+
+    for (int n = 0; n < num_samples; n++) {
+        int32_t sample = samples[n];
+        for (int i = 0; i < 5; i++) {
+            sample = process_sample(&filters[i], sample);
+        }
+        samples[n] = sample;
+    }
+}
+
+//---
+
+
 
 FILE *pf_debug = NULL;
 
@@ -985,40 +1067,75 @@ void tx_process(
 /*
 	This is called each time there is a block of signal samples ready 
 	either from the mic or from the rx IF 
-*/	
+*/
+//-----------------	
+//void sound_process(
+//	int32_t *input_rx, int32_t *input_mic, 
+//	int32_t *output_speaker, int32_t *output_tx, 
+//	int n_samples)
+//{
+//	if (in_tx)
+//		tx_process(input_rx, input_mic, output_speaker, output_tx, n_samples);
+//	else
+//			rx_linear(input_rx, input_mic, output_speaker, output_tx, n_samples);
+//	if (pf_record)
+//		wav_record(in_tx == 0 ? output_speaker : input_mic, n_samples);
+//}
+//------------------
+
+
+// Modified sound_process function for TX EQ W2JON
 void sound_process(
-	int32_t *input_rx, int32_t *input_mic, 
-	int32_t *output_speaker, int32_t *output_tx, 
-	int n_samples)
+    int32_t *input_rx, int32_t *input_mic, 
+    int32_t *output_speaker, int32_t *output_tx, 
+    int n_samples)
 {
-	if (in_tx)
-		tx_process(input_rx, input_mic, output_speaker, output_tx, n_samples);
-	else
-			rx_linear(input_rx, input_mic, output_speaker, output_tx, n_samples);
-	if (pf_record)
-		wav_record(in_tx == 0 ? output_speaker : input_mic, n_samples);
+    static ParametricEQ eq;
+    static int eq_initialized = 0;
+
+    if (!eq_initialized) {
+        init_eq(&eq);
+        eq_initialized = 1;
+    }
+
+    // Apply EQ to mic samples (TX)
+    if (in_tx) {
+        apply_eq(&eq, input_mic, n_samples, 48000.0);  // Assuming 48kHz sample rate
+    }
+
+    if (in_tx) {
+        tx_process(input_rx, input_mic, output_speaker, output_tx, n_samples);
+    } else {
+        rx_linear(input_rx, input_mic, output_speaker, output_tx, n_samples);
+    }
+
+    if (pf_record) {
+        wav_record(in_tx == 0 ? output_speaker : input_mic, n_samples);
+    }
 }
 
 
-void set_rx_filter(){
-	//on AM filter at the IF level, instead of the baseband
-	if (rx_list->mode == MODE_AM){
-		printf("Setting AM filter\n");
-   		filter_tune(rx_list->filter, 
-      		(1.0 * (24000 - rx_list->high_hz))/96000.0 , 
-      		(1.0 * (24000 + rx_list->high_hz))/96000.0 , 
-      	5);
-	}
-	else if(rx_list->mode == MODE_LSB || rx_list->mode == MODE_CWR)
-    		filter_tune(rx_list->filter, 
-      		(1.0 * -rx_list->high_hz)/96000.0, 
-      		(1.0 * -rx_list->low_hz)/96000.0 , 
-      	5);
-	else
-		filter_tune(rx_list->filter, 
-		(1.0 * rx_list->low_hz)/96000.0, 
-		(1.0 * rx_list->high_hz)/96000.0 , 
-     		 5);
+
+// Existing set_rx_filter function
+void set_rx_filter() {
+    // on AM filter at the IF level, instead of the baseband
+    if (rx_list->mode == MODE_AM) {
+        printf("Setting AM filter\n");
+        filter_tune(rx_list->filter, 
+            (1.0 * (24000 - rx_list->high_hz))/96000.0 , 
+            (1.0 * (24000 + rx_list->high_hz))/96000.0 , 
+        5);
+    } else if(rx_list->mode == MODE_LSB || rx_list->mode == MODE_CWR) {
+        filter_tune(rx_list->filter, 
+            (1.0 * -rx_list->high_hz)/96000.0, 
+            (1.0 * -rx_list->low_hz)/96000.0 , 
+        5);
+    } else {
+        filter_tune(rx_list->filter, 
+        (1.0 * rx_list->low_hz)/96000.0, 
+        (1.0 * rx_list->high_hz)/96000.0 , 
+        5);
+    }
 }
 
 /* 
@@ -1329,8 +1446,12 @@ void tr_switch_v2(int tx_on){
 			delay(10);
 			//power down the PA chain to null any gain
 			digitalWrite(TX_LINE, LOW);
-			digitalWrite(EXT_PTT, LOW); //ADDED by KF7YDU, shuts down ext_ptt.  If ext_ptt_enable is 0, the pin won't be high to begin with and here we just repeat pin low, so it would do nothing.
-			delay(5); 
+      
+      //ADDED by KF7YDU, shuts down ext_ptt.
+			digitalWrite(EXT_PTT, LOW);   
+      //If ext_ptt_enable is 0, the pin won't be high to begin with and here we just repeat pin low, so it would do nothing.
+			
+      delay(5); 
 			//audio codec is back on
 			sound_mixer(audio_card, "Master", rx_vol);
 			sound_mixer(audio_card, "Capture", rx_gain);
@@ -1369,7 +1490,10 @@ void setup(){
 	digitalWrite(LPF_B, LOW);
 	digitalWrite(LPF_C, LOW);
 	digitalWrite(LPF_D, LOW);
-	digitalWrite(EXT_PTT, LOW); //ADDED BY KF7YDU - initialize ext_ptt to low at startup
+ 
+ //ADDED BY KF7YDU - initialize ext_ptt to low at startup
+	digitalWrite(EXT_PTT, LOW); 
+
 	digitalWrite(TX_LINE, LOW);
 	digitalWrite(TX_POWER, LOW);
 
