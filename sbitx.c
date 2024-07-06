@@ -27,7 +27,7 @@ int ext_ptt_enable = 0; //ADDED BY KF7YDU.  Can be used by external software to 
 char audio_card[32];
 static int tx_shift = 512;
 
-//Parametric EQ implementation W2JON
+//Parametric TX EQ implementation W2JON
 //Set up nice and flat to begin with.
 //Note: limit gain range -16 to +16 (further limitation testing required)
 void init_eq(ParametricEQ *eq) {
@@ -1068,21 +1068,6 @@ void tx_process(
 	This is called each time there is a block of signal samples ready 
 	either from the mic or from the rx IF 
 */
-//-----------------	
-//void sound_process(
-//	int32_t *input_rx, int32_t *input_mic, 
-//	int32_t *output_speaker, int32_t *output_tx, 
-//	int n_samples)
-//{
-//	if (in_tx)
-//		tx_process(input_rx, input_mic, output_speaker, output_tx, n_samples);
-//	else
-//			rx_linear(input_rx, input_mic, output_speaker, output_tx, n_samples);
-//	if (pf_record)
-//		wav_record(in_tx == 0 ? output_speaker : input_mic, n_samples);
-//}
-//------------------
-
 
 // Modified sound_process function for TX EQ W2JON
 void sound_process(
@@ -1098,8 +1083,8 @@ void sound_process(
         eq_initialized = 1;
     }
 
-    // Apply EQ to mic samples (TX)
-    if (in_tx) {
+    // Apply EQ to mic samples under voice modes while in (TX)
+    if (in_tx && (rx_list->mode == MODE_USB |rx_list->mode == MODE_LSB || rx_list->mode == MODE_AM || rx_list->mode == MODE_NBFM)) {
         apply_eq(&eq, input_mic, n_samples, 48000.0);  // Assuming 48kHz sample rate
     }
 
