@@ -3907,23 +3907,7 @@ long get_freq(){
 	return atol(get_field("r1:freq")->value);
 }
 
-int get_passband_bw() {
-	int mode = mode_id(get_field("r1:mode")->value);
-	switch (mode) {
-	case MODE_CW:
-	case MODE_CWR:
-		return field_int("BW_CW");
-		break;
-	case MODE_USB:
-	case MODE_LSB:
-	case MODE_NBFM:
-	case MODE_AM:
-		return field_int("BW_VOICE");
-		break;
-	default:
-		return field_int("BW_DIGITAL");
-	}
-}
+
 
 void bin_dump(int length, uint8_t *data){
 	printf("i2c: ");
@@ -4964,9 +4948,9 @@ int main( int argc, char* argv[] ) {
 	remote_start();
 
 //test to pass values to eq 
-  modify_eq_band_frequency(&eq, 3, 1505.0);
-  modify_eq_band_gain(&eq, 3, -16);
-  modify_eq_band_bandwidth(&eq, 3, 6);
+//  modify_eq_band_frequency(&eq, 3, 1505.0);
+//  modify_eq_band_gain(&eq, 3, -16);
+//  modify_eq_band_bandwidth(&eq, 3, 6);
 
 
 	rtc_read();

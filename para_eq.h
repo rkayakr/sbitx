@@ -2,7 +2,11 @@
 
 #ifndef PARA_EQ_H_
 #define PARA_EQ_H_
-
+#include <stdio.h>
+#include <math.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
 #define NUM_BANDS 5  // Let's start out with 5 bands in the parametric EQ
 
 // Define Band structure
@@ -25,5 +29,6 @@ extern void modify_eq_band_frequency(ParametricEQ *eq, int band_index, double ne
 extern void modify_eq_band_gain(ParametricEQ *eq, int band_index, double new_gain);
 extern void modify_eq_band_bandwidth(ParametricEQ *eq, int band_index, double new_bandwidth);
 extern void print_eq_int(const ParametricEQ *eq);
+extern void apply_eq(ParametricEQ* eq, int32_t* samples, int num_samples, double sample_rate);
 
 #endif /* PARA_EQ_H_ */
