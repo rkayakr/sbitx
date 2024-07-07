@@ -458,6 +458,7 @@ struct field *active_layout = NULL;
 char settings_updated = 0;
 #define LAYOUT_KBD 0
 #define LAYOUT_MACROS 1
+#define LAYOUT_EQ 2
 int current_layout = LAYOUT_KBD;
 
 #define COMMON_CONTROL 1
@@ -565,8 +566,8 @@ struct field main_controls[] = {
 		"RX/TX", 0,0, 0, VOICE_CONTROL | DIGITAL_CONTROL},
 
 // This control is being saved for a possible sub menu where audio tools or other settings may be reviewed and edited
-//	{ "#toggle_menu", do_toggle_menu, 500, -500, 40, 40, "MENU", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
-//		"ON/OFF", 0,0, 0,VOICE_CONTROL},
+	{ "#menu", do_toggle_menu, 500, -500, 40, 40, "MENU", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF", 0,0, 0,VOICE_CONTROL},
 
 	{"r1:low", NULL, 660, -350, 50, 50, "LOW", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 100,5000, 50, 0, DIGITAL_CONTROL},
@@ -599,36 +600,36 @@ struct field main_controls[] = {
     "BLANK/LEFT/RIGHT/CROSSHAIR", 0,0,0,0},
     
   // parametric 5-band eq controls  ( BX[F|G|B] = Band# Frequency | Gain | Bandwidth W2JON
- 	{ "#b0f", do_eq_edit, 1000, -1000, 40, 40, "B0F", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100, 8000, 50,VOICE_CONTROL},
- 	{ "#b0g", do_eq_edit, 1000, -1000, 40, 40, "B0G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", -16, 16, 1,VOICE_CONTROL},
- 	{ "#b0b", do_eq_edit, 1000, -1000, 40, 40, "B0B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",0.5, 10, 0.5,VOICE_CONTROL},   
- 	{ "#b1f", do_eq_edit, 1000, -1000, 40, 40, "B1F", 40, "250", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100, 8000, 50,VOICE_CONTROL},
- 	{ "#b1g", do_eq_edit, 1000, -1000, 40, 40, "B1G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", -16, 16, 1,VOICE_CONTROL},
- 	{ "#b1b", do_eq_edit, 1000, -1000, 40, 40, "B1B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",0.5, 10, 0.5,VOICE_CONTROL}, 
- 	{ "#b2f", do_eq_edit, 1000, -1000, 40, 40, "B2F", 40, "1000", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100, 8000, 50,VOICE_CONTROL},
- 	{ "#b2g", do_eq_edit, 1000, -1000, 40, 40, "B2G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", -16, 16, 1,VOICE_CONTROL},
- 	{ "#b2b", do_eq_edit, 1000, -1000, 40, 40, "B2B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",0.5, 10, 0.5,VOICE_CONTROL}, 
- 	{ "#b3f", do_eq_edit, 1000, -1000, 40, 40, "B3F", 40, "4000", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100, 8000, 50,VOICE_CONTROL},
- 	{ "#b3g", do_eq_edit, 1000, -1000, 40, 40, "B3G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", -16, 16, 1,VOICE_CONTROL},
- 	{ "#b3b", do_eq_edit, 1000, -1000, 40, 40, "B3B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",0.5, 10, 0.5,VOICE_CONTROL},  
- 	{ "#b4f", do_eq_edit, 1000, -1000, 40, 40, "B4F", 40, "8000", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100, 8000, 50,VOICE_CONTROL},
- 	{ "#b4g", do_eq_edit, 1000, -1000, 40, 40, "B4G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", -16, 16, 1,VOICE_CONTROL},
- 	{ "#b4b", do_eq_edit, 1000, -1000, 40, 40, "B4B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",0.5, 10, 0.5,VOICE_CONTROL},  
+ 	{ "#eq_b0f", do_eq_edit, 50, 350, 40, 40, "B0F", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 100, 8000, 50,0},
+ 	{ "#eq_b0g", do_eq_edit, 100, 350, 40, 40, "B0G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", -16, 16, 1,0},
+ 	{ "#eq_b0b", do_eq_edit, 150, 350, 40, 40, "B0B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0.5, 10, 0.5,0},   
+ 	{ "#eq_b1f", do_eq_edit, 200, 350, 40, 40, "B1F", 40, "250", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 100, 8000, 50,0},
+ 	{ "#eq_b1g", do_eq_edit, 250, 350, 40, 40, "B1G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", -16, 16, 1,0},
+ 	{ "#eq_b1b", do_eq_edit, 300, 350, 40, 40, "B1B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0.5, 10, 0.5,0}, 
+ 	{ "#eq_b2f", do_eq_edit, 350, 350, 40, 40, "B2F", 40, "1000", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 100, 8000, 50,0},
+ 	{ "#eq_b2g", do_eq_edit, 400, 350, 40, 40, "B2G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", -16, 16, 1,0},
+ 	{ "#eq_b2b", do_eq_edit, 450, 350, 40, 40, "B2B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0.5, 10, 0.5,0}, 
+ 	{ "#eq_b3f", do_eq_edit, 200, 400, 40, 40, "B3F", 40, "4000", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 100, 8000, 50,0},
+ 	{ "#eq_b3g", do_eq_edit, 250, 400, 40, 40, "B3G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", -16, 16, 1,0},
+ 	{ "#eq_b3b", do_eq_edit, 300, 400, 40, 40, "B3B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0.5, 10, 0.5,0},  
+ 	{ "#eq_b4f", do_eq_edit, 350, 400, 40, 40, "B4F", 40, "8000", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 100, 8000, 50,0},
+ 	{ "#eq_b4g", do_eq_edit, 400, 400, 40, 40, "B4G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", -16, 16, 1,0},
+ 	{ "#eq_b4b", do_eq_edit, 450, 400, 40, 40, "B4B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0.5, 10, 0.5,0},  
 
 	// Settings Panel
 	{"#mycallsign", NULL, 1000, -1000, 400, 149, "MYCALLSIGN", 70, "CALL", FIELD_TEXT, FONT_SMALL, 
@@ -2003,6 +2004,7 @@ void keyboard_display(int show){
 		}
 	}
 }
+//the control sub menu appears at the bottom 150 pixels of the window - W2JON
 
 void field_move(char *field_label, int x, int y, int width, int height){
 	struct field *f = get_field_by_label(field_label);
@@ -2016,6 +2018,54 @@ void field_move(char *field_label, int x, int y, int width, int height){
 	update_field(f);
 	if (!strcmp(field_label, "WATERFALL"))
 		init_waterfall();
+}
+void menu_display(int show) {
+	struct field* f;
+
+	// We start the height at -200 because the first key
+	// will bump it down by a row
+	int height = screen_height - 200;
+
+	for (f = active_layout; f->cmd[0]; f++) {
+		if (!strncmp(f->cmd, "#eq_", 4)) { // Check for control list to display
+			if (show) {
+				// Move each control to the appropriate position
+				field_move("B0F", 5, screen_height - 145, 45, 45);
+				field_move("B0G", 50, screen_height - 145, 45, 45);
+				field_move("B0B", 95, screen_height - 145, 45, 45);
+				field_move("B1F", 5, screen_height - 95, 45, 45);
+				field_move("B1G", 50, screen_height - 95, 45, 45);
+				field_move("B1B", 95, screen_height - 95, 45, 45);
+				field_move("B2F", 145, screen_height - 145, 45, 45);
+				field_move("B2G", 190, screen_height - 145, 45, 45);
+				field_move("B2B", 235, screen_height - 145, 45, 45);
+				field_move("B3F", 145, screen_height - 95, 45, 45);
+				field_move("B3G", 190, screen_height - 95, 45, 45);
+				field_move("B3B", 235, screen_height - 95, 45, 45);
+				field_move("B4F", 285, screen_height - 145, 45, 45);
+				field_move("B4G", 330, screen_height - 145, 45, 45);
+				field_move("B4B", 375, screen_height - 145, 45, 45);
+			}
+			else {
+				// Move the fields off-screen if not showing
+				field_move("B0F", -1000, screen_height - 150, 45, 45);
+				field_move("B0G", -1000, screen_height - 150, 45, 45);
+				field_move("B0B", -1000, screen_height - 150, 45, 45);
+				field_move("B1F", -1000, screen_height - 150, 45, 45);
+				field_move("B1G", -1000, screen_height - 150, 45, 45);
+				field_move("B1B", -1000, screen_height - 150, 45, 45);
+				field_move("B2F", -1000, screen_height - 150, 45, 45);
+				field_move("B2G", -1000, screen_height - 150, 45, 45);
+				field_move("B2B", -1000, screen_height - 150, 45, 45);
+				field_move("B3F", -1000, screen_height - 150, 45, 45);
+				field_move("B3G", -1000, screen_height - 150, 45, 45);
+				field_move("B3B", -1000, screen_height - 150, 45, 45);
+				field_move("B4F", -1000, screen_height - 150, 45, 45);
+				field_move("B4G", -1000, screen_height - 150, 45, 45);
+				field_move("B4G", -1000, screen_height - 150, 45, 45);
+			}
+		}
+	}
 }
 
 //scales the ui as per current screen width from
@@ -2039,7 +2089,7 @@ static void layout_ui(){
 
 	//locate the kbd to the right corner
 	field_move("KBD", screen_width - 47, screen_height-47, 45, 45);
-
+		
 	//now, move the main radio controls to the right
 	field_move("FREQ", x2-205, 0, 180, 40);
 	field_move("AUDIO", x2-45, 5, 40, 40);
@@ -2062,7 +2112,7 @@ static void layout_ui(){
 		if (!strcmp(qro_control->value, "ON")) {
      printf("QRO Control Enabled\n");
      field_move("QRO",473, 50, 40, 40);
- 		}
+	  		}
 		else if (!strcmp(qro_control->value, "OFF")) {
      field_move("QRO",-1000,50,40,40);
      
@@ -2076,6 +2126,16 @@ static void layout_ui(){
 	}
 	else
 		keyboard_display(0);
+	
+	if (!strcmp(field_str("MENU"), "ON")) { // W2JON
+		//take out 3 button widths from the bottom
+		y2 = screen_height - 150;
+		menu_display(1);
+	}
+	else
+		menu_display(0);
+
+
 	
 	int m_id = mode_id(field_str("MODE"));
 	int button_width = 100;
@@ -2131,11 +2191,9 @@ static void layout_ui(){
 		case MODE_LSB:
 		case MODE_AM:
 		case MODE_NBFM:
-			field_move("CONSOLE", 5, y1, 355, y2-y1-105);
-    //	field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+    	    field_move("CONSOLE", 5, y1, 350, y2-y1-55);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
-		//	field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
-      field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-175);
+			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
 			y1 = y2 -50;
 			field_move("MIC", 5, y1, 45, 45);
 			field_move("LOW", 60, y1, 95, 45);
@@ -2143,16 +2201,16 @@ static void layout_ui(){
 			field_move("TX", 260, y1, 95, 45);
 			field_move("RX", 360, y1, 95, 45);
 			field_move("MENU",460, y1, 45, 45);
-      field_move("B0F", 5, y1-50, 45, 45);
-      field_move("B0G", 50, y1-50, 45, 45);
-      field_move("B1F", 95, y1-50, 45, 45);
-      field_move("B1G", 140, y1-50, 45, 45);
-      field_move("B2F", 185, y1-50, 45, 45);
-      field_move("B2G", 230, y1-50, 45, 45);
-      field_move("B3F", 275, y1-50, 45, 45);
-      field_move("B3G", 320, y1-50, 45, 45);
-      field_move("B4F", 365, y1-50, 45, 45);
-      field_move("B4G", 410, y1-50, 45, 45);
+//          field_move("B0F", 5, y1-50, 45, 45);
+//          field_move("B0G", 50, y1-50, 45, 45);
+//          field_move("B1F", 95, y1-50, 45, 45);
+//          field_move("B1G", 140, y1-50, 45, 45);
+//          field_move("B2F", 185, y1-50, 45, 45);
+//          field_move("B2G", 230, y1-50, 45, 45);
+//          field_move("B3F", 275, y1-50, 45, 45);
+//          field_move("B3G", 320, y1-50, 45, 45);
+//          field_move("B4F", 365, y1-50, 45, 45);
+//          field_move("B4G", 410, y1-50, 45, 45);
       
       
 		break;
@@ -2355,26 +2413,7 @@ static void edit_field(struct field *f, int action){
 //	update_field(f);
 	settings_updated++;
 }
-static void focus_field_without_changes(struct field* f) {
-	//this is an extract from focus_field()
-	//it shifts the focus to the updated field
-	//without toggling/jumping the value 
-	struct field* prev_hover = f_hover;
-	struct field* prev_focus = f_focus;
-	f_focus = NULL;
 
-	if (prev_hover)
-		update_field(prev_hover);
-	if (prev_focus)
-		update_field(prev_focus);
-
-	if (f) {
-		f_focus = f_hover = f;
-		focus_since = millis();
-	}
-	update_field(f_hover);
-	update_field(f_focus);
-}
 static void focus_field(struct field *f){
 	struct field *prev_hover = f_hover;
 	struct field *prev_focus = f_focus;
@@ -2945,6 +2984,7 @@ int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 int do_toggle_menu(struct field* f, cairo_t* gfx, int event, int a, int b, int c) {
 	if (event == GDK_BUTTON_PRESS) {
 		//THIS SPACE FOR RENT-W2JON
+		printf("entered do_toggle_menu \n ");
 		return 1;
 	}
 	return 0;
@@ -3232,24 +3272,24 @@ int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
 }
 
 int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
-    printf("Entering do_eq_edit: Label = %s\n", f->label);
+//    printf("Entering do_eq_edit: Label = %s\n", f->label);
 
     int band = get_band_from_label(f->label);  // Determine band from label
-    printf("do_eq_edit> Band ID from label: %d\n", band);
+//    printf("do_eq_edit> Band ID from label: %d\n", band);
 
     if (band != -1) {
-        printf("do_eq_edit> Valid band found: %d\n", band);
+//        printf("do_eq_edit> Valid band found: %d\n", band);
 
         // Depending on the event, handle adjustments for frequency, gain, or bandwidth
         char suffix = f->label[strlen(f->label) - 1];
         if (suffix == 'F') {
-            printf("do_eq_edit> Adjusting frequency for band %d...\n", band);
+ //           printf("do_eq_edit> Adjusting frequency for band %d...\n", band);
             return do_eqf(f, gfx, event, a, b, c); // Frequency adjustment
         } else if (suffix == 'G') {
-            printf("do_eq_edit> Adjusting gain for band %d...\n", band);
+//            printf("do_eq_edit> Adjusting gain for band %d...\n", band);
             return do_eqg(f, gfx, event, a, b, c); // Gain adjustment
         } else if (suffix == 'B') {
-            printf("do_eq_edit> Adjusting bandwidth for band %d...\n", band);
+//           printf("do_eq_edit> Adjusting bandwidth for band %d...\n", band);
             return do_eqb(f, gfx, event, a, b, c); // Bandwidth adjustment
         } else {
             printf("do_eq_edit> Unknown suffix: %c\n", suffix);
@@ -3352,30 +3392,46 @@ static int layout_handler(void* user, const char* section,
 	else if (!strcmp(name, "height"))
 		f->height = atoi(value);	
 }
+void set_ui(int id) { // Modified to include the EQ layout int he rotation
+	struct field* f = get_field("#kbd_q"); 
 
-void set_ui(int id){
-	struct field *f = get_field("#kbd_q");
-
-	if (id == LAYOUT_KBD){
-		// the "#kbd" is out of screen, get it up and "#mf" down
-		for (int i = 0; active_layout[i].cmd[0] > 0; i++){
+	if (id == LAYOUT_KBD) {
+		// Switch to the keyboard layout
+		for (int i = 0; active_layout[i].cmd[0] > 0; i++) {
 			if (!strncmp(active_layout[i].cmd, "#kbd", 4) && active_layout[i].y > 1000)
 				active_layout[i].y -= 1000;
 			else if (!strncmp(active_layout[i].cmd, "#mf", 3) && active_layout[i].y < 1000)
 				active_layout[i].y += 1000;
-			active_layout[i].is_dirty = 1;	
+			else if (!strncmp(active_layout[i].cmd, "#eq", 3) && active_layout[i].y < 1000)
+				active_layout[i].y += 1000;
+			active_layout[i].is_dirty = 1;
 		}
 	}
-	if (id == LAYOUT_MACROS) {
-		// the "#mf" is out of screen, get it up and "#kbd" down
-		for (int i = 0; active_layout[i].cmd[0] > 0; i++){
+	else if (id == LAYOUT_MACROS) {
+		// Switch to the macros layout
+		for (int i = 0; active_layout[i].cmd[0] > 0; i++) {
 			if (!strncmp(active_layout[i].cmd, "#kbd", 4) && active_layout[i].y < 1000)
 				active_layout[i].y += 1000;
 			else if (!strncmp(active_layout[i].cmd, "#mf", 3) && active_layout[i].y > 1000)
 				active_layout[i].y -= 1000;
-			active_layout[i].is_dirty = 1;	
+			else if (!strncmp(active_layout[i].cmd, "#eq", 3) && active_layout[i].y < 1000)
+				active_layout[i].y += 1000;
+			active_layout[i].is_dirty = 1;
 		}
 	}
+	else if (id == LAYOUT_EQ) {
+		// Switch to the EQ layout
+		for (int i = 0; active_layout[i].cmd[0] > 0; i++) {
+			if (!strncmp(active_layout[i].cmd, "#kbd", 4) && active_layout[i].y < 1000)
+				active_layout[i].y += 1000;
+			else if (!strncmp(active_layout[i].cmd, "#mf", 3) && active_layout[i].y < 1000)
+				active_layout[i].y += 1000;
+			else if (!strncmp(active_layout[i].cmd, "#eq", 3) && active_layout[i].y > 1000)
+				active_layout[i].y -= 1000;
+			active_layout[i].is_dirty = 1;
+		}
+	}
+
 	current_layout = id;
 }
 
@@ -4150,20 +4206,23 @@ gboolean ui_tick(gpointer gook){
 /*		f = get_field("#status");
 		update_field(f);
 */
-
-		if (digitalRead(ENC1_SW) == 0 && millis() - focus_since > 200){
-			//flip between mode and volume
-			if (f_focus && !strcmp(f_focus->label, "AUDIO"))
-				focus_field_without_changes(get_field("r1:mode"));
-			else
-				focus_field_without_changes(get_field("r1:volume"));
-			//printf("Focus is on %s\n", f_focus->label);
-		}
-		if (digitalRead(ENC2_SW) == 0 && millis() - focus_since > 200) {
-			oled_toggle_band();
+		//EQ audio submenu under MIC button -W2JON (testing)
+		if (f_focus && focus_since + 500 < millis()
+			&& !strncmp(f_focus->cmd, "#tx_gain", 5) && mouse_down) {
+			printf("submenu trigger");
 			focus_since = millis();
 		}
-		
+
+		if (digitalRead(ENC1_SW) == 0){
+			//flip between mode and volume
+			if (f_focus && !strcmp(f_focus->label, "AUDIO"))
+				focus_field(get_field("r1:mode"));
+			else
+				focus_field(get_field("r1:volume"));
+			printf("Focus is on %s\n", f_focus->label);
+		}
+		if (digitalRead(ENC2_SW) == 0)
+		oled_toggle_band();
 
 		if (record_start)
 			update_field(get_field("#record"));
@@ -4173,7 +4232,7 @@ gboolean ui_tick(gpointer gook){
 						&& !strncmp(f_focus->cmd, "#kbd_", 5) && mouse_down){
 			//emit the symbol
 			struct field *f_text = f_focus; //get_field("#text_in");
-			//replace the previous character with teh shifted one
+			//replace the previous character with the shifted one
 			edit_field(f_text,MIN_KEY_BACKSPACE); 
 			edit_field(f_text, f_focus->label[0]);
 			focus_since = millis();
@@ -4459,34 +4518,34 @@ void meter_calibrate(){
 	focus_field(f_bridge);
 }
 
-void do_control_action(char *cmd){	
+void do_control_action(char* cmd) {
 	char request[1000], response[1000], buff[100];
+	strcpy(request, cmd);  // Don't mangle the original, thank you
 
-	strcpy(request, cmd);			//don't mangle the original, thank you
-
-	if (!strcmp(request, "CLOSE")){
+	if (!strcmp(request, "CLOSE")) {
 		gtk_window_iconify(GTK_WINDOW(window));
 	}
-	else if (!strcmp(request, "OFF")){
+	else if (!strcmp(request, "OFF")) {
 		tx_off();
 		set_field("#record", "OFF");
 		save_user_settings(1);
 		exit(0);
 	}
-	else if (!strcmp(request, "SET"))
+	else if (!strcmp(request, "SET")) {
 		settings_ui(window);
-	else if (!strcmp(request, "LOG"))
+	}
+	else if (!strcmp(request, "LOG")) {
 		logbook_list_open();
-	else if (!strncmp(request, "BW ",3)){
-		int bw = atoi(request+3);	
-		set_filter_high_low(bw); //calls do_control_action again to set LOW and HIGH
-		//we have to save this as well
+	}
+	else if (!strncmp(request, "BW ", 3)) {
+		int bw = atoi(request + 3);
+		set_filter_high_low(bw);  // Calls do_control_action again to set LOW and HIGH
 		save_bandwidth(bw);
 	}
-	else if (!strcmp(request, "WIPE"))
+	else if (!strcmp(request, "WIPE")) {
 		call_wipe();
-	else if (!strcmp(request, "ESC")){
-		//empty the text buffer
+	}
+	else if (!strcmp(request, "ESC")) {
 		modem_abort();
 		tx_off();
 		call_wipe();
@@ -4494,161 +4553,161 @@ void do_control_action(char *cmd){
 		modem_abort();
 		tx_off();
 	}
-	else if (!strcmp(request, "TX")){	
+	else if (!strcmp(request, "TX")) {
 		tx_on(TX_SOFT);
 	}
-	else if (!strcmp(request, "WEB")){
+	else if (!strcmp(request, "WEB")) {
 		open_url("http://127.0.0.1:8080");
 	}
-	else if (!strncmp(request, "QRO_CONTROL",8))
-		redraw(); 
-	else if (!strcmp(request, "RX")){
+	else if (!strncmp(request, "QRO_CONTROL", 8)) {
+		redraw();
+	}
+	else if (!strcmp(request, "RX")) {
 		tx_off();
 	}
-	else if (!strncmp(request, "RIT", 3))
+	else if (!strncmp(request, "RIT", 3)) {
 		update_field(get_field("r1:freq"));
-	else if (!strncmp(request, "SPLIT", 5)){
-		update_field(get_field("r1:freq"));	
+	}
+	else if (!strncmp(request, "SPLIT", 5)) {
+		update_field(get_field("r1:freq"));
 		if (!strcmp(get_field("#vfo")->value, "B"))
 			set_field("#vfo", "A");
 	}
-	else if (!strcmp(request, "VFO B")){
-		struct field *f = get_field("r1:freq");
-		struct field *vfo = get_field("#vfo");
-		struct field *vfo_a = get_field("#vfo_a_freq");
-		struct field *vfo_b = get_field("#vfo_b_freq");
-		if (!strcmp(vfo->value, "B")){
-			//vfo_a_freq = atoi(f->value);
+	else if (!strcmp(request, "VFO B")) {
+		struct field* f = get_field("r1:freq");
+		struct field* vfo = get_field("#vfo");
+		struct field* vfo_a = get_field("#vfo_a_freq");
+		struct field* vfo_b = get_field("#vfo_b_freq");
+		if (!strcmp(vfo->value, "B")) {
 			strcpy(vfo_a->value, f->value);
-			//sprintf(buff, "%d", vfo_b_freq);
 			set_field("r1:freq", vfo_b->value);
 			settings_updated++;
 		}
 	}
-	else if (!strcmp(request, "VFO A")){
-		struct field *f = get_field("r1:freq");
-		struct field *vfo = get_field("#vfo");
-		struct field *vfo_a = get_field("#vfo_a_freq");
-		struct field *vfo_b = get_field("#vfo_b_freq");
-		//printf("vfo old %s, new %s\n", vfo->value, request);
-		if (!strcmp(vfo->value, "A")){
-		//	vfo_b_freq = atoi(f->value);
+	else if (!strcmp(request, "VFO A")) {
+		struct field* f = get_field("r1:freq");
+		struct field* vfo = get_field("#vfo");
+		struct field* vfo_a = get_field("#vfo_a_freq");
+		struct field* vfo_b = get_field("#vfo_b_freq");
+		if (!strcmp(vfo->value, "A")) {
 			strcpy(vfo_b->value, f->value);
-	//		sprintf(buff, "%d", vfo_a_freq);
 			set_field("r1:freq", vfo_a->value);
 			settings_updated++;
 		}
 	}
-	else if (!strcmp(request, "KBD ON")){
-		layout_ui();
-	
-	}
-	else if (!strcmp(request, "KBD OFF")){
+	else if (!strcmp(request, "KBD ON")) {
 		layout_ui();
 	}
-	else if (!strcmp(request, "SAVE")){
-			enter_qso();
+	else if (!strcmp(request, "KBD OFF")) {
+		layout_ui();
 	}
-	//tuning step
-  else if (!strcmp(request, "STEP 1M"))
-    tuning_step = 1000000;
-	else if (!strcmp(request, "STEP 100K"))
+	else if (!strcmp(request, "MENU ON")) {
+		layout_ui();
+	}
+	else if (!strcmp(request, "MENU OFF")) {
+		layout_ui();
+	}
+	else if (!strcmp(request, "SAVE")) {
+		enter_qso();
+	}
+	else if (!strcmp(request, "STEP 1M")) {
+		tuning_step = 1000000;
+	}
+	else if (!strcmp(request, "STEP 100K")) {
 		tuning_step = 100000;
-	else if (!strcmp(request, "STEP 10K"))
-		tuning_step = 10000;
-	else if (!strcmp(request, "STEP 1K"))
-		tuning_step = 1000;
-	else if (!strcmp(request, "STEP 500H"))
-		tuning_step = 500;
-	else if (!strcmp(request, "STEP 100H"))
-		tuning_step = 100;
-	else if (!strcmp(request, "STEP 10H"))
-		tuning_step = 10;
-
-	//spectrum bandwidth
-	else if (!strcmp(request, "SPAN 2.5K"))
-		spectrum_span = 2500;
-	else if (!strcmp(request, "SPAN 6K"))
-		spectrum_span = 6000;
-	else if (!strcmp(request, "SPAN 10K"))
-		spectrum_span = 10000;
-	else if (!strcmp(request, "SPAN 25K"))
-		spectrum_span = 25000;
-		
-	//handle the band stacking
-	else if (!strcmp(request, "80M") || 
-		!strcmp(request, "40M") || 
-		!strcmp(request, "30M") || 
-		!strcmp(request, "20M") || 
-		!strcmp(request, "17M") || 
-		!strcmp(request, "15M") || 
-		!strcmp(request, "12M") || 
-		!strcmp(request, "10M")){
-		change_band(request); 		
 	}
-	else if (!strcmp(request, "REC ON")){
-		char fullpath[200];	//dangerous, find the MAX_PATH and replace 200 with it
-
-		char *path = getenv("HOME");
+	else if (!strcmp(request, "STEP 10K")) {
+		tuning_step = 10000;
+	}
+	else if (!strcmp(request, "STEP 1K")) {
+		tuning_step = 1000;
+	}
+	else if (!strcmp(request, "STEP 500H")) {
+		tuning_step = 500;
+	}
+	else if (!strcmp(request, "STEP 100H")) {
+		tuning_step = 100;
+	}
+	else if (!strcmp(request, "STEP 10H")) {
+		tuning_step = 10;
+	}
+	else if (!strcmp(request, "SPAN 2.5K")) {
+		spectrum_span = 2500;
+	}
+	else if (!strcmp(request, "SPAN 6K")) {
+		spectrum_span = 6000;
+	}
+	else if (!strcmp(request, "SPAN 10K")) {
+		spectrum_span = 10000;
+	}
+	else if (!strcmp(request, "SPAN 25K")) {
+		spectrum_span = 25000;
+	}
+	else if (!strcmp(request, "80M") || !strcmp(request, "40M") || !strcmp(request, "30M") || !strcmp(request, "20M") || !strcmp(request, "17M") || !strcmp(request, "15M") || !strcmp(request, "12M") || !strcmp(request, "10M")) {
+		change_band(request);
+	}
+	else if (!strcmp(request, "REC ON")) {
+		char fullpath[200];
+		char* path = getenv("HOME");
 		time(&record_start);
-		struct tm *tmp = localtime(&record_start);
-		sprintf(fullpath, "%s/sbitx/audio/%04d%02d%02d-%02d%02d-%02d.wav", path, 
-			tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec); 
-
+		struct tm* tmp = localtime(&record_start);
+		sprintf(fullpath, "%s/sbitx/audio/%04d%02d%02d-%02d%02d-%02d.wav", path, tmp->tm_year + 1900, tmp->tm_mon + 1, tmp->tm_mday, tmp->tm_hour, tmp->tm_min, tmp->tm_sec);
 		char request[300], response[100];
 		sprintf(request, "record=%s", fullpath);
 		sdr_request(request, response);
 		sprintf(request, "Recording:%s\n", fullpath);
 		write_console(FONT_LOG, request);
 	}
-	else if (!strcmp(request, "REC OFF")){
+	else if (!strcmp(request, "REC OFF")) {
 		sdr_request("record", "off");
 		write_console(FONT_LOG, "Recording stopped\n");
 		record_start = 0;
 	}
-	else if (!strcmp(request, "QRZ") && strlen(field_str("CALL")) > 0)
+	else if (!strcmp(request, "QRZ") && strlen(field_str("CALL")) > 0) {
 		qrz(field_str("CALL"));
+	}
 	else {
-		//send this to the radio core
-		char args[MAX_FIELD_LENGTH];
-		char exec[20];
-		int i, j;
+			// Send this to the radio core
+			char args[MAX_FIELD_LENGTH];
+			char exec[20];
+			int i, j;
+			args[0] = 0;
 
-  	args[0] = 0;
+			// Copy the exec
+			for (i = 0; *cmd > ' ' && i < sizeof(exec) - 1; i++)
+				exec[i] = *cmd++;
+			exec[i] = 0;
 
-		//copy the exec
-		for (i = 0; *cmd > ' ' && i < sizeof(exec) - 1; i++)
-			exec[i] = *cmd++;
-		exec[i] = 0; 
+			// Skip the spaces
+			while (*cmd == ' ')
+				cmd++;
 
-		//skip the spaces
-		while(*cmd == ' ')
-			cmd++;
-
-		j = 0;
-		for (i = 0; *cmd && i < sizeof(args) - 1; i++){
-			if (*cmd > ' ')
+			j = 0;
+			for (i = 0; *cmd && i < sizeof(args) - 1; i++) {
+				if (*cmd > ' ')
 					j = i;
-			args[i] = *cmd++;
-		}
-		args[++j] = 0;
-		
-		//translate the frequency of operating depending upon rit, split, etc.
-		if (!strncmp(request, "FREQ", 4))
-			set_operating_freq(atoi(request+5), response);
-		else if (!strncmp(request, "MODE ", 5)){
-			set_radio_mode(request+5);
-			update_field(get_field("r1:mode"));
-		}
-		else{
-			struct field *f = get_field_by_label(exec); 
-			if (f){
-				sprintf(request, "%s=%s", f->cmd, args);
-				sdr_request(request, response);
+				args[i] = *cmd++;
+			}
+			args[++j] = 0;
+
+			// Translate the frequency of operating depending upon rit, split, etc.
+			if (!strncmp(request, "FREQ", 4))
+				set_operating_freq(atoi(request + 5), response);
+			else if (!strncmp(request, "MODE ", 5)) {
+				set_radio_mode(request + 5);
+				update_field(get_field("r1:mode"));
+			}
+			else {
+				struct field* f = get_field_by_label(exec);
+				if (f) {
+					sprintf(request, "%s=%s", f->cmd, args);
+					sdr_request(request, response);
+				}
 			}
 		}
 	}
-}
+
+
 
 /*
 	These are user/remote entered commands.
@@ -4843,7 +4902,15 @@ void cmd_exec(char *cmd){
 			if(set_field(f->cmd, args)){
 				write_console(FONT_LOG, "Invalid setting:");
       } else {
-				focus_field_without_changes(f);
+				//this is an extract from focus_field()
+				//it shifts the focus to the updated field
+				//without toggling/jumping the value 
+				struct field *prev_hover = f_hover;
+				struct field *prev_focus = f_focus;
+				f_focus = NULL;
+				f_focus = f_hover = f;
+				focus_since = millis();
+				update_field(f_hover);
       }
 		}
 	}
@@ -4968,8 +5035,8 @@ int main( int argc, char* argv[] ) {
 	set_field("#text_in", "");
 	field_set("REC", "OFF");
 	field_set("KBD", "OFF");
-  field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
-  
+    field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
+	field_set("MENU", "OFF");
  
 	// you don't want to save the recently loaded settings
 	settings_updated = 0;

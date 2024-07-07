@@ -42,5 +42,5 @@ gcc -g -o $F \
  
 # This addition is used to provide the application the capability to adjust the local system time -W2JON
 echo "applying system time capability" 
- sudo setcap CAP_SYS_TIME+ep ./sbitx
+ sudo setcap CAP_SYS_TIME+ep /home/pi/sbitx/sbitx
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"

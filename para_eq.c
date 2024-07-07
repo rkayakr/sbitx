@@ -19,11 +19,7 @@ float read_value(FILE* file, const char* key, float default_value) {
 
 
 void init_eq(ParametricEQ* eq) {
-    char directory[200];	//dangerous, find the MAX_PATH and replace 200 with it
-    char* path = getenv("HOME");
-    strcpy(directory, path);
-    strcat(directory, "/sbitx/data/user_settings.ini");
-    FILE* file = fopen(directory, "r");
+    FILE* file = fopen("./data/user_settings.ini", "r");
     if (file == NULL) {
         perror("Failed to open file");
         exit(EXIT_FAILURE);
@@ -53,13 +49,13 @@ void init_eq(ParametricEQ* eq) {
     eq->bands[4].bandwidth = 1.0;
 
     for (int i = 0; i < NUM_BANDS; i++) {
-        snprintf(key, sizeof(key), "#b%df", i);
+        snprintf(key, sizeof(key), "#eq_b%df", i);
         eq->bands[i].frequency = read_value(file, key, eq->bands[i].frequency);
 
-        snprintf(key, sizeof(key), "#b%dg", i);
+        snprintf(key, sizeof(key), "#eq_b%dg", i);
         eq->bands[i].gain = read_value(file, key, eq->bands[i].gain);
 
-        snprintf(key, sizeof(key), "#b%db", i);
+        snprintf(key, sizeof(key), "#eq_b%db", i);
         eq->bands[i].bandwidth = read_value(file, key, eq->bands[i].bandwidth);
     }
 
