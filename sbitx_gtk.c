@@ -450,7 +450,7 @@ int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bandwidth(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eqf(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
-int do_eqq(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 
 
@@ -598,36 +598,36 @@ struct field main_controls[] = {
   { "mouse_pointer", NULL, 1000, -1000, 50, 50, "MP", 40, "LEFT", FIELD_SELECTION, FONT_FIELD_VALUE,
     "BLANK/LEFT/RIGHT/CROSSHAIR", 0,0,0,0},
     
-  // parametric 5-band eq controls  ( BX[F|G|Q] = Band# Frequency | Gain | Q (Bandwidth) W2JON
+  // parametric 5-band eq controls  ( BX[F|G|B] = Band# Frequency | Gain | Bandwidth W2JON
  	{ "#b0f", do_eq_edit, 1000, -1000, 40, 40, "B0F", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 100, 8000, 50,VOICE_CONTROL},
  	{ "#b0g", do_eq_edit, 1000, -1000, 40, 40, "B0G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", -16, 16, 1,VOICE_CONTROL},
- 	{ "#b0q", do_eq_edit, 1000, -1000, 40, 40, "B0Q", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+ 	{ "#b0b", do_eq_edit, 1000, -1000, 40, 40, "B0B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"",0.5, 10, 0.5,VOICE_CONTROL},   
  	{ "#b1f", do_eq_edit, 1000, -1000, 40, 40, "B1F", 40, "250", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 100, 8000, 50,VOICE_CONTROL},
  	{ "#b1g", do_eq_edit, 1000, -1000, 40, 40, "B1G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", -16, 16, 1,VOICE_CONTROL},
- 	{ "#b1q", do_eq_edit, 1000, -1000, 40, 40, "B1Q", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+ 	{ "#b1b", do_eq_edit, 1000, -1000, 40, 40, "B1B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"",0.5, 10, 0.5,VOICE_CONTROL}, 
  	{ "#b2f", do_eq_edit, 1000, -1000, 40, 40, "B2F", 40, "1000", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 100, 8000, 50,VOICE_CONTROL},
  	{ "#b2g", do_eq_edit, 1000, -1000, 40, 40, "B2G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", -16, 16, 1,VOICE_CONTROL},
- 	{ "#b2q", do_eq_edit, 1000, -1000, 40, 40, "B2Q", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+ 	{ "#b2b", do_eq_edit, 1000, -1000, 40, 40, "B2B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"",0.5, 10, 0.5,VOICE_CONTROL}, 
  	{ "#b3f", do_eq_edit, 1000, -1000, 40, 40, "B3F", 40, "4000", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 100, 8000, 50,VOICE_CONTROL},
  	{ "#b3g", do_eq_edit, 1000, -1000, 40, 40, "B3G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", -16, 16, 1,VOICE_CONTROL},
- 	{ "#b3q", do_eq_edit, 1000, -1000, 40, 40, "B3Q", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+ 	{ "#b3b", do_eq_edit, 1000, -1000, 40, 40, "B3B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"",0.5, 10, 0.5,VOICE_CONTROL},  
  	{ "#b4f", do_eq_edit, 1000, -1000, 40, 40, "B4F", 40, "8000", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 100, 8000, 50,VOICE_CONTROL},
  	{ "#b4g", do_eq_edit, 1000, -1000, 40, 40, "B4G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", -16, 16, 1,VOICE_CONTROL},
- 	{ "#b4q", do_eq_edit, 1000, -1000, 40, 40, "B4Q", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+ 	{ "#b4b", do_eq_edit, 1000, -1000, 40, 40, "B4B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"",0.5, 10, 0.5,VOICE_CONTROL},  
 
 	// Settings Panel
@@ -3057,7 +3057,7 @@ int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 void modify_eq_band_frequency(ParametricEQ *eq, int band_index, double new_frequency) {
     if (band_index >= 0 && band_index < NUM_BANDS) {
         eq->bands[band_index].frequency = new_frequency;
-        print_eq_int(eq);
+//        print_eq_int(eq);
     } else {
         printf("Invalid Band Index Selected");
     }
@@ -3075,8 +3075,8 @@ void modify_eq_band_gain(ParametricEQ *eq, int band_index, double new_gain) {
             new_gain = 16.0;
         }
         eq->bands[band_index].gain = new_gain;
-         print_eq_int(eq);
-         fflush(stdout);
+//        print_eq_int(eq);
+//        fflush(stdout);
     } else {
          printf("Invalid Band Index Selected");
     }
@@ -3087,7 +3087,7 @@ void modify_eq_band_gain(ParametricEQ *eq, int band_index, double new_gain) {
 void modify_eq_band_bandwidth(ParametricEQ *eq, int band_index, double new_bandwidth) {
     if (band_index >= 0 && band_index < NUM_BANDS) {
         eq->bands[band_index].bandwidth = new_bandwidth;
-        // print_eq_int(eq);
+//       print_eq_int(eq);
     } else {
          printf("Invalid Band Index Selected");
     }
@@ -3101,10 +3101,10 @@ int get_band_from_label(const char *label) {
     int band = -1;
 
     if (label) {
-        printf("get_band_from_label> Label received: %s\n", label);
+//        printf("get_band_from_label> Label received: %s\n", label);
         if (strlen(label) >= 3 && label[0] == 'B') {
             char ending_char = label[strlen(label) - 1];
-            printf("get_band_from_label> Ending character: %c\n", ending_char);
+//           printf("get_band_from_label> Ending character: %c\n", ending_char);
             if (ending_char == 'F' || ending_char == 'G' || ending_char == 'Q') {
                 band = label[1] - '0'; // Convert character to integer
                 if (band < 0 || band > 9) { // Additional validation
@@ -3113,18 +3113,18 @@ int get_band_from_label(const char *label) {
             }
         }
     } else {
-        printf("get_band_from_label> Label is NULL\n");
+//     printf("get_band_from_label> Label is NULL\n");
     }
 
-    printf("get_band_from_label> Band decoded: %d\n", band);
+//   printf("get_band_from_label> Band decoded: %d\n", band);
     return band;
 }
 
-// Adjusting do_eqf, do_eqg, do_eqq functions to use band parameter
+// Adjusting do_eqf, do_eqg, do_eqb functions to use band parameter
 int do_eqf(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
     int band = get_band_from_label(f->label); // Extract band number from the field label
     int v = atoi(f->value);
-    printf("do_eqf> Band_From_Label: %d, Initial Value: %d\n", band, v);
+//  printf("do_eqf> Band_From_Label: %d, Initial Value: %d\n", band, v);
 
     if (event == FIELD_EDIT) {
         if (a == MIN_KEY_UP && v + f->step <= f->max) {
@@ -3133,17 +3133,17 @@ int do_eqf(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
             v -= f->step;
         }
         
-        printf("do_eqf> Adjusted Value: %d\n", v);
+//      printf("do_eqf> Adjusted Value: %d\n", v);
         sprintf(f->value, "%d", v);
         update_field(f);
 
         // Pass the new frequency value to the EQ function
-        printf("do_eqf> Calling modify_eq_band_frequency with band: %d, value: %d\n", band, v);
+//      printf("do_eqf> Calling modify_eq_band_frequency with band: %d, value: %d\n", band, v);
         modify_eq_band_frequency(&eq, band, (double)v); // Use derived band index
 
         char buff[20];
         sprintf(buff, "B%dF=%d", band, v);
-        printf("do_eqf> %s\n", buff);
+//        printf("do_eqf> %s\n", buff);
      
         return 1;
     }
@@ -3154,7 +3154,7 @@ int do_eqf(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
 int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
     int band = get_band_from_label(f->label); // Extract band number from the field label
     int v = atoi(f->value);
-    printf("do_eqg> Band_From_Label: %d, Initial Value: %d\n", band, v);
+//    printf("do_eqg> Band_From_Label: %d, Initial Value: %d\n", band, v);
   
     if (event == FIELD_EDIT) {
         if (a == MIN_KEY_UP && v + f->step <= f->max) {
@@ -3163,17 +3163,17 @@ int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
             v -= f->step;
         }
         
-        printf("do_eqg> Adjusted Value: %d\n", v);
+//        printf("do_eqg> Adjusted Value: %d\n", v);
         sprintf(f->value, "%d", v);
         update_field(f);
 
         // Pass the new gain value to the EQ function
-        printf("do_eqg> Calling modify_eq_band_gain with band: %d, value: %d\n", band, v);
+//        printf("do_eqg> Calling modify_eq_band_gain with band: %d, value: %d\n", band, v);
         modify_eq_band_gain(&eq, band, (double)v); // Use derived band index
 
         char buff[20];
         sprintf(buff, "B%dG=%d", band, v);
-        printf("do_eqg> %s\n", buff);
+//      printf("do_eqg> %s\n", buff);
      
         return 1;
     }
@@ -3181,10 +3181,10 @@ int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
     return 0;
 }
 
-int do_eqq(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
     int band = get_band_from_label(f->label); // Extract band number from the field label
     int v = atoi(f->value);
-    printf("do_eqq> Band_From_Label: %d, Initial Value: %d\n", band, v);
+    printf("do_eqb> Band_From_Label: %d, Initial Value: %d\n", band, v);
   
     if (event == FIELD_EDIT) {
         if (a == MIN_KEY_UP && v + f->step <= f->max) {
@@ -3193,17 +3193,17 @@ int do_eqq(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
             v -= f->step;
         }
         
-        printf("do_eqq> Adjusted Value: %d\n", v);
+//        printf("do_eqb> Adjusted Value: %d\n", v);
         sprintf(f->value, "%d", v);
         update_field(f);
         
         // Pass the new bandwidth value to the EQ function
-        printf("do_eqq> Calling modify_eq_band_bandwidth with band: %d, value: %d\n", band, v);
+//        printf("do_eqb> Calling modify_eq_band_bandwidth with band: %d, value: %d\n", band, v);
         modify_eq_band_bandwidth(&eq, band, (double)v); // Use derived band index
 
         char buff[20];
-        sprintf(buff, "B%dQ=%d", band, v);
-        printf("do_eqq> %s\n", buff);
+        sprintf(buff, "B%dB=%d", band, v);
+//        printf("do_ebq> %s\n", buff);
        
 
         return 1;
@@ -3229,9 +3229,9 @@ int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
         } else if (suffix == 'G') {
             printf("do_eq_edit> Adjusting gain for band %d...\n", band);
             return do_eqg(f, gfx, event, a, b, c); // Gain adjustment
-        } else if (suffix == 'Q') {
+        } else if (suffix == 'B') {
             printf("do_eq_edit> Adjusting bandwidth for band %d...\n", band);
-            return do_eqq(f, gfx, event, a, b, c); // Bandwidth adjustment
+            return do_eqb(f, gfx, event, a, b, c); // Bandwidth adjustment
         } else {
             printf("do_eq_edit> Unknown suffix: %c\n", suffix);
         }
