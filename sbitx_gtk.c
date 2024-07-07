@@ -54,6 +54,7 @@ void change_band (char *request);
 struct Queue q_remote_commands;
 struct Queue q_tx_text;
 
+
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7, 
 								10, 11, 12, 13, 14, 
@@ -323,7 +324,7 @@ struct field {
 	int		(*fn)(struct field *f, cairo_t *gfx, int event, int param_a, int param_b, int param_c);
 	int		x, y, width, height;
 	char	label[30];
-	int 	label_width;
+ 	int 	label_width;
 	char	value[MAX_FIELD_LENGTH];
 	char	value_type; //NUMBER, SELECTION, TEXT, TOGGLE, BUTTON
 	int 	font_index; //refers to font_style table
@@ -447,6 +448,11 @@ int do_mouse_move(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 int do_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bandwidth(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_eqf(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_eqq(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+
 
 struct field *active_layout = NULL;
 char settings_updated = 0;
@@ -591,6 +597,38 @@ struct field main_controls[] = {
     "", 100,99999,100, 0},
   { "mouse_pointer", NULL, 1000, -1000, 50, 50, "MP", 40, "LEFT", FIELD_SELECTION, FONT_FIELD_VALUE,
     "BLANK/LEFT/RIGHT/CROSSHAIR", 0,0,0,0},
+    
+  // parametric 5-band eq controls  ( BX[F|G|Q] = Band# Frequency | Gain | Q (Bandwidth) W2JON
+ 	{ "#b0f", do_eq_edit, 1000, -1000, 40, 40, "B0F", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 100, 8000, 50,VOICE_CONTROL},
+ 	{ "#b0g", do_eq_edit, 1000, -1000, 40, 40, "B0G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", -16, 16, 1,VOICE_CONTROL},
+ 	{ "#b0q", do_eq_edit, 1000, -1000, 40, 40, "B0Q", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0.5, 10, 0.5,VOICE_CONTROL},   
+ 	{ "#b1f", do_eq_edit, 1000, -1000, 40, 40, "B1F", 40, "250", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 100, 8000, 50,VOICE_CONTROL},
+ 	{ "#b1g", do_eq_edit, 1000, -1000, 40, 40, "B1G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", -16, 16, 1,VOICE_CONTROL},
+ 	{ "#b1q", do_eq_edit, 1000, -1000, 40, 40, "B1Q", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0.5, 10, 0.5,VOICE_CONTROL}, 
+ 	{ "#b2f", do_eq_edit, 1000, -1000, 40, 40, "B2F", 40, "1000", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 100, 8000, 50,VOICE_CONTROL},
+ 	{ "#b2g", do_eq_edit, 1000, -1000, 40, 40, "B2G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", -16, 16, 1,VOICE_CONTROL},
+ 	{ "#b2q", do_eq_edit, 1000, -1000, 40, 40, "B2Q", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0.5, 10, 0.5,VOICE_CONTROL}, 
+ 	{ "#b3f", do_eq_edit, 1000, -1000, 40, 40, "B3F", 40, "4000", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 100, 8000, 50,VOICE_CONTROL},
+ 	{ "#b3g", do_eq_edit, 1000, -1000, 40, 40, "B3G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", -16, 16, 1,VOICE_CONTROL},
+ 	{ "#b3q", do_eq_edit, 1000, -1000, 40, 40, "B3Q", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0.5, 10, 0.5,VOICE_CONTROL},  
+ 	{ "#b4f", do_eq_edit, 1000, -1000, 40, 40, "B4F", 40, "8000", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 100, 8000, 50,VOICE_CONTROL},
+ 	{ "#b4g", do_eq_edit, 1000, -1000, 40, 40, "B4G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", -16, 16, 1,VOICE_CONTROL},
+ 	{ "#b4q", do_eq_edit, 1000, -1000, 40, 40, "B4Q", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0.5, 10, 0.5,VOICE_CONTROL},  
 
 	// Settings Panel
 	{"#mycallsign", NULL, 1000, -1000, 400, 149, "MYCALLSIGN", 70, "CALL", FIELD_TEXT, FONT_SMALL, 
@@ -2027,12 +2065,10 @@ static void layout_ui(){
  		}
 		else if (!strcmp(qro_control->value, "OFF")) {
      field_move("QRO",-1000,50,40,40);
+     
   	}
 	}
-  
 
-  
-  
 	if (!strcmp(field_str("KBD"), "ON")){
 		//take out 3 button widths from the bottom
 		y2 = screen_height - 150;
@@ -2095,16 +2131,30 @@ static void layout_ui(){
 		case MODE_LSB:
 		case MODE_AM:
 		case MODE_NBFM:
-			field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+			field_move("CONSOLE", 5, y1, 355, y2-y1-105);
+    //	field_move("CONSOLE", 5, y1, 350, y2-y1-55);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
-			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
+		//	field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
+      field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-175);
 			y1 = y2 -50;
 			field_move("MIC", 5, y1, 45, 45);
 			field_move("LOW", 60, y1, 95, 45);
 			field_move("HIGH", 160, y1, 95, 45);
 			field_move("TX", 260, y1, 95, 45);
 			field_move("RX", 360, y1, 95, 45);
-			field_move("MENU", 460, y1, 45, 45);
+			field_move("MENU",460, y1, 45, 45);
+      field_move("B0F", 5, y1-50, 45, 45);
+      field_move("B0G", 50, y1-50, 45, 45);
+      field_move("B1F", 95, y1-50, 45, 45);
+      field_move("B1G", 140, y1-50, 45, 45);
+      field_move("B2F", 185, y1-50, 45, 45);
+      field_move("B2G", 230, y1-50, 45, 45);
+      field_move("B3F", 275, y1-50, 45, 45);
+      field_move("B3G", 320, y1-50, 45, 45);
+      field_move("B4F", 365, y1-50, 45, 45);
+      field_move("B4G", 410, y1-50, 45, 45);
+      
+      
 		break;
 		default:
 			field_move("CONSOLE", 5, y1, 350, y2-y1-110);
@@ -3001,12 +3051,13 @@ int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	return 0;
 }
 
-
+//------------------------------------------------------
 //Functions to modify the Parametric EQ settings. W2JON
 
 void modify_eq_band_frequency(ParametricEQ *eq, int band_index, double new_frequency) {
     if (band_index >= 0 && band_index < NUM_BANDS) {
         eq->bands[band_index].frequency = new_frequency;
+        print_eq_int(eq);
     } else {
         printf("Invalid Band Index Selected");
     }
@@ -3024,6 +3075,8 @@ void modify_eq_band_gain(ParametricEQ *eq, int band_index, double new_gain) {
             new_gain = 16.0;
         }
         eq->bands[band_index].gain = new_gain;
+         print_eq_int(eq);
+         fflush(stdout);
     } else {
          printf("Invalid Band Index Selected");
     }
@@ -3034,6 +3087,7 @@ void modify_eq_band_gain(ParametricEQ *eq, int band_index, double new_gain) {
 void modify_eq_band_bandwidth(ParametricEQ *eq, int band_index, double new_bandwidth) {
     if (band_index >= 0 && band_index < NUM_BANDS) {
         eq->bands[band_index].bandwidth = new_bandwidth;
+        // print_eq_int(eq);
     } else {
          printf("Invalid Band Index Selected");
     }
@@ -3041,7 +3095,154 @@ void modify_eq_band_bandwidth(ParametricEQ *eq, int band_index, double new_bandw
 
 // Example usage: modify_eq_band_bandwidth(&eq, 2, 0.8);  // Change bandwidth of band 2 to 0.8
 
+//We need to pick out which band we are working with, so lets figure out which control is calling
+// Function to extract band from label
+int get_band_from_label(const char *label) {
+    int band = -1;
 
+    if (label) {
+        printf("get_band_from_label> Label received: %s\n", label);
+        if (strlen(label) >= 3 && label[0] == 'B') {
+            char ending_char = label[strlen(label) - 1];
+            printf("get_band_from_label> Ending character: %c\n", ending_char);
+            if (ending_char == 'F' || ending_char == 'G' || ending_char == 'Q') {
+                band = label[1] - '0'; // Convert character to integer
+                if (band < 0 || band > 9) { // Additional validation
+                    band = -1;
+                }
+            }
+        }
+    } else {
+        printf("get_band_from_label> Label is NULL\n");
+    }
+
+    printf("get_band_from_label> Band decoded: %d\n", band);
+    return band;
+}
+
+// Adjusting do_eqf, do_eqg, do_eqq functions to use band parameter
+int do_eqf(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+    int band = get_band_from_label(f->label); // Extract band number from the field label
+    int v = atoi(f->value);
+    printf("do_eqf> Band_From_Label: %d, Initial Value: %d\n", band, v);
+
+    if (event == FIELD_EDIT) {
+        if (a == MIN_KEY_UP && v + f->step <= f->max) {
+            v += f->step;
+        } else if (a == MIN_KEY_DOWN && v - f->step >= f->min) {
+            v -= f->step;
+        }
+        
+        printf("do_eqf> Adjusted Value: %d\n", v);
+        sprintf(f->value, "%d", v);
+        update_field(f);
+
+        // Pass the new frequency value to the EQ function
+        printf("do_eqf> Calling modify_eq_band_frequency with band: %d, value: %d\n", band, v);
+        modify_eq_band_frequency(&eq, band, (double)v); // Use derived band index
+
+        char buff[20];
+        sprintf(buff, "B%dF=%d", band, v);
+        printf("do_eqf> %s\n", buff);
+     
+        return 1;
+    }
+
+    return 0;
+}
+
+int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+    int band = get_band_from_label(f->label); // Extract band number from the field label
+    int v = atoi(f->value);
+    printf("do_eqg> Band_From_Label: %d, Initial Value: %d\n", band, v);
+  
+    if (event == FIELD_EDIT) {
+        if (a == MIN_KEY_UP && v + f->step <= f->max) {
+            v += f->step;
+        } else if (a == MIN_KEY_DOWN && v - f->step >= f->min) {
+            v -= f->step;
+        }
+        
+        printf("do_eqg> Adjusted Value: %d\n", v);
+        sprintf(f->value, "%d", v);
+        update_field(f);
+
+        // Pass the new gain value to the EQ function
+        printf("do_eqg> Calling modify_eq_band_gain with band: %d, value: %d\n", band, v);
+        modify_eq_band_gain(&eq, band, (double)v); // Use derived band index
+
+        char buff[20];
+        sprintf(buff, "B%dG=%d", band, v);
+        printf("do_eqg> %s\n", buff);
+     
+        return 1;
+    }
+
+    return 0;
+}
+
+int do_eqq(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+    int band = get_band_from_label(f->label); // Extract band number from the field label
+    int v = atoi(f->value);
+    printf("do_eqq> Band_From_Label: %d, Initial Value: %d\n", band, v);
+  
+    if (event == FIELD_EDIT) {
+        if (a == MIN_KEY_UP && v + f->step <= f->max) {
+            v += f->step;
+        } else if (a == MIN_KEY_DOWN && v - f->step >= f->min) {
+            v -= f->step;
+        }
+        
+        printf("do_eqq> Adjusted Value: %d\n", v);
+        sprintf(f->value, "%d", v);
+        update_field(f);
+        
+        // Pass the new bandwidth value to the EQ function
+        printf("do_eqq> Calling modify_eq_band_bandwidth with band: %d, value: %d\n", band, v);
+        modify_eq_band_bandwidth(&eq, band, (double)v); // Use derived band index
+
+        char buff[20];
+        sprintf(buff, "B%dQ=%d", band, v);
+        printf("do_eqq> %s\n", buff);
+       
+
+        return 1;
+    }
+
+    return 0;
+}
+
+int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+    printf("Entering do_eq_edit: Label = %s\n", f->label);
+
+    int band = get_band_from_label(f->label);  // Determine band from label
+    printf("do_eq_edit> Band ID from label: %d\n", band);
+
+    if (band != -1) {
+        printf("do_eq_edit> Valid band found: %d\n", band);
+
+        // Depending on the event, handle adjustments for frequency, gain, or bandwidth
+        char suffix = f->label[strlen(f->label) - 1];
+        if (suffix == 'F') {
+            printf("do_eq_edit> Adjusting frequency for band %d...\n", band);
+            return do_eqf(f, gfx, event, a, b, c); // Frequency adjustment
+        } else if (suffix == 'G') {
+            printf("do_eq_edit> Adjusting gain for band %d...\n", band);
+            return do_eqg(f, gfx, event, a, b, c); // Gain adjustment
+        } else if (suffix == 'Q') {
+            printf("do_eq_edit> Adjusting bandwidth for band %d...\n", band);
+            return do_eqq(f, gfx, event, a, b, c); // Bandwidth adjustment
+        } else {
+            printf("do_eq_edit> Unknown suffix: %c\n", suffix);
+        }
+    } else {
+        printf("do_eq_edit> Invalid band: %d\n", band);
+    }
+
+    printf("Exiting do_eq_edit\n");
+    return 0; 
+}
+//---end Parametric EQ W2JON--------------------
 
 void tx_on(int trigger){
 	char response[100];
@@ -4261,6 +4462,8 @@ void do_control_action(char *cmd){
 	else if (!strcmp(request, "WEB")){
 		open_url("http://127.0.0.1:8080");
 	}
+	else if (!strncmp(request, "QRO_CONTROL",8))
+		redraw(); 
 	else if (!strcmp(request, "RX")){
 		tx_off();
 	}
@@ -4629,6 +4832,15 @@ void ensure_single_instance(){
 	}
 }
 
+void print_eq_int(const ParametricEQ *eq) {
+    for (int i = 0; i < NUM_BANDS; ++i) {
+        printf("Band %d: Frequency=%.2f, Gain=%.2f, Bandwidth=%.2f\n", 
+               i, eq->bands[i].frequency, eq->bands[i].gain, eq->bands[i].bandwidth);
+    }
+}
+
+
+
 int main( int argc, char* argv[] ) {
 
 	puts(VER_STR);
@@ -4728,15 +4940,21 @@ int main( int argc, char* argv[] ) {
 	field_set("KBD", "OFF");
   field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
   
-
+ 
 	// you don't want to save the recently loaded settings
 	settings_updated = 0;
 	
 	hamlib_start();
 	remote_start();
 
-	rtc_read();
+//test to pass values to eq 
+  modify_eq_band_frequency(&eq, 3, 1505.0);
+  modify_eq_band_gain(&eq, 3, -16);
+  modify_eq_band_bandwidth(&eq, 3, 6);
 
+
+	rtc_read();
+  print_eq_int(&eq);
 //	open_url("http://127.0.0.1:8080");
 //	execute_app("chromium-browser --log-leve=3 "
 //	"--enable-features=OverlayScrollbar http://127.0.0.1:8080"

@@ -17,10 +17,13 @@ typedef struct {
     EQBand bands[NUM_BANDS];
 } ParametricEQ;
 
+extern ParametricEQ eq;
+
 // Function declarations
 extern void init_eq(ParametricEQ *eq);
 extern void modify_eq_band_frequency(ParametricEQ *eq, int band_index, double new_frequency);
 extern void modify_eq_band_gain(ParametricEQ *eq, int band_index, double new_gain);
 extern void modify_eq_band_bandwidth(ParametricEQ *eq, int band_index, double new_bandwidth);
+extern void print_eq_int(const ParametricEQ *eq);
 
 #endif /* PARA_EQ_H_ */

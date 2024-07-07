@@ -22,10 +22,13 @@
 #include "si5351.h"
 #include "ini.h"
 #include "para_eq.h"
+
 #define DEBUG 0
 int ext_ptt_enable = 0; //ADDED BY KF7YDU.  Can be used by external software to enable/disable external PTT.  1=enabled, 0=disabled. Disabled by default.
 char audio_card[32];
 static int tx_shift = 512;
+
+ParametricEQ eq; 
 
 //Parametric TX EQ implementation W2JON
 //Set up nice and flat to begin with.
@@ -1075,7 +1078,7 @@ void sound_process(
     int32_t *output_speaker, int32_t *output_tx, 
     int n_samples)
 {
-    static ParametricEQ eq;
+   // static ParametricEQ eq;
     static int eq_initialized = 0;
 
     if (!eq_initialized) {
@@ -1488,7 +1491,7 @@ void setup(){
 	q_init(&qremote, 8000);
 
 	modem_init();
-
+  init_eq(&eq);
 	add_rx(7000000, MODE_LSB, -3000, -300);
 	add_tx(7000000, MODE_LSB, -3000, -300);
 	rx_list->tuned_bin = 512;
