@@ -2355,7 +2355,26 @@ static void edit_field(struct field *f, int action){
 //	update_field(f);
 	settings_updated++;
 }
+static void focus_field_without_changes(struct field* f) {
+	//this is an extract from focus_field()
+	//it shifts the focus to the updated field
+	//without toggling/jumping the value 
+	struct field* prev_hover = f_hover;
+	struct field* prev_focus = f_focus;
+	f_focus = NULL;
 
+	if (prev_hover)
+		update_field(prev_hover);
+	if (prev_focus)
+		update_field(prev_focus);
+
+	if (f) {
+		f_focus = f_hover = f;
+		focus_since = millis();
+	}
+	update_field(f_hover);
+	update_field(f_focus);
+}
 static void focus_field(struct field *f){
 	struct field *prev_hover = f_hover;
 	struct field *prev_focus = f_focus;
@@ -4132,16 +4151,19 @@ gboolean ui_tick(gpointer gook){
 		update_field(f);
 */
 
-		if (digitalRead(ENC1_SW) == 0){
+		if (digitalRead(ENC1_SW) == 0 && millis() - focus_since > 200){
 			//flip between mode and volume
 			if (f_focus && !strcmp(f_focus->label, "AUDIO"))
-				focus_field(get_field("r1:mode"));
+				focus_field_without_changes(get_field("r1:mode"));
 			else
-				focus_field(get_field("r1:volume"));
-			printf("Focus is on %s\n", f_focus->label);
+				focus_field_without_changes(get_field("r1:volume"));
+			//printf("Focus is on %s\n", f_focus->label);
 		}
-		if (digitalRead(ENC2_SW) == 0)
-		oled_toggle_band();
+		if (digitalRead(ENC2_SW) == 0 && millis() - focus_since > 200) {
+			oled_toggle_band();
+			focus_since = millis();
+		}
+		
 
 		if (record_start)
 			update_field(get_field("#record"));
@@ -4821,15 +4843,7 @@ void cmd_exec(char *cmd){
 			if(set_field(f->cmd, args)){
 				write_console(FONT_LOG, "Invalid setting:");
       } else {
-				//this is an extract from focus_field()
-				//it shifts the focus to the updated field
-				//without toggling/jumping the value 
-				struct field *prev_hover = f_hover;
-				struct field *prev_focus = f_focus;
-				f_focus = NULL;
-				f_focus = f_hover = f;
-				focus_since = millis();
-				update_field(f_hover);
+				focus_field_without_changes(f);
       }
 		}
 	}
