@@ -42,6 +42,9 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "i2cbb.h"
 #include "webserver.h"
 #include "logbook.h"
+#include "ntputil.h"
+#include "para_eq.h"
+
 
 #define FT8_START_QSO 1
 #define FT8_CONTINUE_QSO 0
@@ -50,6 +53,7 @@ void change_band (char *request);
 /* command  buffer for commands received from the remote */
 struct Queue q_remote_commands;
 struct Queue q_tx_text;
+
 
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7, 
@@ -320,7 +324,7 @@ struct field {
 	int		(*fn)(struct field *f, cairo_t *gfx, int event, int param_a, int param_b, int param_c);
 	int		x, y, width, height;
 	char	label[30];
-	int 	label_width;
+ 	int 	label_width;
 	char	value[MAX_FIELD_LENGTH];
 	char	value_type; //NUMBER, SELECTION, TEXT, TOGGLE, BUTTON
 	int 	font_index; //refers to font_style table
@@ -376,7 +380,6 @@ static int serial_fd = -1;
 static int xit = 512; 
 static long int tuning_step = 1000;
 static int tx_mode = MODE_USB;
-
 
 #define BAND80M	0
 #define BAND40M	1
@@ -440,10 +443,16 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_pitch(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_toggle_menu(struct field* f, cairo_t* gfx, int event, int a, int b, int c);
 int do_mouse_move(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bandwidth(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_eqf(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+
 
 struct field *active_layout = NULL;
 char settings_updated = 0;
@@ -461,8 +470,8 @@ int current_layout = LAYOUT_KBD;
 // the cmd fields that have '#' are not to be sent to the sdr
 struct field main_controls[] = {
 	/* band stack registers */
-	{"#10m", NULL, 50, 5, 40, 40, "10M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
-		"", 0,0,0,COMMON_CONTROL},
+ 	{"#10m", NULL, 50, 5, 40, 40, "10M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+  	"", 0,0,0,COMMON_CONTROL},
 	{"#12m", NULL, 90, 5, 40, 40, "12M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 0,0,0,COMMON_CONTROL},
 	{"#15m", NULL, 130, 5, 40, 40, "15M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
@@ -477,45 +486,41 @@ struct field main_controls[] = {
 		"", 0,0,0,COMMON_CONTROL},
 	{"#80m", NULL, 330, 5, 40, 40, "80M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 0,0,0,COMMON_CONTROL},
-	{ "#record", do_record, 380, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
+	{ "#record", do_record, 378, 5, 40, 40, "REC", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,0, 0,COMMON_CONTROL},
-	{ "#web", NULL, 420,5,  40, 40, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
+	{ "#web", NULL, 418,5,  40, 40, "WEB", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"", 0,0, 0,COMMON_CONTROL},
-	{"#set", NULL, 460, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL}, 
+	{"#set", NULL, 458, 5, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,COMMON_CONTROL}, 
 	{ "r1:gain", NULL, 375, 5, 40, 40, "IF", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 0, 100, 1,COMMON_CONTROL},
 	{ "r1:agc", NULL, 415, 5, 40, 40, "AGC", 40, "SLOW", FIELD_SELECTION, FONT_FIELD_VALUE, 
 		"OFF/SLOW/MED/FAST", 0, 1024, 1,COMMON_CONTROL},
 	{ "tx_power", NULL, 455, 5, 40, 40, "DRIVE", 40, "40", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 1, 100, 1,COMMON_CONTROL},
-
-
 	{ "r1:freq", do_tuning, 600, 0, 150, 49, "FREQ", 5, "14000000", FIELD_NUMBER, FONT_LARGE_VALUE, 
 		"", 500000, 30000000, 100,COMMON_CONTROL},
-
 	{ "r1:volume", NULL, 755, 5, 40, 40, "AUDIO", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 0, 100, 1,COMMON_CONTROL},
-
 	{"#step", NULL, 560, 5 ,40, 40, "STEP", 1, "10Hz", FIELD_SELECTION, FONT_FIELD_VALUE, 
 		"10K/1K/500H/100H/10H", 0,0,0,COMMON_CONTROL},
 	{"#span", NULL, 560, 50 , 40, 40, "SPAN", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE, 
 		"25K/10K/6K/2.5K", 0,0,0,COMMON_CONTROL},
-
 	{"#rit", NULL, 600, 50, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,0,0,COMMON_CONTROL},
 	{"#vfo", NULL, 640, 50 , 40, 40, "VFO", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE, 
 		"A/B", 0,0,0,COMMON_CONTROL},
 	{"#split", NULL, 680, 50, 40, 40, "SPLIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,0,0,COMMON_CONTROL},
-
-	{ "#bw", do_bandwidth, 495, 5, 40, 40, "BW", 40, "", FIELD_NUMBER, FONT_FIELD_VALUE, 
+  {"#qro", NULL, 473, 50, 40, 40, "QRO", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF", 0,0,0,COMMON_CONTROL},
+  {"#qro_control", NULL, 1000, -1000, 40, 40, "QRO_CONTROL", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF", 0,0,0,COMMON_CONTROL},
+  { "#bw", do_bandwidth, 495, 5, 40, 40, "BW", 40, "", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 50, 5000, 50,COMMON_CONTROL},
-
 	{ "r1:mode", NULL, 5, 5, 40, 40, "MODE", 40, "USB", FIELD_SELECTION, FONT_FIELD_VALUE, 
-		"USB/LSB/CW/CWR/FT8/DIGITAL/2TONE", 0,0,0, COMMON_CONTROL},
+		"USB/LSB/CW/CWR/FT8/AM/DIGITAL/2TONE", 0,0,0, COMMON_CONTROL},
 
 	/* logger controls */
-
 	{"#contact_callsign", do_text, 5, 50, 85, 20, "CALL", 70, "", FIELD_TEXT, FONT_LOG, 
 		"", 0,11,0,COMMON_CONTROL},
 	{"#rst_sent", do_text, 90, 50, 50, 20, "SENT", 70, "", FIELD_TEXT, FONT_LOG, 
@@ -538,6 +543,7 @@ struct field main_controls[] = {
 		"ON/OFF", 0,0, 0,COMMON_CONTROL},
 
 
+
 /* end of common controls */
 
 	//tx 
@@ -546,23 +552,26 @@ struct field main_controls[] = {
 
 	{ "tx_compress", NULL, 600, -350, 50, 50, "COMP", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"ON/OFF", 0,100,10, VOICE_CONTROL},
+   
 	{ "#tx_wpm", NULL, 650, -350, 50, 50, "WPM", 40, "12", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 1, 50, 1, CW_CONTROL},
 	{ "rx_pitch", do_pitch, 700, -350, 50, 50, "PITCH", 40, "600", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 100, 3000, 10, FT8_CONTROL | DIGITAL_CONTROL},
-	
 
 	{ "#tx", NULL, 1000, -1000, 50, 50, "TX", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"RX/TX", 0,0, 0, VOICE_CONTROL},
 
 	{ "#rx", NULL, 650, -400, 50, 50, "RX", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"RX/TX", 0,0, 0, VOICE_CONTROL | DIGITAL_CONTROL},
-	
+
+// This control is being saved for a possible sub menu where audio tools or other settings may be reviewed and edited
+//	{ "#toggle_menu", do_toggle_menu, 500, -500, 40, 40, "MENU", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+//		"ON/OFF", 0,0, 0,VOICE_CONTROL},
 
 	{"r1:low", NULL, 660, -350, 50, 50, "LOW", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100,4000, 50, 0, DIGITAL_CONTROL},
+		"", 100,5000, 50, 0, DIGITAL_CONTROL},
 	{"r1:high", NULL, 580, -350, 50, 50, "HIGH", 40, "3000", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100, 10000, 50, 0, DIGITAL_CONTROL},
+		"", 100, 5000, 50, 0, DIGITAL_CONTROL},
 
 	{"spectrum", do_spectrum, 400, 101, 400, 100, "SPECTRUM", 70, "7000 KHz", FIELD_STATIC, FONT_SMALL, 
 		"", 0,0,0, COMMON_CONTROL},  
@@ -576,6 +585,7 @@ struct field main_controls[] = {
 
 	{"#log_ed", NULL, 0, 480, 480, 20, "", 70, "", FIELD_STATIC, FONT_LOG, 
 		"nothing valuable", 0,128,0, 0},
+   
   // other settings - currently off screen
   { "reverse_scrolling", NULL, 1000, -1000, 50, 50, "RS", 40, "ON", FIELD_TOGGLE, FONT_FIELD_VALUE,
     "ON/OFF", 0,0,0, 0},
@@ -587,6 +597,38 @@ struct field main_controls[] = {
     "", 100,99999,100, 0},
   { "mouse_pointer", NULL, 1000, -1000, 50, 50, "MP", 40, "LEFT", FIELD_SELECTION, FONT_FIELD_VALUE,
     "BLANK/LEFT/RIGHT/CROSSHAIR", 0,0,0,0},
+    
+  // parametric 5-band eq controls  ( BX[F|G|B] = Band# Frequency | Gain | Bandwidth W2JON
+ 	{ "#b0f", do_eq_edit, 1000, -1000, 40, 40, "B0F", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 100, 8000, 50,VOICE_CONTROL},
+ 	{ "#b0g", do_eq_edit, 1000, -1000, 40, 40, "B0G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", -16, 16, 1,VOICE_CONTROL},
+ 	{ "#b0b", do_eq_edit, 1000, -1000, 40, 40, "B0B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0.5, 10, 0.5,VOICE_CONTROL},   
+ 	{ "#b1f", do_eq_edit, 1000, -1000, 40, 40, "B1F", 40, "250", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 100, 8000, 50,VOICE_CONTROL},
+ 	{ "#b1g", do_eq_edit, 1000, -1000, 40, 40, "B1G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", -16, 16, 1,VOICE_CONTROL},
+ 	{ "#b1b", do_eq_edit, 1000, -1000, 40, 40, "B1B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0.5, 10, 0.5,VOICE_CONTROL}, 
+ 	{ "#b2f", do_eq_edit, 1000, -1000, 40, 40, "B2F", 40, "1000", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 100, 8000, 50,VOICE_CONTROL},
+ 	{ "#b2g", do_eq_edit, 1000, -1000, 40, 40, "B2G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", -16, 16, 1,VOICE_CONTROL},
+ 	{ "#b2b", do_eq_edit, 1000, -1000, 40, 40, "B2B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0.5, 10, 0.5,VOICE_CONTROL}, 
+ 	{ "#b3f", do_eq_edit, 1000, -1000, 40, 40, "B3F", 40, "4000", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 100, 8000, 50,VOICE_CONTROL},
+ 	{ "#b3g", do_eq_edit, 1000, -1000, 40, 40, "B3G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", -16, 16, 1,VOICE_CONTROL},
+ 	{ "#b3b", do_eq_edit, 1000, -1000, 40, 40, "B3B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0.5, 10, 0.5,VOICE_CONTROL},  
+ 	{ "#b4f", do_eq_edit, 1000, -1000, 40, 40, "B4F", 40, "8000", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 100, 8000, 50,VOICE_CONTROL},
+ 	{ "#b4g", do_eq_edit, 1000, -1000, 40, 40, "B4G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", -16, 16, 1,VOICE_CONTROL},
+ 	{ "#b4b", do_eq_edit, 1000, -1000, 40, 40, "B4B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",0.5, 10, 0.5,VOICE_CONTROL},  
 
 	// Settings Panel
 	{"#mycallsign", NULL, 1000, -1000, 400, 149, "MYCALLSIGN", 70, "CALL", FIELD_TEXT, FONT_SMALL, 
@@ -634,6 +676,8 @@ struct field main_controls[] = {
     "", 300, 3000, 50, 0},
   {"#bw_digital", NULL, 1000, -1000, 50, 50, "BW_DIGITAL", 40, "3000", FIELD_NUMBER, FONT_FIELD_VALUE,
     "", 300, 3000, 50, 0},
+  {"#bw_am", NULL, 1000, -1000, 50, 50, "BW_AM", 40, "5000", FIELD_NUMBER, FONT_FIELD_VALUE,
+    "", 300, 6000, 50, 0 },
 
 	//FT8 controls
 	{"#ft8_auto", NULL, 1000, -1000, 50, 50, "FT8_AUTO", 40, "ON", FIELD_TOGGLE, FONT_FIELD_VALUE, 
@@ -729,11 +773,9 @@ struct field main_controls[] = {
 
 	//row 3
 
-
-
 	{"#mfedit", do_macro, 195, 1440, 65, 40, "Edit", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,0}, 
 
-	{"#mfspot"	, do_macro, 260, 1440, 70, 40, "Spot", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,0}, 
+	{"#mfspot", do_macro, 260, 1440, 70, 40, "Spot", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,0}, 
 
 	{"#mfkbd", do_macro, 330, 1440, 70, 40, "Kbd", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,"", 0,0,0,0}, 
 
@@ -1670,33 +1712,43 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 	//calculate the position of bandwidth strip
 	int filter_start, filter_width;
 
-	if(!strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "LSB")){
-	 	filter_start = f_spectrum->x + (f_spectrum->width/2) - 
-			((f_spectrum->width * bw_high)/(span * 1000)); 
-		if (filter_start < f_spectrum->x){
-	 	  filter_width = ((f_spectrum->width * (bw_high -bw_low))/(span * 1000)) - (f_spectrum->x - filter_start); 
-			filter_start = f_spectrum->x;
+if(!strcmp(mode_f->value, "CWR") || !strcmp(mode_f->value, "LSB")){
+    filter_start = f_spectrum->x + (f_spectrum->width/2) - 
+        ((f_spectrum->width * bw_high)/(span * 1000)); 
+    if (filter_start < f_spectrum->x){
+        filter_width = ((f_spectrum->width * (bw_high -bw_low))/(span * 1000)) - (f_spectrum->x - filter_start); 
+        filter_start = f_spectrum->x;
     } else {
-	 	  filter_width = (f_spectrum->width * (bw_high -bw_low))/(span * 1000); 
+        filter_width = (f_spectrum->width * (bw_high -bw_low))/(span * 1000); 
     }
-		if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
-			filter_width = f_spectrum->x + f_spectrum->width - filter_start;
-		pitch = f_spectrum->x + (f_spectrum->width/2) -
-			((f_spectrum->width * pitch)/(span * 1000));
-	}
-	else {
-		filter_start = f_spectrum->x + (f_spectrum->width/2) + 
-			((f_spectrum->width * bw_low)/(span * 1000)); 
-		if (filter_start < f_spectrum->x)
-			filter_start = f_spectrum->x;
-		filter_width = (f_spectrum->width * (bw_high-bw_low))/(span * 1000); 
-		if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
-			filter_width = f_spectrum->x + f_spectrum->width - filter_start;
-		pitch = f_spectrum->x + (f_spectrum->width/2) + 
-			((f_spectrum->width * pitch)/(span * 1000));
-		tx_pitch = f_spectrum->x + (f_spectrum->width/2) + 
-			((f_spectrum->width * tx_pitch)/(span * 1000));
-	}
+    if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
+        filter_width = f_spectrum->x + f_spectrum->width - filter_start;
+    pitch = f_spectrum->x + (f_spectrum->width/2) -
+        ((f_spectrum->width * pitch)/(span * 1000));
+} else if (!strcmp(mode_f->value, "AM")) {
+    // For AM mode, cover both sidebands
+    filter_start = f_spectrum->x + (f_spectrum->width/2) - 
+        ((f_spectrum->width * bw_high)/(span * 1000)); 
+    if (filter_start < f_spectrum->x)
+        filter_start = f_spectrum->x;
+    filter_width = (f_spectrum->width * (bw_high + bw_low))/(span * 1000); 
+    if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
+        filter_width = f_spectrum->x + f_spectrum->width - filter_start;
+    pitch = f_spectrum->x + (f_spectrum->width/2);  // Center pitch for AM
+} else {
+    filter_start = f_spectrum->x + (f_spectrum->width/2) + 
+        ((f_spectrum->width * bw_low)/(span * 1000)); 
+    if (filter_start < f_spectrum->x)
+        filter_start = f_spectrum->x;
+    filter_width = (f_spectrum->width * (bw_high - bw_low))/(span * 1000); 
+    if (filter_width + filter_start > f_spectrum->x + f_spectrum->width)
+        filter_width = f_spectrum->x + f_spectrum->width - filter_start;
+    pitch = f_spectrum->x + (f_spectrum->width/2) + 
+        ((f_spectrum->width * pitch)/(span * 1000));
+    tx_pitch = f_spectrum->x + (f_spectrum->width/2) + 
+        ((f_spectrum->width * tx_pitch)/(span * 1000));
+}
+
 	// clear the spectrum	
 	f = f_spectrum;
 	fill_rect(gfx, f->x,f->y, f->width, f->height, SPECTRUM_BACKGROUND);
@@ -1996,12 +2048,26 @@ static void layout_ui(){
 	field_move("BW", x2-125, 50, 40, 40);
 	field_move("AGC", x2-165, 50, 40, 40);
 
-	field_move("STEP", x2-245, 5, 40, 40);
-	field_move("RIT", x2-285, 5, 40, 40);
+	field_move("STEP", x2-252, 5, 40, 40);
+	field_move("RIT", x2-292, 5, 40, 40);
 	field_move("SPLIT", x2-285, 50, 40, 40);
 	field_move("VFO", x2-245, 50, 40, 40);
 	field_move("SPAN", x2-205, 50, 40, 40);
 	
+ 
+ 
+  //place the QRO control button off screen until the user manually enables it with \qro_control on (qro_control = ON) -W2JON
+   	struct field* qro_control = get_field("#qro_control");
+	if (qro_control) {
+		if (!strcmp(qro_control->value, "ON")) {
+     printf("QRO Control Enabled\n");
+     field_move("QRO",473, 50, 40, 40);
+ 		}
+		else if (!strcmp(qro_control->value, "OFF")) {
+     field_move("QRO",-1000,50,40,40);
+     
+  	}
+	}
 
 	if (!strcmp(field_str("KBD"), "ON")){
 		//take out 3 button widths from the bottom
@@ -2065,15 +2131,30 @@ static void layout_ui(){
 		case MODE_LSB:
 		case MODE_AM:
 		case MODE_NBFM:
-			field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+			field_move("CONSOLE", 5, y1, 355, y2-y1-105);
+    //	field_move("CONSOLE", 5, y1, 350, y2-y1-55);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
-			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
+		//	field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
+      field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-175);
 			y1 = y2 -50;
 			field_move("MIC", 5, y1, 45, 45);
 			field_move("LOW", 60, y1, 95, 45);
 			field_move("HIGH", 160, y1, 95, 45);
 			field_move("TX", 260, y1, 95, 45);
 			field_move("RX", 360, y1, 95, 45);
+			field_move("MENU",460, y1, 45, 45);
+      field_move("B0F", 5, y1-50, 45, 45);
+      field_move("B0G", 50, y1-50, 45, 45);
+      field_move("B1F", 95, y1-50, 45, 45);
+      field_move("B1G", 140, y1-50, 45, 45);
+      field_move("B2F", 185, y1-50, 45, 45);
+      field_move("B2G", 230, y1-50, 45, 45);
+      field_move("B3F", 275, y1-50, 45, 45);
+      field_move("B3G", 320, y1-50, 45, 45);
+      field_move("B4F", 365, y1-50, 45, 45);
+      field_move("B4G", 410, y1-50, 45, 45);
+      
+      
 		break;
 		default:
 			field_move("CONSOLE", 5, y1, 350, y2-y1-110);
@@ -2462,8 +2543,10 @@ void save_bandwidth(int hz){
 		case MODE_USB:
 		case MODE_LSB:
 		case MODE_NBFM:
+			field_set("BW_VOICE", bw);
+			break;
 		case MODE_AM:
-			field_set("BW_VOICE",bw); 
+			field_set("BW_AM",bw); 
 			break;
 		default:
 			field_set("BW_DIGITAL",bw); 
@@ -2494,6 +2577,11 @@ void set_filter_high_low(int hz){
 		case MODE_DIGITAL:
 			low = atoi(f_pitch->value) - (hz/2);
 			high = atoi(f_pitch->value) + (hz/2);
+			break;
+		case MODE_AM:
+		//	low = 50;
+			low = hz;
+			high = hz;
 			break;
 		case MODE_FT8:
 			low = 50;
@@ -2537,6 +2625,15 @@ int do_status(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	}
 	return 0;
 }
+
+
+
+
+
+
+
+
+
 
 void execute_app(char *app){
 	char buff[1000];
@@ -2635,6 +2732,9 @@ int do_pitch(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 			case MODE_USB:
 			case MODE_LSB:
 				bw = field_int("BW_VOICE");
+				break;
+			case MODE_AM:
+				bw = field_int("BW_AM");
 				break;
 			case MODE_FT8:
 				bw = 4000;
@@ -2823,7 +2923,13 @@ int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	}
 	return 0;
 }
-
+int do_toggle_menu(struct field* f, cairo_t* gfx, int event, int a, int b, int c) {
+	if (event == GDK_BUTTON_PRESS) {
+		//THIS SPACE FOR RENT-W2JON
+		return 1;
+	}
+	return 0;
+}
 
 void open_url(char *url){
 	char temp_line[200];
@@ -2945,6 +3051,199 @@ int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	return 0;
 }
 
+//------------------------------------------------------
+//Functions to modify the Parametric EQ settings. W2JON
+
+void modify_eq_band_frequency(ParametricEQ *eq, int band_index, double new_frequency) {
+    if (band_index >= 0 && band_index < NUM_BANDS) {
+        eq->bands[band_index].frequency = new_frequency;
+//        print_eq_int(eq);
+    } else {
+        printf("Invalid Band Index Selected");
+    }
+}
+
+// Example usage: modify_eq_band_frequency(&eq, 3, 4105.0);  // Change frequency of band 3 to 4105.0 Hz
+
+void modify_eq_band_gain(ParametricEQ *eq, int band_index, double new_gain) {
+    // Limit gain range -16 to +16 dB
+    if (band_index >= 0 && band_index < NUM_BANDS) {
+        // Clamp gain within range
+        if (new_gain < -16.0) {
+            new_gain = -16.0;
+        } else if (new_gain > 16.0) {
+            new_gain = 16.0;
+        }
+        eq->bands[band_index].gain = new_gain;
+//        print_eq_int(eq);
+//        fflush(stdout);
+    } else {
+         printf("Invalid Band Index Selected");
+    }
+}
+
+// Example usage: modify_eq_band_gain(&eq, 1, 4.5);  // Change gain of band 1 to 4.5 dB
+
+void modify_eq_band_bandwidth(ParametricEQ *eq, int band_index, double new_bandwidth) {
+    if (band_index >= 0 && band_index < NUM_BANDS) {
+        eq->bands[band_index].bandwidth = new_bandwidth;
+//       print_eq_int(eq);
+    } else {
+         printf("Invalid Band Index Selected");
+    }
+}
+
+// Example usage: modify_eq_band_bandwidth(&eq, 2, 0.8);  // Change bandwidth of band 2 to 0.8
+
+//We need to pick out which band we are working with, so lets figure out which control is calling
+// Function to extract band from label
+int get_band_from_label(const char *label) {
+    int band = -1;
+
+    if (label) {
+//        printf("get_band_from_label> Label received: %s\n", label);
+        if (strlen(label) >= 3 && label[0] == 'B') {
+            char ending_char = label[strlen(label) - 1];
+//           printf("get_band_from_label> Ending character: %c\n", ending_char);
+            if (ending_char == 'F' || ending_char == 'G' || ending_char == 'Q') {
+                band = label[1] - '0'; // Convert character to integer
+                if (band < 0 || band > 9) { // Additional validation
+                    band = -1;
+                }
+            }
+        }
+    } else {
+//     printf("get_band_from_label> Label is NULL\n");
+    }
+
+//   printf("get_band_from_label> Band decoded: %d\n", band);
+    return band;
+}
+
+// Adjusting do_eqf, do_eqg, do_eqb functions to use band parameter
+int do_eqf(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+    int band = get_band_from_label(f->label); // Extract band number from the field label
+    int v = atoi(f->value);
+//  printf("do_eqf> Band_From_Label: %d, Initial Value: %d\n", band, v);
+
+    if (event == FIELD_EDIT) {
+        if (a == MIN_KEY_UP && v + f->step <= f->max) {
+            v += f->step;
+        } else if (a == MIN_KEY_DOWN && v - f->step >= f->min) {
+            v -= f->step;
+        }
+        
+//      printf("do_eqf> Adjusted Value: %d\n", v);
+        sprintf(f->value, "%d", v);
+        update_field(f);
+
+        // Pass the new frequency value to the EQ function
+//      printf("do_eqf> Calling modify_eq_band_frequency with band: %d, value: %d\n", band, v);
+        modify_eq_band_frequency(&eq, band, (double)v); // Use derived band index
+
+        char buff[20];
+        sprintf(buff, "B%dF=%d", band, v);
+//        printf("do_eqf> %s\n", buff);
+     
+        return 1;
+    }
+
+    return 0;
+}
+
+int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+    int band = get_band_from_label(f->label); // Extract band number from the field label
+    int v = atoi(f->value);
+//    printf("do_eqg> Band_From_Label: %d, Initial Value: %d\n", band, v);
+  
+    if (event == FIELD_EDIT) {
+        if (a == MIN_KEY_UP && v + f->step <= f->max) {
+            v += f->step;
+        } else if (a == MIN_KEY_DOWN && v - f->step >= f->min) {
+            v -= f->step;
+        }
+        
+//        printf("do_eqg> Adjusted Value: %d\n", v);
+        sprintf(f->value, "%d", v);
+        update_field(f);
+
+        // Pass the new gain value to the EQ function
+//        printf("do_eqg> Calling modify_eq_band_gain with band: %d, value: %d\n", band, v);
+        modify_eq_band_gain(&eq, band, (double)v); // Use derived band index
+
+        char buff[20];
+        sprintf(buff, "B%dG=%d", band, v);
+//      printf("do_eqg> %s\n", buff);
+     
+        return 1;
+    }
+
+    return 0;
+}
+
+int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+    int band = get_band_from_label(f->label); // Extract band number from the field label
+    int v = atoi(f->value);
+    printf("do_eqb> Band_From_Label: %d, Initial Value: %d\n", band, v);
+  
+    if (event == FIELD_EDIT) {
+        if (a == MIN_KEY_UP && v + f->step <= f->max) {
+            v += f->step;
+        } else if (a == MIN_KEY_DOWN && v - f->step >= f->min) {
+            v -= f->step;
+        }
+        
+//        printf("do_eqb> Adjusted Value: %d\n", v);
+        sprintf(f->value, "%d", v);
+        update_field(f);
+        
+        // Pass the new bandwidth value to the EQ function
+//        printf("do_eqb> Calling modify_eq_band_bandwidth with band: %d, value: %d\n", band, v);
+        modify_eq_band_bandwidth(&eq, band, (double)v); // Use derived band index
+
+        char buff[20];
+        sprintf(buff, "B%dB=%d", band, v);
+//        printf("do_ebq> %s\n", buff);
+       
+
+        return 1;
+    }
+
+    return 0;
+}
+
+int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+    printf("Entering do_eq_edit: Label = %s\n", f->label);
+
+    int band = get_band_from_label(f->label);  // Determine band from label
+    printf("do_eq_edit> Band ID from label: %d\n", band);
+
+    if (band != -1) {
+        printf("do_eq_edit> Valid band found: %d\n", band);
+
+        // Depending on the event, handle adjustments for frequency, gain, or bandwidth
+        char suffix = f->label[strlen(f->label) - 1];
+        if (suffix == 'F') {
+            printf("do_eq_edit> Adjusting frequency for band %d...\n", band);
+            return do_eqf(f, gfx, event, a, b, c); // Frequency adjustment
+        } else if (suffix == 'G') {
+            printf("do_eq_edit> Adjusting gain for band %d...\n", band);
+            return do_eqg(f, gfx, event, a, b, c); // Gain adjustment
+        } else if (suffix == 'B') {
+            printf("do_eq_edit> Adjusting bandwidth for band %d...\n", band);
+            return do_eqb(f, gfx, event, a, b, c); // Bandwidth adjustment
+        } else {
+            printf("do_eq_edit> Unknown suffix: %c\n", suffix);
+        }
+    } else {
+        printf("do_eq_edit> Invalid band: %d\n", band);
+    }
+
+    printf("Exiting do_eq_edit\n");
+    return 0; 
+}
+//---end Parametric EQ W2JON--------------------
+
 void tx_on(int trigger){
 	char response[100];
 
@@ -2952,6 +3251,18 @@ void tx_on(int trigger){
 		puts("Error: tx_on trigger should be SOFT or PTT");
 		return;
 	}
+
+//------Added for QRO PTT enable/disable W2JON
+	struct field* qro = get_field("#qro");
+	if (qro) {
+		if (!strcmp(qro->value, "ON")) {
+    	ext_ptt_enable = 1;
+		}
+		else if (!strcmp(qro->value, "OFF")) {
+			ext_ptt_enable = 0;
+		}
+	}
+
 
 	struct field *f = get_field("r1:mode");
 	if (f){
@@ -2981,6 +3292,7 @@ void tx_on(int trigger){
 		set_operating_freq(atoi(freq->value), response);
 		update_field(get_field("r1:freq"));
 		printf("TX\n");
+    printf("ext_ptt_enable value: %d\n", ext_ptt_enable); //Added to debug the switch. W2JON
 	}
 
 	tx_start_time = millis();
@@ -3699,6 +4011,9 @@ void set_radio_mode(char *mode){
 		case MODE_USB:
 			new_bandwidth = field_int("BW_VOICE");
 			break;
+		case MODE_AM:
+			new_bandwidth = field_int("BW_AM");
+			break;
 		case MODE_FT8:
 			new_bandwidth = 4000;
 			break;
@@ -3787,6 +4102,9 @@ gboolean ui_tick(gpointer gook){
 		case MODE_FT8:
 			tick_count = 200;
 			break;
+    case MODE_AM:
+      tick_count = 50;
+      break;  
 		default:
 			tick_count = 100; 
 	}
@@ -3878,8 +4196,8 @@ gboolean ui_tick(gpointer gook){
  
 	f = get_field("r1:mode");
 	//straight key in CW
-	if (f && (!strcmp(f->value, "2TONE") || !strcmp(f->value, "LSB") || 
-	!strcmp(f->value, "USB"))){
+	if (f && (!strcmp(f->value, "2TONE") || !strcmp(f->value, "LSB") 
+	|| !strcmp(f->value, "AM") || !strcmp(f->value, "USB"))){
 		if (digitalRead(PTT) == LOW && in_tx == 0)
 			tx_on(TX_PTT);
 		else if (digitalRead(PTT) == HIGH && in_tx  == TX_PTT)
@@ -4160,6 +4478,8 @@ void do_control_action(char *cmd){
 	else if (!strcmp(request, "WEB")){
 		open_url("http://127.0.0.1:8080");
 	}
+	else if (!strncmp(request, "QRO_CONTROL",8))
+		redraw(); 
 	else if (!strcmp(request, "RX")){
 		tx_off();
 	}
@@ -4528,6 +4848,15 @@ void ensure_single_instance(){
 	}
 }
 
+void print_eq_int(const ParametricEQ *eq) {
+    for (int i = 0; i < NUM_BANDS; ++i) {
+        printf("Band %d: Frequency=%.2f, Gain=%.2f, Bandwidth=%.2f\n", 
+               i, eq->bands[i].frequency, eq->bands[i].gain, eq->bands[i].bandwidth);
+    }
+}
+
+
+
 int main( int argc, char* argv[] ) {
 
 	puts(VER_STR);
@@ -4546,8 +4875,11 @@ int main( int argc, char* argv[] ) {
 	q_init(&q_remote_commands, 1000); //not too many commands
 	q_init(&q_tx_text, 100); //best not to have a very large q 
 	setup();
-
-	rtc_sync();
+    // --- Check time against NTP server
+    const char* ntp_server = "pool.ntp.org";
+    sync_system_time(ntp_server);
+    // ---
+  rtc_sync();
 
 	struct field *f;
 	f = active_layout;
@@ -4622,14 +4954,23 @@ int main( int argc, char* argv[] ) {
 	set_field("#text_in", "");
 	field_set("REC", "OFF");
 	field_set("KBD", "OFF");
-
+  field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
+  
+ 
 	// you don't want to save the recently loaded settings
 	settings_updated = 0;
-  hamlib_start();
+	
+	hamlib_start();
 	remote_start();
 
-	rtc_read();
+//test to pass values to eq 
+  modify_eq_band_frequency(&eq, 3, 1505.0);
+  modify_eq_band_gain(&eq, 3, -16);
+  modify_eq_band_bandwidth(&eq, 3, 6);
 
+
+	rtc_read();
+  print_eq_int(&eq);
 //	open_url("http://127.0.0.1:8080");
 //	execute_app("chromium-browser --log-leve=3 "
 //	"--enable-features=OverlayScrollbar http://127.0.0.1:8080"
