@@ -19,7 +19,11 @@ float read_value(FILE* file, const char* key, float default_value) {
 
 
 void init_eq(ParametricEQ* eq) {
-    FILE* file = fopen("./data/user_settings.ini", "r");
+    char directory[200];	//dangerous, find the MAX_PATH and replace 200 with it
+    char* path = getenv("HOME");
+    strcpy(directory, path);
+    strcat(directory, "/sbitx/data/user_settings.ini");
+    FILE* file = fopen(directory, "r");
     if (file == NULL) {
         perror("Failed to open file");
         exit(EXIT_FAILURE);
