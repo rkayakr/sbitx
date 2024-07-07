@@ -1,7 +1,9 @@
+audio/
+.vs/
 data/hw_settings.ini
 data/user_settings.ini
 data/sbitx.db
 sbitx
 sbitx-fast
-audio/
-.vs/
+sbitx_wisdom.wis
+sbitx_wisdom_f.wis
