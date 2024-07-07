@@ -33,8 +33,32 @@ ParametricEQ eq;
 //Parametric TX EQ implementation W2JON
 //Set up nice and flat to begin with.
 //Note: limit gain range -16 to +16 (further limitation testing required)
-void init_eq(ParametricEQ *eq) {
+float read_value(FILE *file, const char *key, float default_value) {
+    char line[256];
+    char *found;
+    float value = default_value;
 
+    rewind(file); // Reset the file pointer to the beginning
+    while (fgets(line, sizeof(line), file)) {
+        if ((found = strstr(line, key)) != NULL) {
+            sscanf(found + strlen(key) + 1, "%f", &value);
+            break;
+        }
+    }
+    return value;
+}
+
+
+void init_eq(ParametricEQ *eq) {
+    FILE *file = fopen("./data/user_settings.ini", "r");
+    if (file == NULL) {
+        perror("Failed to open file");
+        exit(EXIT_FAILURE);
+    }
+
+    char key[10];
+
+    // Default values
     eq->bands[0].frequency = 100.0;
     eq->bands[0].gain = 0.0;
     eq->bands[0].bandwidth = 1.0;
@@ -54,6 +78,19 @@ void init_eq(ParametricEQ *eq) {
     eq->bands[4].frequency = 8000.0;
     eq->bands[4].gain = 0.0;
     eq->bands[4].bandwidth = 1.0;
+
+    for (int i = 0; i < NUM_BANDS; i++) {
+        snprintf(key, sizeof(key), "#b%df", i);
+        eq->bands[i].frequency = read_value(file, key, eq->bands[i].frequency);
+
+        snprintf(key, sizeof(key), "#b%dg", i);
+        eq->bands[i].gain = read_value(file, key, eq->bands[i].gain);
+
+        snprintf(key, sizeof(key), "#b%db", i);
+        eq->bands[i].bandwidth = read_value(file, key, eq->bands[i].bandwidth);
+    }
+
+    fclose(file);
 }
 
 typedef struct {
@@ -1516,6 +1553,8 @@ void setup(){
 
 	delay(2000);	
 //	pf_debug = fopen("am_test.raw", "w");	
+
+
 }
 
 void sdr_request(char *request, char *response){
