@@ -1408,7 +1408,7 @@ void setup(){
 	q_init(&qremote, 8000);
 
 	modem_init();
-  init_eq(&eq);
+  
 	add_rx(7000000, MODE_LSB, -3000, -300);
 	add_tx(7000000, MODE_LSB, -3000, -300);
 	rx_list->tuned_bin = 512;
