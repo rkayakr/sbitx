@@ -2201,17 +2201,6 @@ static void layout_ui(){
 			field_move("TX", 260, y1, 95, 45);
 			field_move("RX", 360, y1, 95, 45);
 			field_move("MENU",460, y1, 45, 45);
-//          field_move("B0F", 5, y1-50, 45, 45);
-//          field_move("B0G", 50, y1-50, 45, 45);
-//          field_move("B1F", 95, y1-50, 45, 45);
-//          field_move("B1G", 140, y1-50, 45, 45);
-//          field_move("B2F", 185, y1-50, 45, 45);
-//          field_move("B2G", 230, y1-50, 45, 45);
-//          field_move("B3F", 275, y1-50, 45, 45);
-//          field_move("B3G", 320, y1-50, 45, 45);
-//          field_move("B4F", 365, y1-50, 45, 45);
-//          field_move("B4G", 410, y1-50, 45, 45);
-      
       
 		break;
 		default:
@@ -2450,7 +2439,6 @@ time_t time_sbitx(){
 		return time(NULL);
 }
 
-
 // setting the frequency is complicated by having to take care of the
 // rit/split and power levels associated with each frequency
 void set_operating_freq(int dial_freq, char *response){
@@ -2683,15 +2671,6 @@ int do_status(struct field *f, cairo_t *gfx, int event, int a, int b, int c){
 	}
 	return 0;
 }
-
-
-
-
-
-
-
-
-
 
 void execute_app(char *app){
 	char buff[1000];
@@ -3292,13 +3271,13 @@ int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
 //           printf("do_eq_edit> Adjusting bandwidth for band %d...\n", band);
             return do_eqb(f, gfx, event, a, b, c); // Bandwidth adjustment
         } else {
-            printf("do_eq_edit> Unknown suffix: %c\n", suffix);
+ //           printf("do_eq_edit> Unknown suffix: %c\n", suffix);
         }
     } else {
-        printf("do_eq_edit> Invalid band: %d\n", band);
+//        printf("do_eq_edit> Invalid band: %d\n", band);
     }
 
-    printf("Exiting do_eq_edit\n");
+ //   printf("Exiting do_eq_edit\n");
     return 0; 
 }
 //---end Parametric EQ W2JON--------------------
@@ -4943,7 +4922,7 @@ int main( int argc, char* argv[] ) {
 	puts(VER_STR);
 	active_layout = main_controls;
 
-//	ensure_single_instance();
+  //	ensure_single_instance();
 
 	//unlink any pending ft8 transmission
 	unlink("/home/pi/sbitx/ft8tx_float.raw");
@@ -4956,10 +4935,10 @@ int main( int argc, char* argv[] ) {
 	q_init(&q_remote_commands, 1000); //not too many commands
 	q_init(&q_tx_text, 100); //best not to have a very large q 
 	setup();
-    // --- Check time against NTP server
-    const char* ntp_server = "pool.ntp.org";
-    sync_system_time(ntp_server);
-    // ---
+ // --- Check time against NTP server
+  const char* ntp_server = "pool.ntp.org";
+  sync_system_time(ntp_server);
+ // ---
   rtc_sync();
 
 	struct field *f;
@@ -5035,7 +5014,7 @@ int main( int argc, char* argv[] ) {
 	set_field("#text_in", "");
 	field_set("REC", "OFF");
 	field_set("KBD", "OFF");
-    field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
+  field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
 	field_set("MENU", "OFF");
  
 	// you don't want to save the recently loaded settings

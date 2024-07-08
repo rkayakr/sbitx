@@ -2,6 +2,32 @@
 //Parametric TX EQ implementation W2JON
 //Set up nice and flat to begin with.
 //Note: limit gain range -16 to +16 (further limitation testing required)
+int copy_file(const char *src, const char *dst) {
+    FILE *source = fopen(src, "rb");
+    if (source == NULL) {
+        return -1;
+    }
+
+    FILE *dest = fopen(dst, "wb");
+    if (dest == NULL) {
+        fclose(source);
+        return -1;
+    }
+
+    char buffer[BUFSIZ];
+    size_t n;
+    while ((n = fread(buffer, 1, sizeof(buffer), source)) > 0) {
+        if (fwrite(buffer, 1, n, dest) != n) {
+            fclose(source);
+            fclose(dest);
+            return -1;
+        }
+    }
+
+    fclose(source);
+    fclose(dest);
+    return 0;
+}
 float read_value(FILE* file, const char* key, float default_value) {
     char line[256];
     char* found;
@@ -17,12 +43,32 @@ float read_value(FILE* file, const char* key, float default_value) {
     return value;
 }
 
-
 void init_eq(ParametricEQ* eq) {
-    FILE* file = fopen("./data/user_settings.ini", "r");
-    if (file == NULL) {
-        perror("Failed to open file");
+    char *home = getenv("HOME");
+    if (home == NULL) {
+        fprintf(stderr, "Error: HOME environment variable is not set.\n");
         exit(EXIT_FAILURE);
+    }
+
+    char user_settings_path[200];
+    char default_settings_path[200];
+    snprintf(user_settings_path, sizeof(user_settings_path), "%s/sbitx/data/user_settings.ini", home);
+    snprintf(default_settings_path, sizeof(default_settings_path), "%s/sbitx/data/default_settings.ini", home);
+
+    FILE *file = fopen(user_settings_path, "r");
+    if (file == NULL) {
+        printf("user_settings.ini not found. Attempting to create from default_settings.ini...\n");
+        if (copy_file(default_settings_path, user_settings_path) == 0) {
+            printf("Successfully copied default_settings.ini to user_settings.ini.\n");
+            file = fopen(user_settings_path, "r");
+            if (file == NULL) {
+                perror("Failed to open user_settings.ini after copying");
+                exit(EXIT_FAILURE);
+            }
+        } else {
+            perror("Failed to copy default_settings.ini to user_settings.ini");
+            exit(EXIT_FAILURE);
+        }
     }
 
     char key[10];
@@ -61,6 +107,7 @@ void init_eq(ParametricEQ* eq) {
 
     fclose(file);
 }
+
 
 typedef struct {
     double a0, a1, a2, b0, b1, b2;
