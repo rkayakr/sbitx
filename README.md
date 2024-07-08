@@ -2,7 +2,7 @@
 
 An improved version of the sBitx application designed for the sBitx hardware. Credit goes to the developers at HF Signals and A. Farhan for writing the initial code. 
 
-We now have a devepment team collaborating on improvements for the sBitx platform. Myself - W9JES, Jon - W2JON, Jeff - KF7YDU, and Alan -N1QM. Thank you to all who provide countless hours to this project!
+We now have a devepment team collaborating on improvements for the sBitx platform. Myself - W9JES, Jon - W2JON, Alan - N1QM and Jeff - KF7YDU. Thank you to all who provide countless hours to this project!
 
 The files here are to designed to replace the sBitx application and work on the default, 32 bit (stock) sBitx as shipped and the modified, 64 bit version provided in the *Releases* section.
 
