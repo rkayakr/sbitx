@@ -7,29 +7,28 @@ if [ "$EUID" -ne 0 ]; then
   exit
 fi
 
-# Edit the config.txt file to remove the RTC overlay
+# Edit the config.txt file to remove RTC overlay
 CONFIG_FILE="/boot/firmware/config.txt"
-RTC_OVERLAY="dtoverlay=i2c-rtc-gpio,ds3231,bus=2,i2c_gpio_sda=13,i2c_gpio_scl=6"
+RTC_OVERLAY="dtoverlay=i2c-rtc-gpio,ds1307,bus=2,i2c_gpio_sda=13,i2c_gpio_scl=6"
 
-echo "Removing RTC overlay from $CONFIG_FILE..."
+echo "Editing $CONFIG_FILE to remove RTC overlay..."
 if grep -q "$RTC_OVERLAY" "$CONFIG_FILE"; then
-    sed -i "\|$RTC_OVERLAY|d" "$CONFIG_FILE"
+    sed -i "/$RTC_OVERLAY/d" "$CONFIG_FILE"
     echo "RTC overlay removed."
 else
-    echo "RTC overlay not found in $CONFIG_FILE."
+    echo "RTC overlay not present."
 fi
 
-# Reinstall fake-hwclock and restore its service
-echo "Reinstalling fake-hwclock and restoring its service..."
-apt update
+# Reinstall fake-hwclock and update systemd configuration
+echo "Reinstalling fake-hwclock and updating systemd configuration..."
 apt -y install fake-hwclock
 update-rc.d fake-hwclock defaults
 
-# Uncomment the lines in hwclock-set script
+# Uncomment lines in hwclock-set script
 HW_CLOCK_SET_FILE="/lib/udev/hwclock-set"
-echo "Restoring $HW_CLOCK_SET_FILE..."
-sed -i 's/^#if \[ -e \/run\/systemd\/system \] ; then$/if [ -e \/run\/systemd\/system ] ; then/' "$HW_CLOCK_SET_FILE"
+echo "Modifying $HW_CLOCK_SET_FILE..."
+sed -i 's/^#if \[ -e \/run\/systemd\/system \] ; then$/if \[ -e \/run\/systemd\/system \] ; then/' "$HW_CLOCK_SET_FILE"
 sed -i 's/^#    exit 0$/    exit 0/' "$HW_CLOCK_SET_FILE"
-echo "Restoration complete."
+echo "Modification complete."
 
-echo "RTC removal script completed."
+echo "RTC uninstall script completed. Please reboot for the changes to take effect."
