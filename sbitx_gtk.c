@@ -45,7 +45,6 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "ntputil.h"
 #include "para_eq.h"
 
-
 #define FT8_START_QSO 1
 #define FT8_CONTINUE_QSO 0
 void ft8_process(char *received, int operation);
@@ -53,7 +52,7 @@ void change_band (char *request);
 /* command  buffer for commands received from the remote */
 struct Queue q_remote_commands;
 struct Queue q_tx_text;
-
+int eq_is_enabled = 0;
 
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7, 
@@ -454,6 +453,7 @@ int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 
 
+
 struct field *active_layout = NULL;
 char settings_updated = 0;
 #define LAYOUT_KBD 0
@@ -565,7 +565,6 @@ struct field main_controls[] = {
 	{ "#rx", NULL, 650, -400, 50, 50, "RX", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
 		"RX/TX", 0,0, 0, VOICE_CONTROL | DIGITAL_CONTROL},
 
-// This control is being saved for a possible sub menu where audio tools or other settings may be reviewed and edited
 	{ "#menu", do_toggle_menu, 1000, -1000, 40, 40, "MENU", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF", 0,0, 0,VOICE_CONTROL},
 
@@ -629,7 +628,9 @@ struct field main_controls[] = {
  	{ "#eq_b4g", do_eq_edit, 1000, -1000, 40, 40, "B4G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", -16, 16, 1,0},
  	{ "#eq_b4b", do_eq_edit, 1000, -1000, 40, 40, "B4B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",1, 10, 0.5,0},  
+		"",1, 10, 0.5,0},
+  { "#eq_plugin", NULL, 1000, -1000, 40, 40, "EQ_ON", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF",0,0,0,0},  
 
 	// Settings Panel
 	{"#mycallsign", NULL, 1000, -1000, 400, 149, "MYCALLSIGN", 70, "CALL", FIELD_TEXT, FONT_SMALL, 
@@ -1059,7 +1060,7 @@ void  web_write(int style, char *data){
 	web_add_string(tag);
 	web_add_string(">");
 }
-
+ 
 int console_init_next_line(){
 	console_current_line++;
 	if (console_current_line == MAX_CONSOLE_LINES)
@@ -2033,6 +2034,10 @@ void field_move(char *field_label, int x, int y, int width, int height){
 	if (!strcmp(field_label, "WATERFALL"))
 		init_waterfall();
 }
+
+
+
+
 void menu_display(int show) {
     struct field* f;
 
@@ -2060,6 +2065,9 @@ void menu_display(int show) {
             field_move("B4F", 240, screen_height - 145, 45, 45);
             field_move("B4G", 240, screen_height - 95, 45, 45);
             //field_move("B4B", 375, screen_height - 145, 45, 45);
+            field_move("EQ_ON", 295, screen_height - 120, 45, 45);
+            
+        
         
     } else {
         // Move the fields off-screen if not showing
@@ -2078,6 +2086,7 @@ void menu_display(int show) {
         field_move("B4F", -1000, screen_height - 150, 45, 45);
         field_move("B4G", -1000, screen_height - 150, 45, 45);
         //field_move("B4B", -1000, screen_height - 150, 45, 45);
+        field_move("EQ_ON", -1000, screen_height - 120, 45, 45);
     }
   }
 }
@@ -2132,7 +2141,7 @@ static void layout_ui(){
      
   	}
 	}
-
+ 
 	if (!strcmp(field_str("KBD"), "ON")){
 		//take out 3 button widths from the bottom
 		y2 = screen_height - 150;
@@ -3299,6 +3308,8 @@ int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
  //   printf("Exiting do_eq_edit\n");
     return 0; 
 }
+
+
 //---end Parametric EQ W2JON--------------------
 
 void tx_on(int trigger){
@@ -3319,8 +3330,17 @@ void tx_on(int trigger){
 			ext_ptt_enable = 0;
 		}
 	}
-
-
+//-----Check for EQ enable/bypass W2JON
+ struct field* stat = get_field("#eq_plugin");
+ if (stat){
+   if (!strcmp(stat->value,"ON")) {
+     eq_is_enabled = 1;
+   }
+   else if (!strcmp(stat->value, "OFF")) {
+       eq_is_enabled = 0;
+   }  
+ }
+ 
 	struct field *f = get_field("r1:mode");
 	if (f){
 		if (!strcmp(f->value, "CW"))
@@ -3350,6 +3370,7 @@ void tx_on(int trigger){
 		update_field(get_field("r1:freq"));
 		printf("TX\n");
     printf("ext_ptt_enable value: %d\n", ext_ptt_enable); //Added to debug the switch. W2JON
+    printf("eq_enable value: %d\n", eq_is_enabled); //Added to debug the switch. W2JON
 	}
 
 	tx_start_time = millis();
@@ -4151,7 +4172,6 @@ void handleButtonPress() {
       } 
    }  
    
-//---------
 
 gboolean ui_tick(gpointer gook){
 	int static ticks = 0;
