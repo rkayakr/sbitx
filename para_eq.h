@@ -30,5 +30,6 @@ extern void modify_eq_band_gain(ParametricEQ *eq, int band_index, double new_gai
 extern void modify_eq_band_bandwidth(ParametricEQ *eq, int band_index, double new_bandwidth);
 extern void print_eq_int(const ParametricEQ *eq);
 extern void apply_eq(ParametricEQ* eq, int32_t* samples, int num_samples, double sample_rate);
+extern int eq_is_enabled;
 
 #endif /* PARA_EQ_H_ */
