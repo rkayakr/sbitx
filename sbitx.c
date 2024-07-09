@@ -852,7 +852,20 @@ void tx_process(
     fft_reset_m_bins();
 		tx_process_restart = 0;
 	} 
+   //-Shoehorn in the EQ functionality. This may/may not work...W2JON 
+   static int eq_initialized = 0;
 
+    if (!eq_initialized) {
+        init_eq(&eq);
+        eq_initialized = 1;
+    }
+
+    // Apply EQ to mic samples under voice modes while in (TX)
+    if (in_tx && (rx_list->mode == MODE_USB |rx_list->mode == MODE_LSB || rx_list->mode == MODE_AM || rx_list->mode == MODE_NBFM)) {
+        apply_eq(&eq, input_mic, n_samples, 48000.0);  // Assuming 48kHz sample rate
+    }
+  //-------------------------------------  
+    
 	if (mute_count && (r->mode == MODE_USB || r->mode == MODE_LSB 
 		|| r->mode == MODE_AM)){
 		memset(input_mic, 0, n_samples * sizeof(int32_t));
@@ -995,19 +1008,6 @@ void sound_process(
     int32_t *output_speaker, int32_t *output_tx, 
     int n_samples)
 {
-   // static ParametricEQ eq;
-    static int eq_initialized = 0;
-
-    if (!eq_initialized) {
-        init_eq(&eq);
-        eq_initialized = 1;
-    }
-
-    // Apply EQ to mic samples under voice modes while in (TX)
-    if (in_tx && (rx_list->mode == MODE_USB |rx_list->mode == MODE_LSB || rx_list->mode == MODE_AM || rx_list->mode == MODE_NBFM)) {
-        apply_eq(&eq, input_mic, n_samples, 48000.0);  // Assuming 48kHz sample rate
-    }
-
     if (in_tx) {
         tx_process(input_rx, input_mic, output_speaker, output_tx, n_samples);
     } else {

@@ -566,7 +566,7 @@ struct field main_controls[] = {
 		"RX/TX", 0,0, 0, VOICE_CONTROL | DIGITAL_CONTROL},
 
 // This control is being saved for a possible sub menu where audio tools or other settings may be reviewed and edited
-	{ "#menu", do_toggle_menu, 500, -500, 40, 40, "MENU", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{ "#menu", do_toggle_menu, 1000, -1000, 40, 40, "MENU", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF", 0,0, 0,VOICE_CONTROL},
 
 	{"r1:low", NULL, 660, -350, 50, 50, "LOW", 40, "300", FIELD_NUMBER, FONT_FIELD_VALUE, 
@@ -600,36 +600,36 @@ struct field main_controls[] = {
     "BLANK/LEFT/RIGHT/CROSSHAIR", 0,0,0,0},
     
   // parametric 5-band eq controls  ( BX[F|G|B] = Band# Frequency | Gain | Bandwidth W2JON
- 	{ "#eq_b0f", do_eq_edit, 50, 350, 40, 40, "B0F", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100, 8000, 50,0},
- 	{ "#eq_b0g", do_eq_edit, 100, 350, 40, 40, "B0G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+ 	{ "#eq_b0f", do_eq_edit, 1000, -1000, 40, 40, "B0F", 40, "80", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",40,160, 5,0},
+ 	{ "#eq_b0g", do_eq_edit, 1000, -1000, 40, 40, "B0G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", -16, 16, 1,0},
- 	{ "#eq_b0b", do_eq_edit, 150, 350, 40, 40, "B0B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",0.5, 10, 0.5,0},   
- 	{ "#eq_b1f", do_eq_edit, 200, 350, 40, 40, "B1F", 40, "250", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100, 8000, 50,0},
- 	{ "#eq_b1g", do_eq_edit, 250, 350, 40, 40, "B1G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+ 	{ "#eq_b0b", do_eq_edit, 1000, -1000, 40, 40, "B0B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",1, 10, 0.5,0},   
+ 	{ "#eq_b1f", do_eq_edit, 1000, -1000, 40, 40, "B1F", 40, "250", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 125, 500, 50,0},
+ 	{ "#eq_b1g", do_eq_edit, 1000, -1000, 40, 40, "B1G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", -16, 16, 1,0},
- 	{ "#eq_b1b", do_eq_edit, 300, 350, 40, 40, "B1B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",0.5, 10, 0.5,0}, 
- 	{ "#eq_b2f", do_eq_edit, 350, 350, 40, 40, "B2F", 40, "1000", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100, 8000, 50,0},
- 	{ "#eq_b2g", do_eq_edit, 400, 350, 40, 40, "B2G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+ 	{ "#eq_b1b", do_eq_edit, 1000, -1000, 40, 40, "B1B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",1, 10, 0.5,0}, 
+ 	{ "#eq_b2f", do_eq_edit, 1000, -1000, 40, 40, "B2F", 40, "500", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 250, 1000, 50,0},
+ 	{ "#eq_b2g", do_eq_edit, 1000, -1000, 40, 40, "B2G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", -16, 16, 1,0},
- 	{ "#eq_b2b", do_eq_edit, 450, 350, 40, 40, "B2B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",0.5, 10, 0.5,0}, 
- 	{ "#eq_b3f", do_eq_edit, 200, 400, 40, 40, "B3F", 40, "4000", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100, 8000, 50,0},
- 	{ "#eq_b3g", do_eq_edit, 250, 400, 40, 40, "B3G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+ 	{ "#eq_b2b", do_eq_edit, 1000, -1000, 40, 40, "B2B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",1, 10, 0.5,0}, 
+ 	{ "#eq_b3f", do_eq_edit, 1000, -1000, 40, 40, "B3F", 40, "1200", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 600, 2400, 50,0},
+ 	{ "#eq_b3g", do_eq_edit, 1000, -1000, 40, 40, "B3G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", -16, 16, 1,0},
- 	{ "#eq_b3b", do_eq_edit, 300, 400, 40, 40, "B3B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",0.5, 10, 0.5,0},  
- 	{ "#eq_b4f", do_eq_edit, 350, 400, 40, 40, "B4F", 40, "8000", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"", 100, 8000, 50,0},
- 	{ "#eq_b4g", do_eq_edit, 400, 400, 40, 40, "B4G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
+ 	{ "#eq_b3b", do_eq_edit, 1000, -1000, 40, 40, "B3B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",1, 10, 0.5,0},  
+ 	{ "#eq_b4f", do_eq_edit, 1000, -1000, 40, 40, "B4F", 40, "2500", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"", 1500, 3500, 50,0},
+ 	{ "#eq_b4g", do_eq_edit, 1000, -1000, 40, 40, "B4G", 40, "0", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", -16, 16, 1,0},
- 	{ "#eq_b4b", do_eq_edit, 450, 400, 40, 40, "B4B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
-		"",0.5, 10, 0.5,0},  
+ 	{ "#eq_b4b", do_eq_edit, 1000, -1000, 40, 40, "B4B", 40, "1", FIELD_NUMBER, FONT_FIELD_VALUE, 
+		"",1, 10, 0.5,0},  
 
 	// Settings Panel
 	{"#mycallsign", NULL, 1000, -1000, 400, 149, "MYCALLSIGN", 70, "CALL", FIELD_TEXT, FONT_SMALL, 
@@ -1553,40 +1553,54 @@ void draw_modulation(struct field *f, cairo_t *gfx){
 }
 
 static int waterfall_offset = 30;
-static int  *wf = NULL;
+static int *wf = NULL;
 GdkPixbuf *waterfall_pixbuf = NULL;
 guint8 *waterfall_map = NULL;
 
-void init_waterfall(){
-	struct field *f = get_field("waterfall");
+void init_waterfall() {
+    struct field *f = get_field("waterfall");
 
-	if (wf)
-		free(wf);
-	//this will store the db values of waterfall
-	wf = malloc((MAX_BINS/2) * f->height * sizeof(int));
-	if (!wf){
-		puts("*Error: malloc failed on waterfall buffer");
-		exit(0);
-	}
-	memset(wf, 0, (MAX_BINS/2) * f->height * sizeof(int));
+    // Print dimensions for debugging -W2ON
+    //printf("Waterfall dimensions: width = %d, height = %d\n", f->width, f->height);
 
-	if (waterfall_map)
-		free(waterfall_map);
-	//this will store the bitmap pixles, 3 bytes per pixel
-	waterfall_map = malloc(f->width * f->height * 3);
-	for (int i = 0; i < f->width; i++)
-		for (int j = 0; j < f->height; j++){
-			int row = j * f->width * 3;
-			int	index = row + i * 3;
-			waterfall_map[index++] = 0;
-			waterfall_map[index++] = 0;//i % 256;
-			waterfall_map[index++] =0;// j % 256; 
-	}
-	if (waterfall_pixbuf)
-		g_object_unref(waterfall_pixbuf);
-	waterfall_pixbuf = gdk_pixbuf_new_from_data(waterfall_map,
-		GDK_COLORSPACE_RGB, FALSE, 8, f->width, f->height, f->width*3, NULL,NULL);
-		// format,         alpha?, bit,  widht,    height, rowstride, destryfn, data
+    if (wf) {
+        free(wf);
+    }
+    // Allocate memory for wf buffer
+    wf = malloc((MAX_BINS / 2) * f->height * sizeof(int));
+    if (!wf) {
+        puts("*Error: malloc failed on waterfall buffer (wf)");
+        exit(0);
+    }
+    memset(wf, 0, (MAX_BINS / 2) * f->height * sizeof(int));
+
+    if (waterfall_map) {
+        free(waterfall_map);
+    }
+    // Allocate memory for waterfall_map buffer
+    waterfall_map = malloc(f->width * f->height * 3);
+    if (!waterfall_map) {
+        puts("*Error: malloc failed on waterfall buffer (waterfall_map)");
+        free(wf); // Clean up previously allocated memory
+        exit(0);
+    }
+
+    for (int i = 0; i < f->width; i++) {
+        for (int j = 0; j < f->height; j++) {
+            int row = j * f->width * 3;
+            int index = row + i * 3;
+            waterfall_map[index++] = 0;
+            waterfall_map[index++] = 0; // i % 256;
+            waterfall_map[index++] = 0; // j % 256;
+        }
+    }
+
+    if (waterfall_pixbuf) {
+        g_object_unref(waterfall_pixbuf);
+    }
+    waterfall_pixbuf = gdk_pixbuf_new_from_data(waterfall_map,
+        GDK_COLORSPACE_RGB, FALSE, 8, f->width, f->height, f->width * 3, NULL, NULL);
+    // format,         alpha?, bit,  width,    height, rowstride, destroyfn, data
 
 //	printf("%ld return from pixbuff", (int)waterfall_pixbuf);	
 }
@@ -2020,54 +2034,54 @@ void field_move(char *field_label, int x, int y, int width, int height){
 		init_waterfall();
 }
 void menu_display(int show) {
-	struct field* f;
+    struct field* f;
 
-	// We start the height at -200 because the first key
-	// will bump it down by a row
-	int height = screen_height - 200;
+    // We start the height at -200 because the first key
+    // will bump it down by a row
+    int height = screen_height - 200;
 
-	for (f = active_layout; f->cmd[0]; f++) {
-		if (!strncmp(f->cmd, "#eq_", 4)) { // Check for control list to display
-			if (show) {
-				// Move each control to the appropriate position
-				field_move("B0F", 5, screen_height - 145, 45, 45);
-				field_move("B0G", 50, screen_height - 145, 45, 45);
-				field_move("B0B", 95, screen_height - 145, 45, 45);
-				field_move("B1F", 5, screen_height - 95, 45, 45);
-				field_move("B1G", 50, screen_height - 95, 45, 45);
-				field_move("B1B", 95, screen_height - 95, 45, 45);
-				field_move("B2F", 145, screen_height - 145, 45, 45);
-				field_move("B2G", 190, screen_height - 145, 45, 45);
-				field_move("B2B", 235, screen_height - 145, 45, 45);
-				field_move("B3F", 145, screen_height - 95, 45, 45);
-				field_move("B3G", 190, screen_height - 95, 45, 45);
-				field_move("B3B", 235, screen_height - 95, 45, 45);
-				field_move("B4F", 285, screen_height - 145, 45, 45);
-				field_move("B4G", 330, screen_height - 145, 45, 45);
-				field_move("B4B", 375, screen_height - 145, 45, 45);
-			}
-			else {
-				// Move the fields off-screen if not showing
-				field_move("B0F", -1000, screen_height - 150, 45, 45);
-				field_move("B0G", -1000, screen_height - 150, 45, 45);
-				field_move("B0B", -1000, screen_height - 150, 45, 45);
-				field_move("B1F", -1000, screen_height - 150, 45, 45);
-				field_move("B1G", -1000, screen_height - 150, 45, 45);
-				field_move("B1B", -1000, screen_height - 150, 45, 45);
-				field_move("B2F", -1000, screen_height - 150, 45, 45);
-				field_move("B2G", -1000, screen_height - 150, 45, 45);
-				field_move("B2B", -1000, screen_height - 150, 45, 45);
-				field_move("B3F", -1000, screen_height - 150, 45, 45);
-				field_move("B3G", -1000, screen_height - 150, 45, 45);
-				field_move("B3B", -1000, screen_height - 150, 45, 45);
-				field_move("B4F", -1000, screen_height - 150, 45, 45);
-				field_move("B4G", -1000, screen_height - 150, 45, 45);
-				field_move("B4G", -1000, screen_height - 150, 45, 45);
-			}
-		}
-	}
+    for (f = active_layout; f->cmd[0]; f++) {
+        if (!strncmp(f->cmd, "#eq_", 4)) { 
+    if (show) {
+
+            // Move each control to the appropriate position
+            field_move("B0F", 45, screen_height - 145, 45, 45);
+            field_move("B0G", 45, screen_height - 95, 45, 45);
+            //field_move("B0B", 95, screen_height - 145, 45, 45);
+            field_move("B1F", 90, screen_height - 145, 45, 45);
+            field_move("B1G", 90, screen_height - 95, 45, 45);
+            //field_move("B1B", 95, screen_height - 95, 45, 45);
+            field_move("B2F", 140, screen_height - 145, 45, 45);
+            field_move("B2G", 140, screen_height - 95, 45, 45);
+            //field_move("B2B", 235, screen_height - 145, 45, 45);
+            field_move("B3F", 190, screen_height - 145, 45, 45);
+            field_move("B3G", 190, screen_height - 95, 45, 45);
+            //field_move("B3B", 235, screen_height - 95, 45, 45);
+            field_move("B4F", 240, screen_height - 145, 45, 45);
+            field_move("B4G", 240, screen_height - 95, 45, 45);
+            //field_move("B4B", 375, screen_height - 145, 45, 45);
+        
+    } else {
+        // Move the fields off-screen if not showing
+        field_move("B0F", -1000, screen_height - 150, 45, 45);
+        field_move("B0G", -1000, screen_height - 150, 45, 45);
+        //field_move("B0B", -1000, screen_height - 150, 45, 45);
+        field_move("B1F", -1000, screen_height - 150, 45, 45);
+        field_move("B1G", -1000, screen_height - 150, 45, 45);
+        //field_move("B1B", -1000, screen_height - 150, 45, 45);
+        field_move("B2F", -1000, screen_height - 150, 45, 45);
+        field_move("B2G", -1000, screen_height - 150, 45, 45);
+        //field_move("B2B", -1000, screen_height - 150, 45, 45);
+        field_move("B3F", -1000, screen_height - 150, 45, 45);
+        field_move("B3G", -1000, screen_height - 150, 45, 45);
+        //field_move("B3B", -1000, screen_height - 150, 45, 45);
+        field_move("B4F", -1000, screen_height - 150, 45, 45);
+        field_move("B4G", -1000, screen_height - 150, 45, 45);
+        //field_move("B4B", -1000, screen_height - 150, 45, 45);
+    }
+  }
 }
-
+}
 //scales the ui as per current screen width from
 //the nominal 800x480 size of the original layout
 static void layout_ui(){
@@ -2127,13 +2141,15 @@ static void layout_ui(){
 	else
 		keyboard_display(0);
 	
-	if (!strcmp(field_str("MENU"), "ON")) { // W2JON
-		//take out 3 button widths from the bottom
-		y2 = screen_height - 150;
-		menu_display(1);
-	}
-	else
-		menu_display(0);
+if (!strcmp(field_str("MENU"), "ON")) { // W2JON
+    // take out 3 button widths from the bottom
+    
+        y2 = screen_height - 150;
+        menu_display(1);
+    
+} else {
+    menu_display(0);
+}
 
 
 	
@@ -2141,7 +2157,7 @@ static void layout_ui(){
 	int button_width = 100;
 	switch(m_id){
 		case MODE_FT8:
-			field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+     	field_move("CONSOLE", 5, y1, 350, y2-y1-55);
 			field_move("SPECTRUM", 360, y1, x2-365, 100);
 			field_move("WATERFALL", 360, y1+100, x2-365, y2-y1-155);
 			field_move("ESC", 5, y2-47, 40, 45);
@@ -2161,7 +2177,7 @@ static void layout_ui(){
 		break;
 		case MODE_CW:
 		case MODE_CWR:
-			field_move("CONSOLE", 5, y1, 350, y2-y1-110);
+      field_move("CONSOLE", 5, y1, 350, y2-y1-110);
 			//field_move("SPECTRUM", 360, y1, x2-365, 100);
 			//field_move("WATERFALL", 360, y1+100, x2-365, y2-y1-110);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);  //fixed W9JES
@@ -2191,7 +2207,7 @@ static void layout_ui(){
 		case MODE_LSB:
 		case MODE_AM:
 		case MODE_NBFM:
-    	    field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+      field_move("CONSOLE", 5, y1, 350, y2-y1-55);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
 			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
 			y1 = y2 -50;
@@ -2200,13 +2216,15 @@ static void layout_ui(){
 			field_move("HIGH", 160, y1, 95, 45);
 			field_move("TX", 260, y1, 95, 45);
 			field_move("RX", 360, y1, 95, 45);
-			field_move("MENU",460, y1, 45, 45);
+			//field_move("MENU",460, y1, 45, 45);
       
 		break;
+
 		default:
-			field_move("CONSOLE", 5, y1, 350, y2-y1-110);
+      field_move("CONSOLE", 5, y1, 350, y2-y1-110);
 			field_move("SPECTRUM", 360, y1, x2-365, 70);
-			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-180);
+			//field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-180);
+      field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125); //fixed W2JON
 			y1 = y2 - 105;
 			field_move("F1", 5, y1, 90, 45);
 			field_move("F2", 100, y1, 95, 45);
@@ -2225,6 +2243,7 @@ static void layout_ui(){
 			field_move("HIGH", 475, y1, 50, 45);
 			field_move("PITCH", 550, y1, 50, 45);
 			field_move("SIDETONE", 600, y1, 95, 45);
+           
 		break;	
 	}
 	invalidate_rect(0,0,screen_width, screen_height);
@@ -2621,7 +2640,7 @@ void set_filter_high_low(int hz){
 			high = low + hz;
 			break;
 		case MODE_DIGITAL:
-			low = atoi(f_pitch->value) - (hz/2);
+      low = atoi(f_pitch->value) - (hz/2);
 			high = atoi(f_pitch->value) + (hz/2);
 			break;
 		case MODE_AM:
@@ -4086,6 +4105,54 @@ void set_radio_mode(char *mode){
 }
 
 
+//Long press Volume control to reveal the EQ settings -W2JON
+extern void focus_field(struct field *f);
+extern struct field* get_field(const char *label);
+extern int field_set(const char *label, const char *new_value); 
+static time_t buttonPressTime;
+static int buttonPressed = 0;
+
+void handleButtonPress() {
+    static int menuVisible = 0;
+    static time_t buttonPressTime = 0;
+    static int buttonPressed = 0;
+
+    if (digitalRead(ENC1_SW) == 0) {
+        if (!buttonPressed) {
+            buttonPressed = 1;
+            buttonPressTime = time(NULL);
+        } else {
+            // Check the duration of the button press
+            time_t currentTime = time(NULL);
+            if (difftime(currentTime, buttonPressTime) >= 1) {
+                // Long press detected
+                menuVisible = !menuVisible;
+                field_set("MENU", menuVisible ? "ON" : "OFF");
+                // Wait for the button release to avoid immediate short press detection
+                while (digitalRead(ENC1_SW) == 0) {
+                    delay(100); // Adjust delay time as needed
+                }
+                buttonPressed = 0; // Reset button press state after delay
+            }
+        }
+    } else {
+        if (buttonPressed) {
+            buttonPressed = 0;
+            if (difftime(time(NULL), buttonPressTime) < 1) {
+                // Short press detected
+               	if (f_focus && !strcmp(f_focus->label, "AUDIO")){
+	        	        		focus_field(get_field("r1:mode"));
+	          		}else{
+		          		focus_field(get_field("r1:volume"));
+		            	//printf("Focus is on %s\n", f_focus->label);
+	  	          } 
+            }
+         }
+      } 
+   }  
+   
+//---------
+
 gboolean ui_tick(gpointer gook){
 	int static ticks = 0;
 
@@ -4185,21 +4252,9 @@ gboolean ui_tick(gpointer gook){
 /*		f = get_field("#status");
 		update_field(f);
 */
-		//EQ audio submenu under MIC button -W2JON (testing)
-		if (f_focus && focus_since + 500 < millis()
-			&& !strncmp(f_focus->cmd, "#tx_gain", 5) && mouse_down) {
-			printf("submenu trigger");
-			focus_since = millis();
-		}
+  
+   handleButtonPress(); // Call the new button press handler -W2JON
 
-		if (digitalRead(ENC1_SW) == 0){
-			//flip between mode and volume
-			if (f_focus && !strcmp(f_focus->label, "AUDIO"))
-				focus_field(get_field("r1:mode"));
-			else
-				focus_field(get_field("r1:volume"));
-			printf("Focus is on %s\n", f_focus->label);
-		}
 		if (digitalRead(ENC2_SW) == 0)
 		oled_toggle_band();
 
@@ -5030,7 +5085,7 @@ int main( int argc, char* argv[] ) {
 
 
 	rtc_read();
-  print_eq_int(&eq);
+//  print_eq_int(&eq);
 //	open_url("http://127.0.0.1:8080");
 //	execute_app("chromium-browser --log-leve=3 "
 //	"--enable-features=OverlayScrollbar http://127.0.0.1:8080"
