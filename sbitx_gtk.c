@@ -521,7 +521,7 @@ struct field main_controls[] = {
   { "#bw", do_bandwidth, 495, 5, 40, 40, "BW", 40, "", FIELD_NUMBER, FONT_FIELD_VALUE, 
 		"", 50, 5000, 50,COMMON_CONTROL},
 	{ "r1:mode", NULL, 5, 5, 40, 40, "MODE", 40, "USB", FIELD_SELECTION, FONT_FIELD_VALUE, 
-		"USB/LSB/CW/CWR/FT8/AM/DIGITAL/2TONE", 0,0,0, COMMON_CONTROL},
+		"USB/LSB/AM/CW/CWR/FT8/DIGITAL/2TONE", 0,0,0, COMMON_CONTROL},
 
 	/* logger controls */
 	{"#contact_callsign", do_text, 5, 50, 85, 20, "CALL", 70, "", FIELD_TEXT, FONT_LOG, 
@@ -1707,6 +1707,11 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 	struct field *f;
 	long	freq, freq_div;
 	char	freq_text[20];
+  //
+  int s_meter_value; //W2JON
+  struct rx *current_rx = rx_list;
+  //
+
 	if (in_tx){
 		draw_modulation(f_spectrum, gfx);
 		return;
@@ -3370,7 +3375,32 @@ void tx_on(int trigger){
 
 
 //-----Check for EQ enable/bypass W2JON
-
+//This first section was written to force the eq control in the menu to switch off. 
+// Although the code in sbitx.c should be disabling the eq if the mode is non voice this is left here as a J.I.C. for now.
+//
+//gboolean check_eq_control(gpointer data) {
+//    struct field* stat = get_field("#eq_plugin");
+//    struct field* mode_field = get_field("r1:mode");
+//
+//    if (stat && stat->value && mode_field && mode_field->value) {
+//        const char* mode_str = mode_field->value;  // Use the mode field value as a string
+//
+//        int mode = mode_id(mode_str);  // Convert mode string to its corresponding integer identifier
+//
+//        if (mode != MODE_DIGITAL &&  mode != MODE_FT8 &&  mode != MODE_2TONE &&  mode != MODE_CW &&  mode != MODE_CWR)  {
+//            if (!strcmp(stat->value, "ON")) {
+//                eq_is_enabled = 1;
+//            } else if (!strcmp(stat->value, "OFF")) {
+//                eq_is_enabled = 0;
+//                set_field("#eq_plugin", "OFF");
+//            }
+//        } else {
+//            eq_is_enabled = 0;
+//            set_field("#eq_plugin", "OFF");  // Ensure EQ is disabled for all restricted modes
+//        }
+//    }
+//    return TRUE;  // Return TRUE to keep the timer running
+//  }
 gboolean check_eq_control(gpointer data) {
     struct field* stat = get_field("#eq_plugin");
     if (stat) {
