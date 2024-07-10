@@ -74,7 +74,7 @@ void init_eq(ParametricEQ* eq) {
     char key[10];
 
     // Default values
-    eq->bands[0].frequency = 100.0;
+    eq->bands[0].frequency = 80.0;
     eq->bands[0].gain = 0.0;
     eq->bands[0].bandwidth = 1.0;
 
@@ -82,15 +82,15 @@ void init_eq(ParametricEQ* eq) {
     eq->bands[1].gain = 0.0;
     eq->bands[1].bandwidth = 1.0;
 
-    eq->bands[2].frequency = 1000.0;
+    eq->bands[2].frequency = 500.0;
     eq->bands[2].gain = 0.0;
     eq->bands[2].bandwidth = 1.0;
 
-    eq->bands[3].frequency = 4000.0;
+    eq->bands[3].frequency = 1200.0;
     eq->bands[3].gain = 0.0;
     eq->bands[3].bandwidth = 1.0;
 
-    eq->bands[4].frequency = 8000.0;
+    eq->bands[4].frequency = 2500.0;
     eq->bands[4].gain = 0.0;
     eq->bands[4].bandwidth = 1.0;
 
