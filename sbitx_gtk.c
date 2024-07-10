@@ -3338,22 +3338,22 @@ void rtc_read(){
 	i2cbb_write_i2c_block_data(DS3231_I2C_ADD, 0, 0, NULL);
 
 	int e =  i2cbb_read_i2c_block_data(DS3231_I2C_ADD, 0, 8, rtc_time);
-if (e <= 0) {  //W9JES W2JON
-        printf("RTC not detected, using system time\n");
+        if (e <= 0) {  //W9JES W2JON
+                printf("RTC not detected, using system time\n");
 
-        // Use system time
-        time_t system_time = time(NULL);
-        struct tm *sys_time_info = gmtime(&system_time);
+                // Use system time
+                time_t system_time = time(NULL);
+                struct tm *sys_time_info = gmtime(&system_time);
 
         if (sys_time_info == NULL) {
-            printf("Failed to get system time\n");
-            return;
-        }  //W9JES W2JON
-        printf("Using system time\n");
+                printf("Failed to get system time\n");
+                return;
+                }  
+                printf("Using system time\n"); //W9JES W2JON
 
-        time_delta = (long)system_time - (long)(millis() / 1000l);
-        return;
-    }
+                time_delta = (long)system_time - (long)(millis() / 1000l);
+                return;
+        }
 	for (int i = 0; i < 7; i++)
 		rtc_time[i] = bcd2dec(rtc_time[i]);
 
@@ -3408,8 +3408,7 @@ void rtc_write(int year, int month, int day, int hours, int minutes, int seconds
 */
 }
 
-//this will copy the computer time
-//to the rtc
+//this will copy the computer time to the rtc
 void rtc_sync(){
 	time_t t = time(NULL);
 	struct tm *t_utc = gmtime(&t);
