@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <glib.h>
 #define NUM_BANDS 5  // Let's start out with 5 bands in the parametric EQ
 
 // Define Band structure
@@ -31,5 +32,6 @@ extern void modify_eq_band_bandwidth(ParametricEQ *eq, int band_index, double ne
 extern void print_eq_int(const ParametricEQ *eq);
 extern void apply_eq(ParametricEQ* eq, int32_t* samples, int num_samples, double sample_rate);
 extern int eq_is_enabled;
+gboolean check_eq_control(gpointer data);  
 
 #endif /* PARA_EQ_H_ */
