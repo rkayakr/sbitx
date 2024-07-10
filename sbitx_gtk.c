@@ -1707,11 +1707,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 	struct field *f;
 	long	freq, freq_div;
 	char	freq_text[20];
-  //
-  int s_meter_value; //W2JON
-  struct rx *current_rx = rx_list;
-  //
-
+  
 	if (in_tx){
 		draw_modulation(f_spectrum, gfx);
 		return;
