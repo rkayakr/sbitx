@@ -42,7 +42,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "i2cbb.h"
 #include "webserver.h"
 #include "logbook.h"
-#include <ntputil.h>
+#include "ntputil.h"
 
 #define FT8_START_QSO 1
 #define FT8_CONTINUE_QSO 0
