@@ -4531,6 +4531,11 @@ int main( int argc, char* argv[] ) {
 	q_init(&q_tx_text, 100); //best not to have a very large q 
 	setup();
 
+	// --- Check time against NTP server W2JON
+	const char* ntp_server = "pool.ntp.org";
+	sync_system_time(ntp_server);
+	// --- W2JON
+				
 	rtc_sync();
 
 	struct field *f;
