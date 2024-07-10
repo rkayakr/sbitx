@@ -1707,7 +1707,6 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx){
 	struct field *f;
 	long	freq, freq_div;
 	char	freq_text[20];
-
 	if (in_tx){
 		draw_modulation(f_spectrum, gfx);
 		return;
@@ -2052,8 +2051,8 @@ void menu_display(int show) {
     if (show) {
 
             // Move each control to the appropriate position
-            field_move("B0F", 45, screen_height - 145, 45, 45);
-            field_move("B0G", 45, screen_height - 95, 45, 45);
+            field_move("B0F", 40, screen_height - 145, 45, 45);
+            field_move("B0G", 40, screen_height - 95, 45, 45);
             //field_move("B0B", 95, screen_height - 145, 45, 45);
             field_move("B1F", 90, screen_height - 145, 45, 45);
             field_move("B1G", 90, screen_height - 95, 45, 45);
