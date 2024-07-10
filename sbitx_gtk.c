@@ -29,6 +29,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include <sys/file.h>
 #include <errno.h>
 #include <sys/file.h>
+#include <string.h>
 #include <errno.h>
 #include <wiringPi.h>
 #include <wiringSerial.h>
@@ -52,6 +53,7 @@ void change_band (char *request);
 /* command  buffer for commands received from the remote */
 struct Queue q_remote_commands;
 struct Queue q_tx_text;
+
 int eq_is_enabled = 0;
 
 /* Front Panel controls */
@@ -3330,16 +3332,7 @@ void tx_on(int trigger){
 			ext_ptt_enable = 0;
 		}
 	}
-//-----Check for EQ enable/bypass W2JON
- struct field* stat = get_field("#eq_plugin");
- if (stat){
-   if (!strcmp(stat->value,"ON")) {
-     eq_is_enabled = 1;
-   }
-   else if (!strcmp(stat->value, "OFF")) {
-       eq_is_enabled = 0;
-   }  
- }
+
  
 	struct field *f = get_field("r1:mode");
 	if (f){
@@ -3375,6 +3368,22 @@ void tx_on(int trigger){
 
 	tx_start_time = millis();
 }
+
+
+//-----Check for EQ enable/bypass W2JON
+
+gboolean check_eq_control(gpointer data) {
+    struct field* stat = get_field("#eq_plugin");
+    if (stat) {
+        if (!strcmp(stat->value, "ON")) {
+            eq_is_enabled = 1;
+        } else if (!strcmp(stat->value, "OFF")) {
+            eq_is_enabled = 0;
+        }
+    }
+    return TRUE;  // Return TRUE to keep the timer running
+}
+
 
 void tx_off(){
 	char response[100];
@@ -5091,6 +5100,11 @@ int main( int argc, char* argv[] ) {
 	field_set("KBD", "OFF");
   field_set("QRO", "OFF"); //make sure the QRO option is disabled at startup. W2JON
 	field_set("MENU", "OFF");
+ 
+ 
+  // Set up a timer to check the EQ control every 1/2 second (500 ms)
+  g_timeout_add(500, check_eq_control, NULL);
+
  
 	// you don't want to save the recently loaded settings
 	settings_updated = 0;
