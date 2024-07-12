@@ -281,6 +281,7 @@ static int create_mcast_socket(){
 }
 */
 
+
 int remote_audio_output(int16_t *samples){
 	int length = q_length(&qremote);
 	for (int i = 0; i < length; i++){
@@ -545,7 +546,7 @@ double agc2(struct rx *r){
 	else
 		agc_gain_should_be = 100000000000/signal_strength;
 	r->signal_strength = signal_strength;
-//	printf("Agc temp, g:%g, s:%g, f:%g ", r->agc_gain, signal_strength, agc_gain_should_be);
+	//printf("Agc temp, g:%g, s:%g, f:%g ", r->agc_gain, signal_strength, agc_gain_should_be);
 
 	double agc_ramp = 0.0;
 
@@ -715,8 +716,7 @@ void rx_linear(int32_t *input_rx,  int32_t *input_mic,
 
 	// the spectrum display is updated
 	spectrum_update();
-
-	// ... back to the actual processing, after spectrum update  
+  // ... back to the actual processing, after spectrum update  
 
 	// we may add another sub receiver within the pass band later,
 	// hence, the linkced list of receivers here
@@ -772,6 +772,7 @@ void rx_linear(int32_t *input_rx,  int32_t *input_mic,
 				//keep transmit buffer empty
 				output_speaker[i] = sample;
 				output_tx[i] = 0;
+        
 			}
 		else
 			for (i= 0; i < MAX_BINS/2; i++){
@@ -853,8 +854,7 @@ void tx_process(
     fft_reset_m_bins();
 		tx_process_restart = 0;
 	} 
-   //-Shoehorn in the EQ functionality. This may/may not work...W2JON 
-   static int eq_initialized = 0;
+  static int eq_initialized = 0;
 
     if (!eq_initialized) {
         init_eq(&eq);
@@ -871,8 +871,6 @@ if (in_tx && (rx_list->mode == MODE_USB || rx_list->mode == MODE_LSB || rx_list-
         
     }
 }
-
-
     
 	if (mute_count && (r->mode == MODE_USB || r->mode == MODE_LSB 
 		|| r->mode == MODE_AM)){
@@ -1010,7 +1008,7 @@ if (in_tx && (rx_list->mode == MODE_USB || rx_list->mode == MODE_LSB || rx_list-
 	either from the mic or from the rx IF 
 */
 
-// Modified sound_process function for TX EQ W2JON
+
 void sound_process(
     int32_t *input_rx, int32_t *input_mic, 
     int32_t *output_speaker, int32_t *output_tx, 
@@ -1303,7 +1301,7 @@ void tr_switch_de(int tx_on){
 			sound_mixer(audio_card, "Capture", rx_gain);
 			spectrum_reset();
 			//rx_tx_ramp = 10;
-		}
+    }
 }
 
 //v2 t/r switch uses the lpfs to cut the feedback during t/r transitions
@@ -1372,7 +1370,7 @@ void tr_switch_v2(int tx_on){
 			prev_lpf = -1;
 			set_lpf_40mhz(freq_hdr);
 			//rx_tx_ramp = 10;
-		}
+   	}
 }
 
 void tr_switch(int tx_on){
@@ -1500,12 +1498,12 @@ void sdr_request(char *request, char *response){
 		if (rx_list->mode == MODE_AM){
 			puts("\n\n\ntx am filter ");
 			filter_tune(tx_list->filter, 
-				(1.0 * 20000)/96000.0, 
-				(1.0 * 30000)/96000.0 , 
+				(1.0 * 19000)/96000.0, 
+				(1.0 * 29000)/96000.0 , 
 				5);
 			filter_tune(tx_filter, 
-				(1.0 * 20000)/96000.0, 
-				(1.0 * 30000)/96000.0 , 
+				(1.0 * 19000)/96000.0, 
+				(1.0 * 29000)/96000.0 , 
 				5);
 		} 
 
