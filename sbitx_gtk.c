@@ -3777,10 +3777,22 @@ void rtc_read(){
 	i2cbb_write_i2c_block_data(DS3231_I2C_ADD, 0, 0, NULL);
 
 	int e =  i2cbb_read_i2c_block_data(DS3231_I2C_ADD, 0, 8, rtc_time);
-	if (e <= 0){
-		printf("RTC not detected\n");
-		return;
-	}
+        if (e <= 0) {  // start W9JES W2JON
+                printf("RTC not detected, using system time\n");
+
+                // Use system time
+                time_t system_time = time(NULL);
+                struct tm *sys_time_info = gmtime(&system_time);
+
+        if (sys_time_info == NULL) {
+                printf("Failed to get system time\n");
+                return;
+                }  
+                printf("Using system time\n");
+
+                time_delta = (long)system_time - (long)(millis() / 1000l);
+                return;
+        }  // end W9JES W2JON
 	for (int i = 0; i < 7; i++)
 		rtc_time[i] = bcd2dec(rtc_time[i]);
 

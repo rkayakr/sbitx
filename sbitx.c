@@ -93,6 +93,7 @@ static int rx_pitch = 700; //used only to offset the lo for CW,CWR
 static int bridge_compensation = 100;
 static double voice_clip_level = 0.04;
 static int in_calibration = 1; // this turns off alc, clipping et al
+static double ssb_val = 1.0;  // W9JES
 
 static int multicast_socket = -1;
 
@@ -965,6 +966,11 @@ if (in_tx && (rx_list->mode == MODE_USB || rx_list->mode == MODE_LSB || rx_list-
 			__real__ fft_out[i] = 0;
 			__imag__ fft_out[i] = 0;	
 		}
+		// adjust USB/CW modulation power factor W9JES
+		for (i = 0; i < MAX_BINS/2; i++) {
+			__real__ fft_out[i] = __real__ fft_out[i] * ssb_val;
+		__imag__ fft_out[i] = __imag__ fft_out[i] * ssb_val;
+		}
 
 	//now rotate to the tx_bin 
 	//rememeber the AM is already a carrier modulated at 24 KHz
@@ -1106,9 +1112,11 @@ static int hw_settings_handler(void* user, const char* section,
 		band_power[hw_init_index].f_stop = atoi(value);
 	if (!strcmp(name, "scale"))
 		band_power[hw_init_index++].scale = atof(value);
-
 	if (!strcmp(name, "bfo_freq"))
 		bfo_freq = atoi(value);
+	// Add variable for SSB/CW Power Factor Adjustment W9JES
+	if (!strcmp(name, "ssb_val"))
+		ssb_val = atof(value);
 }
 
 static void read_hw_ini(){
