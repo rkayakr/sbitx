@@ -1,6 +1,6 @@
 ![sBitx image](sbitx.JPG)
 
-An improved version of the sBitx application designed for the sBitx hardware. Credit goes to the developers at HF Signals and A. Farhan for writing the initial code. 
+An improved version of the sBitx application designed for the sBitx hardware. This version is only for the 64 bit Raspberry Pi image that can be downloaded here. We do not support legacy, insecure, buggy, 32 bit platforms anymore.
 
 We now have a devepment team collaborating on improvements for the sBitx platform. Myself - W9JES, Jon - W2JON, Alan - N1QM and Jeff - KF7YDU. Thank you to all who provide countless hours to this project!
 
@@ -42,12 +42,6 @@ As a bonus, sBITX Toolbox is preinstalled on the image as well as other useful t
 
 A new, production version is available [HERE](https://github.com/drexjj/sbitx/releases)
 
-
-****Download The 32 Bit Image****
------
-A 32 bit image will be available in the future. It is highly advised to NOT use 32 bit because support for the operating system no longer provides security patches or feature enhancements as of June 2024.
-
-The 32 bit version will be provided for experimental use or to reload back to the stock configuration.
 
 
 Become A Supporter
