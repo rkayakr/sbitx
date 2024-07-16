@@ -4,12 +4,12 @@ An improved version of the sBitx application designed for the sBitx hardware. Th
 
 We now have a devepment team collaborating on improvements for the sBitx platform. Myself - W9JES, Jon - W2JON, Alan - N1QM and Jeff - KF7YDU. Thank you to all who provide countless hours to this project!
 
-The files here are to designed to replace the sBitx application and work on the default, 32 bit (stock) sBitx as shipped and the modified, 64 bit version provided in the *Releases* section.
+The files here are to designed to work on the modified, 64 bit version provided here in the *Releases* section.
 
 This version now includes push button functionality of the volume and VFO buttons to cycle modes and bands. I also added selectable RX filter range buttons.
 
 The stand-alone version of sBitx toolbox for 64 bit is available [HERE](https://github.com/drexjj/sBITX-toolbox64)
-
+https://github.com/drexjj/sbitx/blob/main/README.md
 The stand-alone version of sBitx toolbox for 32 bit (original version from HF Signals) is available [HERE](https://github.com/drexjj/sBITX-toolbox)
 
 
