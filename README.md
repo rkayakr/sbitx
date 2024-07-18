@@ -2,11 +2,9 @@
 
 An improved version of the sBitx application designed for the sBitx hardware. This version is only for the 64 bit Raspberry Pi image that can be downloaded here. We do not support legacy, insecure, buggy, 32 bit platforms anymore.
 
-We now have a devepment team collaborating on improvements for the sBitx platform. Myself - W9JES, Jon - W2JON, Alan - N1QM and Jeff - KF7YDU. Thank you to all who provide countless hours to this project!
+We now have a devepment team collaborating on improvements for the sBitx platform. JJ - W9JES, Jon - W2JON, Alan - N1QM and Jeff - KF7YDU. Thank you to all who provide countless hours to this project!
 
 The files here are to designed to work on the modified, 64 bit version provided here in the *Releases* section.
-
-This version now includes push button functionality of the volume and VFO buttons to cycle modes and bands. I also added selectable RX filter range buttons.
 
 The stand-alone version of sBitx toolbox for 64 bit is available [HERE](https://github.com/drexjj/sBITX-toolbox64)
 https://github.com/drexjj/sbitx/blob/main/README.md
