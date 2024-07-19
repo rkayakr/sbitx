@@ -7,7 +7,7 @@ We now have a devepment team collaborating on improvements for the sBitx platfor
 The files here are to designed to work on the modified, 64 bit version provided here in the *Releases* section.
 
 The stand-alone version of sBitx toolbox for 64 bit is available [HERE](https://github.com/drexjj/sBITX-toolbox64)
-https://github.com/drexjj/sbitx/blob/main/README.md
+
 The stand-alone version of sBitx toolbox for 32 bit (original version from HF Signals) is available [HERE](https://github.com/drexjj/sBITX-toolbox)
 
 
