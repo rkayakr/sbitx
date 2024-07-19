@@ -975,7 +975,7 @@ if (in_tx && (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_
 			__real__ fft_out[i] = 0;
 			__imag__ fft_out[i] = 0;	
 		}
-		// adjust USB/CW modulation power factor W9JES
+		// adjust USB/CW modulation power factor W9JES/KX4Z
 		for (i = 0; i < MAX_BINS/2; i++) {
 			__real__ fft_out[i] = __real__ fft_out[i] * ssb_val;
 		__imag__ fft_out[i] = __imag__ fft_out[i] * ssb_val;
