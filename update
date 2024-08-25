@@ -9,10 +9,10 @@ date
 cd $HOME/sbitx
 git stash
 git pull
-cd $HOME/sbitx/ft8_lib
+cd $HOME/sbitx/src/ft8_lib
 make
 sudo make install
-cd ..
+cd $HOME/sbitx
 ./build sbitx
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 
