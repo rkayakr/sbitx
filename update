@@ -6,8 +6,7 @@ F=$@
 echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 date
 cd $HOME/sbitx
-rm -rf data/result_rows.txt
-git stash
+git stash --include-untracked
 git pull
 cd $HOME/sbitx/src/ft8_lib
 make
