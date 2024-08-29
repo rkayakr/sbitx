@@ -1,7 +1,5 @@
 #!/bin/bash
 # This script restores the mouse pointer to default and does not auto hide it.
-# Uninstall unclutter
-sudo apt remove -y unclutter
 
 # Set autostart location
 AUTOSTART_FILE="/etc/xdg/lxsession/LXDE/autostart"
