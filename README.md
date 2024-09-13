@@ -34,7 +34,7 @@ Visit the new Wiki page for more information [HERE](https://github.com/drexjj/sb
 
 ****Download The 64 Bit Image****
 -----
-A preconfigured, downloadable Raspberry Pi 4 image file is available as a beta release. This Pi image is designed to fit a 32GB SD card or USB drive and installed with Balena Etcher.
+A preconfigured, downloadable Raspberry Pi 4 image file is available. This Pi image is designed to fit a 32GB SD card or USB drive and installed with Balena Etcher or Raspberry Pi Imager.
 
 As a bonus, sBITX Toolbox is preinstalled on the image as well as other useful tools for ham radio use.
 
