@@ -8,3 +8,6 @@ sbitx
 sbitx-fast
 sbitx_wisdom.wis
 sbitx_wisdom_f.wis
+web/grids.txt
+web/*.mc
+*.gcda

@@ -35,8 +35,10 @@ static sqlite3 *db=NULL;
 GtkListStore *list_store=NULL;
 GtkTreeSelection *selection = NULL;
 GtkWidget *logbook_window = NULL;
+GtkWidget *tree_view = NULL;;
 
-int logbook_fill(int from_id, int count, char *query);
+int logbook_fill(int from_id, int count, const char *query);
+void logbook_refill(const char *query);
 void clear_tree(GtkListStore *list_store);
 
 /* writes the output to data/result_rows.txt
@@ -47,6 +49,8 @@ int logbook_query(char *query, int from_id, char *result_file){
 	sqlite3_stmt *stmt;
 	char statement[200], json[10000], param[2000];
 
+	if (db == NULL)
+		logbook_open();
 
 	//add to the bottom of the logbook
 	if (from_id > 0){
@@ -142,15 +146,156 @@ int logbook_count_dup(const char *callsign, int last_seconds){
 	return rec;
 }
 
+int logbook_get_grids(void (*f)(char *,int)) {
+	sqlite3_stmt *stmt;
+	char *statement = "SELECT exch_recv, COUNT(*) AS n FROM logbook "
+		"GROUP BY exch_recv order by exch_recv";
+	int res = sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
+	int cnt = 0;
+	char grid[10];
+	int n = 0;
+	while (sqlite3_step(stmt) == SQLITE_ROW) {
+		int num_cols = sqlite3_column_count(stmt);
+		for (int i = 0; i < num_cols; i++){
+			char const *col_name = sqlite3_column_name(stmt, i);
+			if (!strcmp(col_name, "exch_recv")) { 
+				strcpy(grid, sqlite3_column_text(stmt, i));
+			} else
+			if (!strcmp(col_name, "n")) { 
+				n = sqlite3_column_int(stmt, i);
+			}
+		}
+		f(grid,n);
+		cnt++;
+	}
+	sqlite3_finalize(stmt);
+	return cnt;
+}
+bool logbook_caller_exists(char * id) {
+	sqlite3_stmt *stmt;
+	char * statement = "SELECT EXISTS(SELECT 1 FROM logbook WHERE callsign_recv=?)";
+	int res = sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
+	if (res != SQLITE_OK) return false;
+	bool exists = false;
+	res = sqlite3_bind_text(stmt, 1, id, strlen(id), SQLITE_STATIC);
+	if (res == SQLITE_OK) {
+		res = sqlite3_step(stmt);
+		int i = sqlite3_column_int(stmt, 0);
+		exists = ( res == SQLITE_ROW && i != 0);
+	}
+	sqlite3_finalize(stmt);
+	return exists;
+}
+bool logbook_grid_exists(char *id) {
+	sqlite3_stmt *stmt;
+	char * statement = "SELECT EXISTS(SELECT 1 FROM logbook WHERE exch_recv=?)";
+	int res = sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
+	if (res != SQLITE_OK) return false;
+	bool exists = false;
+	res = sqlite3_bind_text(stmt, 1, id, strlen(id), SQLITE_STATIC);
+	if (res == SQLITE_OK) {
+		res = sqlite3_step(stmt);
+		int i = sqlite3_column_int(stmt, 0);
+		exists = ( res == SQLITE_ROW && i != 0);
+	}
+	sqlite3_finalize(stmt);
+	return exists;
+}
+int logbook_prev_log(const char *callsign, char *result){
+	char statement[1000], param[2000];
+	sqlite3_stmt *stmt;
+	sprintf(statement, "select * from logbook where "
+		"callsign_recv=\"%s\" ORDER BY id DESC",
+		callsign);
+	strcpy(result, callsign);
+	strcat(result, ": ");
+	int res = sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
+	int rec = 0;
+	while (sqlite3_step(stmt) == SQLITE_ROW) {
+		int i;
+		int num_cols = sqlite3_column_count(stmt);
+		if (rec == 0) {
+			for (i = 0; i < num_cols; i++){
+				char const *col_name = sqlite3_column_name(stmt, i);
+			    if (!strcmp(col_name, "id")) { continue; }
+				if (!strcmp(col_name, "callsign_recv")) { continue; }
+				switch (sqlite3_column_type(stmt, i))
+				{
+				case (SQLITE3_TEXT):
+					strcpy(param, sqlite3_column_text(stmt, i));
+					break;
+				case (SQLITE_INTEGER):
+					sprintf(param, "%d", sqlite3_column_int(stmt, i));
+					break;
+				case (SQLITE_FLOAT):
+					sprintf(param, "%g", sqlite3_column_double(stmt, i));
+					break;
+				case (SQLITE_NULL):
+					break;
+				default:
+					sprintf(param, "%d", sqlite3_column_type(stmt, i));
+					break;
+				}
+				strcat(result, param);
+				if (!strcmp(col_name, "qso_date")) strcat(result, "_");
+				else strcat(result, " ");
+			}
+		}
+		rec++;
+	}
+	sqlite3_finalize(stmt);
+	sprintf(param, ": %d", rec);
+	strcat(result, param);
+	return rec;
+}
+int row_count_callback(void *data, int argc, char **argv, char **azColName) {
+    int *count = (int*)data;
+    (*count)++;
+    return 0;
+}
 void logbook_open(){
 	char db_path[200];	//dangerous, find the MAX_PATH and replace 200 with it
+    char *zErrMsg = 0;
 	sprintf(db_path, "%s/sbitx/data/sbitx.db", getenv("HOME"));
 
 	rc = sqlite3_open(db_path, &db);
+	if( rc != SQLITE_OK ){
+		fprintf(stderr, "Failed to open logbook. SQL error: %s\n", zErrMsg);
+		sqlite3_free(zErrMsg);
+		return;
+	}
+	char *sql = "SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='logbook' AND name IN ('gridIx', 'callIx');";
+    int index_count = 0;
+    rc = sqlite3_exec(db, sql, row_count_callback, &index_count, &zErrMsg);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "logbook index check failed: %s\n", zErrMsg);
+        sqlite3_free(zErrMsg);
+		return;
+    }
+    if (index_count == 2) {
+        printf("Logbook indexes are OK.\n");
+    } else {
+		char *sql1 = "CREATE INDEX gridIx ON logbook (exch_recv);";
+		char *sql2 = "CREATE INDEX callIx ON logbook (callsign_recv);";
+		rc = sqlite3_exec(db, sql1, NULL, NULL, &zErrMsg);
+		if (rc != SQLITE_OK) {
+			fprintf(stderr, "SQL-error creating gridIx: %s\n", zErrMsg);
+			sqlite3_free(zErrMsg);
+			return;
+		}
+		rc = sqlite3_exec(db, sql2, NULL, NULL, &zErrMsg);
+		if (rc != SQLITE_OK) {
+			fprintf(stderr, "SQL-error creating callIx: %s\n", zErrMsg);
+			sqlite3_free(zErrMsg);
+			return;
+		}
+		printf("Logbook indexes created.\n");
+    }
 }
 
 void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent, 
-	char *rst_recv, char *exchange_recv){
+
+	char *rst_recv, char *exchange_recv, char *comments){
 	char statement[1000], *err_msg, date_str[10], time_str[10];
 	char freq[12], log_freq[12], mode[10], mycallsign[10];
 
@@ -167,22 +312,33 @@ void logbook_add(char *contact_callsign, char *rst_sent, char *exchange_sent,
 
 	sprintf(statement,
 		"INSERT INTO logbook (freq, mode, qso_date, qso_time, callsign_sent,"
-		"rst_sent, exch_sent, callsign_recv, rst_recv, exch_recv) "
-		"VALUES('%s', '%s', '%s', '%s',  '%s','%s','%s',  '%s','%s','%s');",
+		"rst_sent, exch_sent, callsign_recv, rst_recv, exch_recv, comments) "
+		"VALUES('%s', '%s', '%s', '%s',  '%s','%s','%s',  '%s','%s','%s','%s');",
 			log_freq, mode, date_str, time_str, mycallsign,
-			 rst_sent, exchange_sent, contact_callsign, rst_recv, exchange_recv);
+			 rst_sent, exchange_sent, contact_callsign, rst_recv, exchange_recv, comments);
 
 	if (db == NULL)
 		logbook_open();
 
 	sqlite3_exec(db, statement, 0,0, &err_msg);
 	
-	//refresh the list if opened
+	logbook_refill(NULL);
+}
+
+void logbook_refill(const char *query) {
+    // refresh/refill the list if opened
 	if (list_store){
+		/* Detach model from view */
+		gtk_tree_view_set_model(GTK_TREE_VIEW(tree_view), NULL);
+
 		clear_tree(list_store);
-		logbook_fill(0,10000,NULL);
+		logbook_fill(0, 10000, query);
+
+		/* Re-attach model to view */
+		gtk_tree_view_set_model(GTK_TREE_VIEW(tree_view), GTK_TREE_MODEL(list_store)); 
 	}	
 }
+
 /*
 void import_logs(char *filename){
 	char entry_text[1000], statement[1000];
@@ -288,6 +444,13 @@ int export_adif(char *path, char *start_date, char *end_date){
 				sprintf(param, "%d", sqlite3_column_type(stmt, i));
 				break;
 			}
+			//If mode is FT8; set rec to 1 so we switch to use gridsquare instead of stx/srx fields - n1qm
+			if (i == 1)  
+				if (!strcmp("FT8",param))
+					rec = 1;
+			  else
+					rec = 0;
+
 			if (i == 2){
 				long f = atoi(param);
 				float ffreq=atof(param)/1000.0;  // convert kHz to MHz
@@ -299,7 +462,24 @@ int export_adif(char *path, char *start_date, char *end_date){
 			}
 			else if (i == 3) //it is the date
 				strip_chr(param, '-');
-	   	fprintf(pf, "<%s:%d>%s\n", adif_names[i], strlen(param), param);
+		switch (i) {
+			case 7:
+				if (rec == 1)
+					fprintf(pf, "<%s:%d>%s\n", "MY_GRIDSQUARE", strlen(param), param);
+				else
+					fprintf(pf, "<%s:%d>%s\n", adif_names[i], strlen(param), param);
+				break;
+			case 10:
+				if (rec == 1)
+					fprintf(pf, "<%s:%d>%s\n", "GRIDSQUARE", strlen(param), param);
+				else
+					fprintf(pf, "<%s:%d>%s\n", adif_names[i], strlen(param), param);
+				break;
+			default:
+				fprintf(pf, "<%s:%d>%s\n", adif_names[i], strlen(param), param);
+				break;
+		}
+	   	
 		}
 		fprintf(pf, "<EOR>\n");
 		//printf("\n");
@@ -709,7 +889,7 @@ void add_to_list(GtkListStore *list_store, const gchar *col1, const gchar *col2,
 }
 
 
-int logbook_fill(int from_id, int count, char *query){
+int logbook_fill(int from_id, int count, const char *query){
 	sqlite3_stmt *stmt;
 	char statement[200], json[10000], param[2000];
 
@@ -742,6 +922,7 @@ int logbook_fill(int from_id, int count, char *query){
 		else 
 			sprintf(statement, "select * from logbook where id > %d ", -from_id); 
 	}
+
 	char stmt_count[100];
 	sprintf(stmt_count, "ORDER BY id DESC LIMIT %d;", count);
 	strcat(statement, stmt_count);
@@ -749,7 +930,6 @@ int logbook_fill(int from_id, int count, char *query){
 	sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
 
 	int rec = 0;
-
 	char id[10], qso_time[20], qso_date[20], freq[20], mode[20], callsign[20],
 	rst_recv[20], exchange_recv[20], rst_sent[20], exchange_sent[20], comments[1000];
 
@@ -799,13 +979,7 @@ void clear_tree(GtkListStore *list_store) {
 
 void search_button_clicked(GtkWidget *entry, gpointer search_box) {
 	const gchar *search_text = gtk_entry_get_text(GTK_ENTRY(search_box));
-
-	clear_tree(list_store);
-	if (!strlen(search_text))
-		logbook_fill(0, 10000, NULL);
-	else
-		logbook_fill(0, 10000, (gchar *)search_text);
-
+	logbook_refill(strlen(search_text) == 0 ? NULL : search_text);
 }
 
 void search_update(GtkWidget *entry, gpointer search_box) {
@@ -835,12 +1009,12 @@ void delete_button_clicked(GtkWidget *entry, gpointer tree_view) {
 		sqlite3_exec(db, statement, 0,0, &err_msg);
 	}
  	gtk_widget_destroy (dialog);
-  g_free(qso_id);
+	g_free(qso_id);
+	//printf("Response %d\n", response);
 
-	printf("Response %d\n", response);
-	//refill the log
-	clear_tree(list_store);
-	logbook_fill(0, 10000, NULL);
+	// refill the log
+	logbook_refill(NULL);
+
 }
 
 void edit_button_clicked(GtkWidget *entry, gpointer tree_view) {
@@ -872,19 +1046,18 @@ void edit_button_clicked(GtkWidget *entry, gpointer tree_view) {
 		sqlite3_exec(db, statement, 0,0, &err_msg);
 	}
 
-   g_free(qso_id);
-   g_free(mode);
-   g_free(freq);
-   g_free(callsign);
-   g_free(rst_sent);
-   g_free(exchange_sent);
-   g_free(rst_recv);
-   g_free(exchange_recv);
-   g_free(comment);
+	g_free(qso_id);
+	g_free(mode);
+	g_free(freq);
+	g_free(callsign);
+	g_free(rst_sent);
+	g_free(exchange_sent);
+	g_free(rst_recv);
+	g_free(exchange_recv);
+	g_free(comment);
 
-	//refill the log
-	clear_tree(list_store);
-	logbook_fill(0, 10000, NULL);
+	// refill the log
+	logbook_refill(NULL);
 }
 
 
@@ -914,19 +1087,18 @@ void on_row_activated(GtkTreeView *treeview, GtkTreePath *path, GtkTreeViewColum
 		sqlite3_exec(db, statement, 0,0, &err_msg);
 	}
 
-   g_free(qso_id);
-   g_free(mode);
-   g_free(freq);
-   g_free(callsign);
-   g_free(rst_sent);
-   g_free(exchange_sent);
-   g_free(rst_recv);
-   g_free(exchange_recv);
-   g_free(comment);
+	g_free(qso_id);
+	g_free(mode);
+	g_free(freq);
+	g_free(callsign);
+	g_free(rst_sent);
+	g_free(exchange_sent);
+	g_free(rst_recv);
+	g_free(exchange_recv);
+	g_free(comment);
 
-	//refill the log
-	clear_tree(list_store);
-	logbook_fill(0, 10000, NULL);
+	// refill the log
+	logbook_refill(NULL);
 }
 
 // Function to handle row selection
@@ -940,13 +1112,14 @@ void on_selection_changed(GtkTreeSelection *selection, gpointer user_data) {
 
 gboolean logbook_close(GtkWidget *widget, GdkEvent *event, gpointer data){
 	logbook_window = NULL;
+	tree_view = NULL;
 	return FALSE;
 }
 
 void logbook_list_open(){
     GtkWidget *window;
     GtkWidget *scrolled_window;
-    GtkWidget *tree_view;
+    //GtkWidget *tree_view;
 
 		if (logbook_window != NULL){
 			gtk_window_present(GTK_WINDOW(logbook_window));
@@ -1014,7 +1187,7 @@ void logbook_list_open(){
     gtk_box_pack_start(GTK_BOX(vbox), scrolled_window, TRUE, TRUE, 0);
 
     // Create a list store
-		if (!list_store)
+	if (!list_store)
     	list_store = gtk_list_store_new(10, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING,
       	G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, 
       	G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING);
@@ -1050,8 +1223,9 @@ void logbook_list_open(){
 */
     // Add tree view to scrolled window
     gtk_container_add(GTK_CONTAINER(scrolled_window), tree_view);
+	clear_tree(list_store);
+	logbook_fill(0, 10000, NULL);
 
-		logbook_fill(0, 10000, NULL);
     // Connect row activation signal
 //		gtk_tree_view_set_activate_on_single_click((GtkTreeView *)tree_view, FALSE);
 //    g_signal_connect(tree_view, "row-activated", G_CALLBACK(on_row_activated), NULL);

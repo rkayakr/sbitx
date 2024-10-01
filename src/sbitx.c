@@ -67,6 +67,7 @@ char wisdom_file[] = "sbitx_wisdom.wis";
 
 #define NOISE_ALPHA 0.9  // Smoothing factor for DSP noise estimation 0.0->1.0 >responsive/>stable -> >responsive/>stable
 #define SIGNAL_ALPHA 0.90 // Smoothing factor for DSP observed power spectrum estimation 0.9->0.99 >responsive/>stable -> >responsive/>stable
+#define SCALING_TRIM 200.0 // Use this to tune your meter response 2.7 worked at 51% and my inverted L
 
 fftw_complex *fft_out;		// holds the incoming samples in freq domain (for rx as well as tx)
 fftw_complex *fft_in;			// holds the incoming samples in time domain (for rx as well as tx) 
@@ -100,6 +101,15 @@ static int in_calibration = 1; // this turns off alc, clipping et al
 static double ssb_val = 1.0;  // W9JES
 int dsp_enabled = 0;//dsp W2JON
 int anr_enabled = 0;//anr W2JON
+int notch_enabled = 0;//notch filter W2JON
+double notch_freq = 0; // Notch frequency in Hz W2JON
+double notch_bandwidth = 0; // Notch bandwidth in Hz W2JON
+int compression_control_level; // Audio Compression level W2JON
+int txmon_control_level; // TX Monitor level W2JON
+int get_rx_gain(void) {
+	//printf("rx_gain %d\n", rx_gain);
+    return rx_gain;
+}
 extern void check_r1_volume();//Volume control normalization W2JON
 static int rx_vol;
 
@@ -136,6 +146,7 @@ struct power_settings {
 
 struct power_settings band_power[] ={
 	{ 3500000,  4000000, 37, 0.002},
+	{ 5251500,  5360000, 40, 0.0015},
 	{ 7000000,  7300009, 40, 0.0015},
 	{10000000, 10200000, 35, 0.0019},
 	{14000000, 14300000, 35, 0.0025},
@@ -309,6 +320,73 @@ static int create_mcast_socket(){
 }
 */
 
+void apply_fixed_compression(float *input, int num_samples, int compression_control_value) {
+    float compression_level = compression_control_value / 10.0;
+
+    // I dont think we need to provide too many confusng controls so let's define internal fixed compression parameters
+    float internal_threshold = 0.1f; 
+    float internal_ratio = 4.0f;     
+ 
+    for (int i = 0; i < num_samples; i++) {
+        float sample = input[i];
+               
+        if (sample > internal_threshold) {
+            sample = internal_threshold + (sample - internal_threshold) / internal_ratio;
+        } else if (sample < -internal_threshold) {
+            sample = -internal_threshold + (sample + internal_threshold) / internal_ratio;
+        }
+
+        // Apply some makeup gain proportional to control level
+        sample *= 1.0 + compression_level;
+
+        // Ensure sample stays within range or we'll clip
+        if (sample > 1.0) sample = 1.0;
+        if (sample < -1.0) sample = -1.0;
+
+        // Send the processed sample back
+        input[i] = sample;
+    }
+}
+
+// S-Meter test W2JON
+int calculate_s_meter(struct rx *r, double rx_gain) {
+    double signal_strength = 0.0;
+
+    // Summing up the magnitudes of the FFT output bins
+    for (int i = 0; i < MAX_BINS / 2; i++) {
+        double magnitude = cabs(r->fft_time[i]); // Magnitude of complex FFT output in time domain
+        signal_strength += magnitude;
+    }
+
+    // Now average out the "signal strength"
+    signal_strength /= (MAX_BINS / 2);
+
+    // Logarithmic scaling based on rx_gain setting in percentage [0-100]
+    double gain_scaling_factor = log10(rx_gain / 100.0 + 1.0); 
+
+    // Convert to pseudo dB
+    double reference_power = 1e-4; // 0.1 mW
+    double signal_power = signal_strength * signal_strength * reference_power;
+    double s_meter_db = 10 * log10(signal_power / reference_power); // pseudo dB
+    
+    s_meter_db += gain_scaling_factor * SCALING_TRIM; // Adjust calcs dynamically based on rx_gain * SCALING_TRIM
+
+    // Calculate S-units and additional dB
+    int s_units = (int)(s_meter_db / 6.0); // Each S-unit corresponds to 6 dB
+    int additional_db = (int)(s_meter_db - (s_units * 6)); // Remaining 'dB' above S9
+
+    // Ensure non-negative values
+    if (s_units < 0) s_units = 0;
+    if (additional_db < 0) additional_db = 0;
+
+    // Cap additional S-units at 20+ for simplicity
+    if (s_units >= 9) {
+        if (additional_db > 20) additional_db = 20;
+    }
+
+    // Return the value formatted as "S-unit * 100 + additional dB"
+    return (s_units * 100) + additional_db;
+}
 
 int remote_audio_output(int16_t *samples){
 	int length = q_length(&qremote);
@@ -698,32 +776,26 @@ void rx_am(int32_t *input_rx,  int32_t *input_mic,
 void rx_linear(int32_t *input_rx, int32_t *input_mic, 
     int32_t *output_speaker, int32_t *output_tx, int n_samples)
 {
-    static double noise_est[MAX_BINS] = {0};
-    static double signal_est[MAX_BINS] = {0}; // For Wiener filter
-    static int noise_est_initialized = 0;
-    static int noise_update_counter = 0;
+    int i = 0;
+    double i_sample;
+    
 
-    int i, j = 0;
-    double i_sample, q_sample;
-    double sampling_rate = 96000.0; // Sample rate
 
-    // Scale the noise_threshold value
-    double scaled_noise_threshold = scaleNoiseThreshold(noise_threshold);
 
     // STEP 1: First add the previous M samples
-    for (i = 0; i < MAX_BINS/2; i++)
-        fft_in[i] = fft_m[i];
+	//memcpy to replace for loop, ffts are 16 bytes
+	memcpy(fft_in,fft_m,MAX_BINS/2*8*2);
+    //for (i = 0; i < MAX_BINS/2; i++)
+    //    fft_in[i] = fft_m[i];
 
     // STEP 2: Add the new set of samples
     int m = 0;
     for (i = MAX_BINS/2; i < MAX_BINS; i++) {
-        i_sample = (1.0 * input_rx[j]) / 200000000.0;
-        q_sample = 0;
-        j++;
+        i_sample = (1.0 * input_rx[m]) / 200000000.0;
         __real__ fft_m[m] = i_sample;
-        __imag__ fft_m[m] = q_sample;
+        __imag__ fft_m[m] = 0;
         __real__ fft_in[i] = i_sample;
-        __imag__ fft_in[i] = q_sample;
+        __imag__ fft_in[i] = 0;
         m++;
     }
 
@@ -736,13 +808,14 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
     my_fftw_execute(plan_spectrum);
     spectrum_update();
 
-    // STEP 4: Rotate the bins around by r->tuned_bin
+	// STEP 4: Rotate the bins around by r->tuned_bin
     struct rx *r = rx_list;
     int shift = r->tuned_bin;
     if (r->mode == MODE_AM)
         shift = 0;
+	int b = 0;
     for (i = 0; i < MAX_BINS; i++) {
-        int b = i + shift;
+        b = i + shift;
         if (b >= MAX_BINS)
             b -= MAX_BINS;
         if (b < 0)
@@ -750,9 +823,38 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
         r->fft_freq[i] = fft_out[b];
     }
 
-    // STEP 4a: DSP noise estimation
+
+	// STEP 4a: BIN processing functions for a better life.
+
     if (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_2TONE) {
-        // Noise Estimation
+		double sampling_rate = 96000.0; // Sample rate
+		static double noise_est[MAX_BINS] = {0};
+		static double signal_est[MAX_BINS] = {0}; // For Wiener filter
+		static int noise_est_initialized = 0;
+		static int noise_update_counter = 0;
+		// Scale the noise_threshold value
+		double scaled_noise_threshold = scaleNoiseThreshold(noise_threshold);
+
+		// Notch filter
+		if (notch_enabled) {
+			int notch_center_bin, notch_bin_range;
+			
+			if (r->mode == MODE_USB) {
+				notch_center_bin = (int)(notch_freq / (sampling_rate / MAX_BINS));
+			} else if (r->mode == MODE_LSB) {
+				notch_center_bin = MAX_BINS - (int)(notch_freq / (sampling_rate / MAX_BINS));
+			}
+			notch_bin_range = (int)(notch_bandwidth / (sampling_rate / MAX_BINS));
+
+			for (i = notch_center_bin - notch_bin_range / 2; i <= notch_center_bin + notch_bin_range / 2; i++) {
+				if (i >= 0 && i < MAX_BINS) {
+					r->fft_freq[i] *= 0.001; // Attenuate magnitude
+				}
+			}
+
+		}
+
+	    // Noise Estimation
         if (!noise_est_initialized || noise_update_counter >= noise_update_interval) {
             for (i = 0; i < MAX_BINS; i++) {
                 double current_magnitude = cabs(r->fft_freq[i]);
@@ -798,17 +900,23 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
      }
 
     // STEP 5: Zero out the other sideband
-    if (r->mode == MODE_LSB || r->mode == MODE_CWR) {
-        for (i = 0; i < MAX_BINS/2; i++) {
+	switch (r->mode) {
+		case MODE_LSB:
+		case MODE_CWR:
+			for (i = 0; i < MAX_BINS/2; i++) {
+				__real__ r->fft_freq[i] = 0;
+				__imag__ r->fft_freq[i] = 0;
+			}
+			break;
+		case MODE_AM:
+			break;
+		default:
+			for (i = MAX_BINS/2; i < MAX_BINS; i++) {
             __real__ r->fft_freq[i] = 0;
             __imag__ r->fft_freq[i] = 0;
-        }
-    } else if (r->mode != MODE_AM) {
-        for (i = MAX_BINS/2; i < MAX_BINS; i++) {
-            __real__ r->fft_freq[i] = 0;
-            __imag__ r->fft_freq[i] = 0;
-        }
-    }
+        	}
+			break;
+	}
 
     // STEP 6: Apply the FIR filter
     for (i = 0; i < MAX_BINS; i++) {
@@ -822,7 +930,7 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
     agc2(r);
 
     // STEP 9: Send the output
-    int is_digital = 0;
+    //int is_digital = 0;
     if (rx_list->output == 0) {
         if (r->mode == MODE_AM) {
             for (i = 0; i < MAX_BINS/2; i++) {
@@ -831,8 +939,9 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
                 output_tx[i] = 0;
             }
         } else {
+			int32_t sample;
             for (i = 0; i < MAX_BINS/2; i++) {
-                int32_t sample = cimag(r->fft_time[i + (MAX_BINS/2)]);
+                sample = cimag(r->fft_time[i + (MAX_BINS/2)]);
                 output_speaker[i] = sample;
                 output_tx[i] = 0;
             }
@@ -917,12 +1026,34 @@ void tx_process(
     }
 
 if (in_tx && (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_2TONE && r->mode != MODE_CW && r->mode != MODE_CWR)) {
+    
+	// Apply compression is the value of the dial is set to 1-10 (0 = off)
+     if (compression_control_level >= 1 && compression_control_level <= 10) {
+        float temp_input_mic[n_samples];
+        for (int i = 0; i < 5 && i < n_samples; i++) {
+        }
+        // Convert input_mic (int32_t) to float for compression
+        for (int i = 0; i < n_samples; i++) {
+            temp_input_mic[i] = (float)input_mic[i] / 2000000000.0; 
+        }
+
+        for (int i = 0; i < 5 && i < n_samples; i++) {
+        }
+        // Now we can call the apply_fixed_compression function with the parameters
+        apply_fixed_compression(temp_input_mic, n_samples, compression_control_level);
+        
+        for (int i = 0; i < 5 && i < n_samples; i++) {
+        }
+        // Convert back the processed data to int32_t after compression
+        for (int i = 0; i < n_samples; i++) {
+            input_mic[i] = (int32_t)(temp_input_mic[i] * 2000000000.0);
+        }
+        for (int i = 0; i < 5 && i < n_samples; i++) {
+        }
+    }
+
     if (eq_is_enabled == 1) {
-        // EQ is enabled, perform EQ processing
         apply_eq(&eq, input_mic, n_samples, 48000.0);
-        //printf("EQ is active on the audio chain\n");
-    } else {
-        // EQ is disabled, skip EQ processing
     }
 }
     
@@ -968,15 +1099,23 @@ if (in_tx && (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_
 				i_sample = voice_clip_level;
 		}
 
-		//don't echo the voice modes
+		// Don't echo the voice modes
 		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM 
-			|| r->mode == MODE_NBFM)
-			output_speaker[j] = 0;
-		else
-			output_speaker[j] = i_sample * sidetone;
-	  	q_sample = 0;
+ 		   || r->mode == MODE_NBFM) {
+ 		   // Unless of course you want to use the txmon control
+		    if (txmon_control_level >= 1 && txmon_control_level <= 10) {	
+ 		       output_speaker[j] = i_sample * txmon_control_level * 1000000000.0;      
+	    } else {
+ 		       output_speaker[j] = 0;
+  		  }
+   		 q_sample = 0;
+		} else {
+   		// If not in voice modes, use the sidetone
+ 		   output_speaker[j] = i_sample * sidetone;
+ 		   q_sample = 0;
+		}
 
-	  	j++;
+		j++;
 
 	  	__real__ fft_m[m] = i_sample;
 	  	__imag__ fft_m[m] = q_sample;
@@ -1168,8 +1307,17 @@ static int hw_settings_handler(void* user, const char* section,
 	if (!strcmp(name, "bfo_freq"))
 		bfo_freq = atoi(value);
 	// Add variable for SSB/CW Power Factor Adjustment W9JES
-	if (!strcmp(name, "ssb_val"))
+        if (!strcmp(name, "ssb_val"))
 		ssb_val = atof(value);
+	// Add TCXO Calibration W9JES/KK4DAS
+	if (!strcmp(section, "tcxo"))
+	{
+	    if (!strcmp(name, "cal"))
+	    {
+		//  printf("xtal_freq_cal = %d\n",atoi(value));
+		si5351_set_calibration(atoi(value));
+	    }
+	}
 }
 
 static void read_hw_ini(){
@@ -1540,6 +1688,8 @@ void sdr_request(char *request, char *response){
 			rx_list->mode = MODE_FT8;
 		else if (!strcmp(value, "AM"))
 			rx_list->mode = MODE_AM;
+		else if (!strcmp(value, "DIGI"))
+			rx_list->mode = MODE_DIGITAL;
 		else
 			rx_list->mode = MODE_USB;
 		

@@ -33,6 +33,12 @@ extern int input_volume;
 int get_input_volume(void);
 void check_r1_volume();
 
+
+//Notch Filter
+extern int notch_enabled;
+extern double notch_freq; 
+extern double notch_bandwidth; 
+
 //ANR (automatic noise reduction)
 extern int anr_enabled;
 
@@ -42,3 +48,9 @@ extern int noise_threshold;
 extern int noise_update_interval; 
 double scaleNoiseThreshold(int control);
 
+// Aduio Compression tool
+extern int compression_control_level;
+void apply_fixed_compression(float *input, int num_samples, int compression_control_value);
+
+// TX Monitor tool
+extern int txmon_control_level;
