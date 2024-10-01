@@ -51,5 +51,5 @@ If you find these enhancements valuable or have benefited from using it, conside
 
 Not in a position to donate? No worries! Contributing code, documentation, or simply spreading the word about this effort also goes a long way.
 
-Thank you for your support and belief in my project!
+Thank you for your support and belief in our project!
 
