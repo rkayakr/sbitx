@@ -55,6 +55,7 @@ extern struct rx *rx_list;
 #define FT8_CONTINUE_QSO 0
 void ft8_process(char *received, int operation);
 void change_band (char *request);
+void highlight_band_field(int new_band);
 /* command  buffer for commands received from the remote */
 struct Queue q_remote_commands;
 struct Queue q_tx_text;
@@ -183,6 +184,7 @@ struct font_style font_table[] = {
 	{FF_MYCALL, 0.2, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{FF_CALLER, 1, 0.2, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{FF_GRID,   1, 0.8, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{FONT_BLACK, 0, 0, 0, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 };
 
 struct encoder enc_a, enc_b;
@@ -385,6 +387,9 @@ struct band {
 	int index;
 	int	freq[STACK_DEPTH];
 	int mode[STACK_DEPTH];
+	//Make drive and IF band specific - n1qm
+	int if_gain;
+	int drive;
 };
 
 struct cmd {
@@ -430,25 +435,27 @@ static int tx_mode = MODE_USB;
 
 struct band band_stack[] = {
 	{"80M", 3500000, 4000000, 0, 
-		{3500000,3574000,3600000,3700000},{MODE_CW, MODE_LSB, MODE_CW, MODE_LSB}},
+		{3500000,3574000,3600000,3700000},{MODE_CW, MODE_LSB, MODE_CW, MODE_LSB},50,50},
 	{"60M", 5250000, 5500000, 0, 
-		{5251500, 5354000,5357000,5360000},{MODE_CW, MODE_USB, MODE_USB, MODE_USB}},
+		{5251500, 5354000,5357000,5360000},{MODE_CW, MODE_USB, MODE_USB, MODE_USB},50,50},
 	{"40M", 7000000,7300000, 0,
-		{7000000,7040000,7074000,7150000},{MODE_CW, MODE_CW, MODE_USB, MODE_LSB}},
+		{7000000,7040000,7074000,7150000},{MODE_CW, MODE_CW, MODE_USB, MODE_LSB},50,50},
 	{"30M", 10100000, 10150000, 0,
-		{10100000, 10100000, 10136000, 10150000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB}},
+		{10100000, 10100000, 10136000, 10150000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB},50,50},
 	{"20M", 14000000, 14400000, 0,
-		{14010000, 14040000, 14074000, 14200000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB}},
+		{14010000, 14040000, 14074000, 14200000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB},50,50},
 	{"17M", 18068000, 18168000, 0,
-		{18068000, 18100000, 18110000, 18160000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB}},
+		{18068000, 18100000, 18110000, 18160000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB},50,50},
 	{"15M", 21000000, 21500000, 0,
-		{21010000, 21040000, 21074000, 21250000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB}},
+		{21010000, 21040000, 21074000, 21250000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB},50,50},
 	{"12M", 24890000, 24990000, 0,
-		{24890000, 24910000, 24950000, 24990000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB}},
+		{24890000, 24910000, 24950000, 24990000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB},50,50},
 	{"10M", 28000000, 29700000, 0,
-		{28000000, 28040000, 28074000, 28250000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB}},
+		{28000000, 28040000, 28074000, 28250000}, {MODE_CW, MODE_CW, MODE_USB, MODE_USB},50,50},
 };
 
+char* stack_place[4] = {"=---", "-=--", "--=-", "---="  };
+char* place_char = "=";
 
 #define VFO_A 0 
 #define VFO_B 1 
@@ -513,6 +520,11 @@ int current_layout = LAYOUT_KBD;
 
 // the cmd fields that have '#' are not to be sent to the sdr
 struct field main_controls[] = {
+
+	  // Band stack position Option ON/OFF (hides/reveals band stack position)
+  	{"#band_stack_pos_option", do_toggle_option, 1000, -1000, 40, 40, "BSTACKPOSOPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+		"ON/OFF", 0,0,0,0},
+
 	/* band stack registers */
  	{"#10m", NULL, 50, 5, 40, 40, "10M", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE, 
   	"", 0,0,0,COMMON_CONTROL},
@@ -667,7 +679,7 @@ struct field main_controls[] = {
  	{ "#eq_plugin", do_toggle_option, 1000, -1000, 40, 40, "TXEQ", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 		"ON/OFF",0,0,0,0},
 	{ "#selband", NULL, 1000, -1000, 50, 50, "SELBAND", 40, "80", FIELD_NUMBER, FONT_FIELD_VALUE,
-    	"", 0,83,1, 0},
+    	"", 0, 8, 1, 0},
 	{"#set", NULL, 1000, -1000, 40, 40, "SET", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
                 "", 0,0,0,0,COMMON_CONTROL}, // w9jes
 
@@ -1403,6 +1415,7 @@ void draw_field(GtkWidget *widget, cairo_t *gfx, struct field *f){
 		case FIELD_NUMBER:
 		case FIELD_TOGGLE:
 		case FIELD_BUTTON:
+		{
 			label_height = font_table[FONT_FIELD_LABEL].height;
 			width = measure_text(gfx, label, FONT_FIELD_LABEL);
 			//skip the underscore in the label if it is too wide
@@ -1413,19 +1426,21 @@ void draw_field(GtkWidget *widget, cairo_t *gfx, struct field *f){
 
 			offset_x = f->x + f->width/2 - width/2;
 			//is it a two line display or a single line?
-			if (f->value_type == FIELD_BUTTON && !f->value[0]){
+			if ((f->value_type == FIELD_BUTTON) && !f->value[0]){
 				label_y = f->y + (f->height - label_height)/2;
 				draw_text(gfx, offset_x,label_y, f->label, FONT_FIELD_LABEL);
 			} 
 			else {
-				value_height = font_table[FONT_FIELD_VALUE].height;
+				int font_ix = f->font_index; 
+				value_height = font_table[font_ix].height;
 				label_y = f->y + ((f->height  - label_height  - value_height)/2);
 				draw_text(gfx, offset_x, label_y, label, FONT_FIELD_LABEL);
-				width = measure_text(gfx, f->value, FONT_FIELD_VALUE);
+				width = measure_text(gfx, f->value, font_ix);
 				label_y += font_table[FONT_FIELD_LABEL].height;
 				draw_text(gfx, f->x + f->width/2 - width/2, label_y, f->value, 
-					FONT_FIELD_VALUE);
+					font_ix);
 			}
+		}
       break;
 		case FIELD_STATIC:
 			draw_text(gfx, f->x, f->y, f->label, FONT_FIELD_LABEL);
@@ -1498,7 +1513,8 @@ static void save_user_settings(int forced){
 
 	//now save the band stack
 	for (int i = 0; i < sizeof(band_stack)/sizeof(struct band); i++){
-		fprintf(f, "\n[%s]\n", band_stack[i].name);
+		fprintf(f, "\n[%s]\ndrive=%i\ngain=%i\n", band_stack[i].name,band_stack[i].drive,band_stack[i].if_gain);
+		
 		//fprintf(f, "power=%d\n", band_stack[i].power);
 		for (int j = 0; j < STACK_DEPTH; j++)
 			fprintf(f, "freq%d=%d\nmode%d=%d\n", j, band_stack[i].freq[j], j, band_stack[i].mode[j]);
@@ -1540,6 +1556,16 @@ void enter_qso(){
 	write_console(FONT_LOG, buff);
 }
 
+static int get_band_stack_index(const char * p_value) {
+	// Valid values: "=---", "-=--", "--=-", "---="
+	char * p_ch = strstr(p_value, place_char);
+	int ix = p_ch - p_value;
+	if (strlen(p_value) != 4 || p_ch == NULL || ix < 0 || ix > 3) {
+		ix = -1;
+	}
+	return ix;
+}
+
 static int user_settings_handler(void* user, const char* section, 
             const char* name, const char* value)
 {
@@ -1549,7 +1575,7 @@ static int user_settings_handler(void* user, const char* section,
     strcpy(new_value, value);
     if (!strcmp(section, "r1")){
       sprintf(cmd, "%s:%s", section, name);
-      set_field(cmd, new_value);
+	set_field(cmd, new_value);
     }
     else if (!strcmp(section, "tx")){
       strcpy(cmd, name);
@@ -1559,36 +1585,61 @@ static int user_settings_handler(void* user, const char* section,
 		return 1; //skip the keyboard values
 	}
     // if it is an empty section
-    else if (strlen(section) == 0){
-      sprintf(cmd, "%s", name);
-			//skip the button actions 
-			struct field *f = get_field(cmd);
-			if (f){
-				if (f->value_type != FIELD_BUTTON)
-      		set_field(cmd, new_value); 
+    else if (strlen(section) == 0) {
+		sprintf(cmd, "%s", name);
+		//skip the button actions 
+		struct field *f = get_field(cmd);
+		if (f) {
+			if (f->value_type != FIELD_BUTTON) {
+				set_field(cmd, new_value); 
 			}
+			char * bands = "#80m#60m#40m#30m#20m#17m#15m#12m#10m";
+			char * ptr = strstr(bands, cmd);
+			if (ptr != NULL) {
+				// Set the selected band stack index 
+				int band = (ptr-bands)/4;
+				int ix = get_band_stack_index(new_value);
+				if (ix < 0) {
+					//printf("Band stack index for %c%cm set to 0!\n", *(ptr+1), *(ptr+2));
+					ix = 0;
+				}
+				band_stack[band].index = ix;
+				if (!strcmp(field_str("BSTACKPOSOPT"), "ON")) {
+					strcpy(new_value, stack_place[ix]);
+					strcpy(f->value, new_value);
+					//printf("user_settings_handler: Band stack index for %c%cm set to %d\n", *(ptr+1), *(ptr+2), ix);
+				}
+				settings_updated++;
+			}
+			if (!strcmp(cmd,"#selband")) {
+				int new_band = atoi(value);
+				highlight_band_field(new_band);
+			}
+
+		}
+		return 1;
     }
 
-		//band stacks
-		int band = -1;
-		if (!strcmp(section, "80M"))
-	band = BAND80M;
+	//band stacks
+	int band = -1;
+	if (!strcmp(section, "80M"))
+		band = BAND80M;
 	else if (!strcmp(section, "60M"))
-	band = BAND60M;
-		else if (!strcmp(section, "40M"))
-	band = BAND40M;
-		else if (!strcmp(section, "30M"))
-	band = BAND30M;
-		else if (!strcmp(section, "20M"))
-	band = BAND20M;
-		else if (!strcmp(section, "17M"))
-	band = BAND17M;
-		else if (!strcmp(section, "15M"))
-	band = BAND15M;
-		else if (!strcmp(section, "12M"))	
-	band = BAND12M;
-		else if (!strcmp(section, "10M"))
-	band = BAND10M;	
+		band = BAND60M;
+	else if (!strcmp(section, "40M"))
+		band = BAND40M;
+	else if (!strcmp(section, "30M"))
+		band = BAND30M;
+	else if (!strcmp(section, "20M"))
+		band = BAND20M;
+	else if (!strcmp(section, "17M"))
+		band = BAND17M;
+	else if (!strcmp(section, "15M"))
+		band = BAND15M;
+	else if (!strcmp(section, "12M"))	
+		band = BAND12M;
+	else if (!strcmp(section, "10M"))
+		band = BAND10M;	
 
 	if (band != -1) {
 		if (strstr(name,"freq")) {
@@ -1612,6 +1663,10 @@ static int user_settings_handler(void* user, const char* section,
 			band_stack[band].mode[2] = atoi(value);	
 		else if (!strcmp(name, "mode3"))
 			band_stack[band].mode[3] = atoi(value);	
+		else if (!strcmp(name, "gain"))
+			band_stack[band].if_gain = atoi(value);	
+		else if (!strcmp(name, "drive"))
+			band_stack[band].drive = atoi(value);	
 	}
     return 1;
 }
@@ -5265,13 +5320,24 @@ void change_band(char *request){
 		band_stack[new_band].index = stack;
 	}
 	stack = band_stack[new_band].index;
+	if (stack < 0 || stack > 3) {
+		printf("Illegal stack index %d\n", stack);
+		stack = 0;
+	}
 	sprintf(buff, "%d", band_stack[new_band].freq[stack]);
 	char resp[100];
 	set_operating_freq(band_stack[new_band].freq[stack], resp);
 	field_set("FREQ", buff);
-	field_set("MODE", mode_name[band_stack[new_band].mode[stack]]);	
+	int mode_ix = band_stack[new_band].mode[stack];
+	if (mode_ix < 0 || mode_ix > MAX_MODES) {
+		printf("Illegal MODE id %d\n", mode_ix);
+		mode_ix = MODE_CW;
+	}
+	field_set("MODE", mode_name[mode_ix]);	
 	update_field(get_field("r1:mode"));
 
+    highlight_band_field(new_band);
+	
 	sprintf(buff, "%d", new_band);
 	set_field("#selband", buff); // signals web app to clear lists
 	q_empty(&q_web); // Clear old messages in queue
@@ -5282,6 +5348,32 @@ void change_band(char *request){
 //  set_field("r1:high",get_field("r1:high")->value);
 
 	abort_tx();
+
+	sprintf(buff,"%i",band_stack[new_band].if_gain);
+	field_set("IF",buff);
+	sprintf(buff,"%i",band_stack[new_band].drive);
+	field_set("DRIVE",buff);
+  
+  settings_updated++;
+}
+
+void highlight_band_field(int new_band) {
+	int max_bands = sizeof(band_stack)/sizeof(struct band);
+	for( int b = 0; b < max_bands; b++) {
+		struct field *band_field = get_field_by_label(band_stack[b].name);
+		if (!strcmp(field_str("BSTACKPOSOPT"), "ON")) {
+			sprintf(band_field->value, "%s", stack_place[band_stack[b].index]);
+			if ( b == new_band) {
+				band_field->font_index = FONT_FIELD_LABEL;  //FONT_FIELD_SELECTED;
+			} else {
+				band_field->font_index = FONT_BLACK;
+			}
+		} else {
+			band_field->value[0] = 0;
+		}
+		//printf("highlight_band_field:  Band %s value set to %s\n", band_stack[b].name, band_field->value); 
+		update_field(band_field);
+	}
 }
 
 void utc_set(char *args, int update_rtc){
@@ -5545,6 +5637,21 @@ else if (!strcmp(request, "80M") ||
 		qrz(field_str("CALL"));
 	}
 	else {
+			if (!strncmp(request,"IF ", 3)) {
+				//Update band stack info of current band with new gain value - n1qm
+				char ti[4];
+				strncpy(ti,request + 3,3);
+				band_stack[atoi(get_field_by_label("SELBAND")->value)].if_gain=atoi(ti);
+				settings_updated++;
+			}
+			if (!strncmp(request,"DRIVE ", 6)) {
+				//Update band stack info of current band with new drive value - n1qm
+				char ti[4];
+				strncpy(ti,request + 6,3);
+				band_stack[atoi(get_field_by_label("SELBAND")->value)].drive=atoi(ti);
+				settings_updated++;
+			}
+
 			// Send this to the radio core
 			char args[MAX_FIELD_LENGTH];
 			char exec[20];
@@ -5841,6 +5948,22 @@ void cmd_exec(char *cmd){
 		char output[500];
 		sprintf(output,"BFO %d offset = %d\n", get_bfo_offset(), result);
 		write_console(FONT_LOG, output);
+	}
+	//'Band scale' setting to adjust scale for easier adjustment for tuning power output - n1qm
+	else if (!strcmp(exec, "bs")){
+		//printf("In band power+\n");
+		char responsejnk[20];
+		if (args[0] == '+')
+			sdr_request("bandscale+=0",responsejnk);
+		else if (args[0] == '-')
+			sdr_request("bandscale-=0",responsejnk);
+		else {
+			if (isdigit(args[0]) && sizeof(band_stack)/sizeof(struct band) > atoi(args)) {
+				char sdrrequest[200];
+				sprintf(sdrrequest,"adjustbsband=%s",args);
+				sdr_request(sdrrequest,responsejnk);
+			}
+		}
 	}
 /*	else if (!strcmp(exec, "PITCH")){
 		struct field *f = get_field_by_label(exec);
