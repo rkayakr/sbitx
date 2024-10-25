@@ -1,3 +1,6 @@
+V4.11 - 
+- Fixed QRO function delay
+
 v4.1 -
 - Added a graphical bandstack position indicator beneath the selected band.
   - Eg -=-- meaning #2 bandstack position.
