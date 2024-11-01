@@ -5144,7 +5144,7 @@ gboolean ui_tick(gpointer gook){
   }
 	//update_field(get_field("#text_in")); //modem might have extracted some text
 
-  hamlib_slice();
+  //hamlib_slice();
 	remote_slice();
 	save_user_settings(0);
 
@@ -6189,7 +6189,8 @@ int main( int argc, char* argv[] ) {
 	// you don't want to save the recently loaded settings
 	settings_updated = 0;
 	
-	hamlib_start();
+	//hamlib_start();
+	initialize_hamlib();
 	remote_start();
 	rtc_read();
  
