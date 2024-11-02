@@ -379,72 +379,97 @@ void hamlib_start() {
 }
 
 void *hamlib_slice(void *arg) {
-    hamlib_start();
+    hamlib_start(); // Initialize the server socket here in the thread
     fd_set read_fds;
     int max_sd, sd, activity, new_socket;
     struct sockaddr_in address;
     socklen_t addrlen = sizeof(address);
 
-    while (running) { // Main loop for the thread
+    while (running) {
+        // Clear and set up file descriptor set for select
         FD_ZERO(&read_fds);
         FD_SET(welcome_socket, &read_fds);
         max_sd = welcome_socket;
 
+        // Add all active client sockets to the set
         for (int i = 0; i < MAX_CLIENTS; i++) {
             sd = client_sockets[i];
-            if (sd > 0) FD_SET(sd, &read_fds);
-            if (sd > max_sd) max_sd = sd;
+            if (sd > 0) {
+                FD_SET(sd, &read_fds);
+            }
+            if (sd > max_sd) {
+                max_sd = sd;
+            }
         }
 
-        // Use a small timeout to prevent blocking too long
         struct timeval timeout;
         timeout.tv_sec = 0;
-        timeout.tv_usec = 100000; // 100 ms, adjust as needed
+        timeout.tv_usec = 100000; // 100 ms timeout
 
+        // Wait for activity on one of the sockets
         activity = select(max_sd + 1, &read_fds, NULL, NULL, &timeout);
-
+        
         if (activity < 0 && errno != EINTR) {
-            printf("select error\n");
-            break;
+            perror("select error");
+            break; // Exit loop if select fails
         }
 
+        // Check if there's a new incoming connection on the welcome socket
         if (FD_ISSET(welcome_socket, &read_fds)) {
             new_socket = accept(welcome_socket, (struct sockaddr *)&address, &addrlen);
             if (new_socket >= 0) {
                 printf("New client connected on socket %d\n", new_socket);
                 fcntl(new_socket, F_SETFL, O_NONBLOCK);
 
+                // Add the new socket to the list of client sockets
+                int added = 0;
                 for (int i = 0; i < MAX_CLIENTS; i++) {
                     if (client_sockets[i] == 0) {
                         client_sockets[i] = new_socket;
+                        added = 1;
                         break;
                     }
+                }
+                if (!added) {
+                    // If MAX_CLIENTS reached, close the new connection
+                    printf("Too many clients connected. Rejecting new client.\n");
+                    close(new_socket);
                 }
             }
         }
 
+        // Check each client socket for incoming data or disconnect
         for (int i = 0; i < MAX_CLIENTS; i++) {
             sd = client_sockets[i];
             if (FD_ISSET(sd, &read_fds)) {
                 char buffer[1024];
                 int len = recv(sd, buffer, sizeof(buffer), 0);
+
                 if (len > 0) {
                     buffer[len] = '\0';
                     hamlib_handler(sd, buffer, len);
-                } else if (len == 0) {
-                    printf("Client on socket %d disconnected.\n", sd);
+                } else if (len == 0 || (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
+                    // Disconnect or error on the socket
+                    printf("Client on socket %d disconnected or error occurred.\n", sd);
                     close(sd);
-                    client_sockets[i] = 0;
-                } else if (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK) {
-                    printf("Error on client socket %d. Closing socket.\n", sd);
-                    close(sd);
-                    client_sockets[i] = 0;
+                    client_sockets[i] = 0; // Mark as empty to remove from future select calls
                 }
             }
         }
     }
+
+    // Clean up on thread exit
+    close(welcome_socket); // Close welcome socket on exit
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (client_sockets[i] > 0) {
+            close(client_sockets[i]); // Close all active client sockets
+            client_sockets[i] = 0;
+        }
+    }
+
     return NULL;
 }
+
 
 // Function to start the listener thread
 void start_hamlib_listener() {
