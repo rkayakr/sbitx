@@ -23,7 +23,17 @@ static int client_sockets[MAX_CLIENTS] = {0};
 static int welcome_socket = -1;
 volatile int running = 1; // Control flag for the listener thread
 
+pthread_mutex_t client_mutex = PTHREAD_MUTEX_INITIALIZER;
 
+void handle_client_disconnection(int i, int sd) {
+    pthread_mutex_lock(&client_mutex);
+    if (client_sockets[i] == sd) {
+        printf("Closing client socket %d at index %d\n", sd, i);
+        close(sd);
+        client_sockets[i] = 0; // Mark as available
+    }
+    pthread_mutex_unlock(&client_mutex);
+}
 
 //copied from gqrx on github
 static char dump_state_response[] =
@@ -378,10 +388,20 @@ void hamlib_start() {
     
 }
 
+int get_max_sd() {
+    int max_sd = welcome_socket;
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (client_sockets[i] > max_sd) {
+            max_sd = client_sockets[i];
+        }
+    }
+    return max_sd;
+}
+
 void *hamlib_slice(void *arg) {
     hamlib_start(); // Initialize the server socket here in the thread
     fd_set read_fds;
-    int max_sd, sd, activity, new_socket;
+    int sd, activity, new_socket;
     struct sockaddr_in address;
     socklen_t addrlen = sizeof(address);
 
@@ -389,24 +409,26 @@ void *hamlib_slice(void *arg) {
         // Clear and set up file descriptor set for select
         FD_ZERO(&read_fds);
         FD_SET(welcome_socket, &read_fds);
-        max_sd = welcome_socket;
+        
+        // Recalculate max_sd before each select call
+        int max_sd = get_max_sd();
 
         // Add all active client sockets to the set
+        pthread_mutex_lock(&client_mutex);
         for (int i = 0; i < MAX_CLIENTS; i++) {
             sd = client_sockets[i];
             if (sd > 0) {
                 FD_SET(sd, &read_fds);
             }
-            if (sd > max_sd) {
-                max_sd = sd;
-            }
         }
+        pthread_mutex_unlock(&client_mutex);
 
         struct timeval timeout;
         timeout.tv_sec = 0;
         timeout.tv_usec = 100000; // 100 ms timeout
 
         // Wait for activity on one of the sockets
+        //printf("Waiting on select with max_sd: %d\n", max_sd);
         activity = select(max_sd + 1, &read_fds, NULL, NULL, &timeout);
         
         if (activity < 0 && errno != EINTR) {
@@ -414,14 +436,15 @@ void *hamlib_slice(void *arg) {
             break; // Exit loop if select fails
         }
 
-        // Check if there's a new incoming connection on the welcome socket
+        // Check for new connection on welcome socket
         if (FD_ISSET(welcome_socket, &read_fds)) {
             new_socket = accept(welcome_socket, (struct sockaddr *)&address, &addrlen);
             if (new_socket >= 0) {
                 printf("New client connected on socket %d\n", new_socket);
                 fcntl(new_socket, F_SETFL, O_NONBLOCK);
 
-                // Add the new socket to the list of client sockets
+                // Add new client socket
+                pthread_mutex_lock(&client_mutex);
                 int added = 0;
                 for (int i = 0; i < MAX_CLIENTS; i++) {
                     if (client_sockets[i] == 0) {
@@ -430,45 +453,65 @@ void *hamlib_slice(void *arg) {
                         break;
                     }
                 }
+                pthread_mutex_unlock(&client_mutex);
+
                 if (!added) {
-                    // If MAX_CLIENTS reached, close the new connection
                     printf("Too many clients connected. Rejecting new client.\n");
                     close(new_socket);
                 }
             }
         }
 
-        // Check each client socket for incoming data or disconnect
+        // Process each client socket
+        pthread_mutex_lock(&client_mutex);
         for (int i = 0; i < MAX_CLIENTS; i++) {
             sd = client_sockets[i];
-            if (FD_ISSET(sd, &read_fds)) {
+            if (sd > 0 && FD_ISSET(sd, &read_fds)) {
                 char buffer[1024];
                 int len = recv(sd, buffer, sizeof(buffer), 0);
 
                 if (len > 0) {
                     buffer[len] = '\0';
+                    printf("Data received from client %d: %s\n", sd, buffer);
                     hamlib_handler(sd, buffer, len);
                 } else if (len == 0 || (len < 0 && errno != EAGAIN && errno != EWOULDBLOCK)) {
-                    // Disconnect or error on the socket
                     printf("Client on socket %d disconnected or error occurred.\n", sd);
                     close(sd);
-                    client_sockets[i] = 0; // Mark as empty to remove from future select calls
+                    client_sockets[i] = 0; // Mark as available
+                    FD_CLR(sd, &read_fds); // Remove the socket from read_fds
+                }
+            }
+
+            // Additional check with getsockopt to detect disconnected sockets
+            if (sd > 0) {
+                int error = 0;
+                socklen_t len = sizeof(error);
+                int retval = getsockopt(sd, SOL_SOCKET, SO_ERROR, &error, &len);
+                if (retval != 0 || error != 0) {
+                    printf("Detected closed connection or error on socket %d\n", sd);
+                    close(sd);
+                    client_sockets[i] = 0; // Mark as available
+                    FD_CLR(sd, &read_fds); // Remove the socket from read_fds
                 }
             }
         }
+        pthread_mutex_unlock(&client_mutex);
     }
 
-    // Clean up on thread exit
-    close(welcome_socket); // Close welcome socket on exit
+    // Clean up on exit
+    close(welcome_socket);
+    pthread_mutex_lock(&client_mutex);
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (client_sockets[i] > 0) {
-            close(client_sockets[i]); // Close all active client sockets
+            close(client_sockets[i]);
             client_sockets[i] = 0;
         }
     }
+    pthread_mutex_unlock(&client_mutex);
 
     return NULL;
 }
+
 
 
 // Function to start the listener thread
