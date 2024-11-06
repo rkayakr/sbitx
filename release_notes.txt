@@ -1,10 +1,15 @@
+V4.12 - 
+- Re-added sidetone volume adjustment for digi mode
+- Fixed onfFout initialization error - Thanks MML
+- Removed unneeded "b" flag to fopen() - Thanks MML
+
 V4.11 - 
 - Fixed QRO function delay
 
 v4.1 -
 - Added a graphical bandstack position indicator beneath the selected band.
   - Eg -=-- meaning #2 bandstack position.
-  - This option is off by default, but can be set to ON by the user with \BSTACKPOSOPT ON in the text box.
+  - This option is off by default, but can be set to ON by the user with \bstackposopt on in the text box.
 - Added band scale adjustment test from command line
   - Useful for adjusting band power scale in conjunction with the V3 Powercal app.
   - Uses \bs text box command.
