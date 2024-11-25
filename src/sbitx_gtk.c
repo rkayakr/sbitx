@@ -2907,92 +2907,86 @@ static void layout_ui()
 		field_move("CW_INPUT", 375, y1, 75, 45);
 		field_move("SIDETONE", 450, y1, 75, 45);
 
-		y1 += 50;
-		field_move("F1", 5, y1, 70, 45);
-		field_move("F2", 75, y1, 75, 45);
-		field_move("F3", 150, y1, 75, 45);
-		field_move("F4", 225, y1, 75, 45);
-		field_move("F5", 300, y1, 75, 45);
-		field_move("F6", 375, y1, 75, 45);
-		field_move("F7", 450, y1, 75, 45);
-		field_move("F8", 525, y1, 75, 45);
-		field_move("F9", 600, y1, 75, 45);
-		field_move("F10", 675, y1, 70, 45);
-		break;
-	case MODE_USB:
-	case MODE_LSB:
-	case MODE_AM:
-	case MODE_NBFM:
-	case MODE_2TONE: // W9JES
-		field_move("SPECT", screen_width - 95, screen_height - 47, 45, 45);
-		if (!strcmp(field_str("SPECT"), "FULL"))
-		{
-			field_move("CONSOLE", 1000, -1000, 350, y2 - y1 - 55);
-			field_move("SPECTRUM", 5, y1, x2 - 7, 70);
-			field_move("WATERFALL", 5, y1 + 70, x2 - 7, y2 - y1 - 125);
-		}
-		else
-		{
-			field_move("CONSOLE", 5, y1, 350, y2 - y1 - 55);
-			field_move("SPECTRUM", 360, y1, x2 - 365, 70);
-			field_move("WATERFALL", 360, y1 + 70, x2 - 365, y2 - y1 - 125);
-		}
-		y1 = y2 - 50;
-		field_move("MIC", 5, y1, 45, 45);
-		field_move("LOW", 60, y1, 95, 45);
-		field_move("HIGH", 160, y1, 95, 45);
-		field_move("TX", 260, y1, 95, 45);
-		field_move("RX", 360, y1, 95, 45);
-		break;
-	case MODE_DIGITAL: // W9JES
-		// N1QM
-		field_move("SPECT", screen_width - 95, screen_height - 47, 45, 45);
-		if (!strcmp(field_str("SPECT"), "FULL"))
-		{
-			field_move("CONSOLE", 1000, -1000, 350, y2 - y1 - 55);
-			field_move("SPECTRUM", 5, y1, x2 - 7, 70);
-			field_move("WATERFALL", 5, y1 + 70, x2 - 7, y2 - y1 - 125);
-		}
-		else
-		{
-			field_move("CONSOLE", 5, y1, 350, y2 - y1 - 55);
-			field_move("SPECTRUM", 360, y1, x2 - 365, 70);
-			field_move("WATERFALL", 360, y1 + 70, x2 - 365, y2 - y1 - 125);
-		}
-		y1 = y2 - 50;
-		field_move("MIC", 5, y1, 45, 45);
-		field_move("LOW", 60, y1, 95, 45);
-		field_move("HIGH", 160, y1, 95, 45);
-		field_move("TX", 260, y1, 95, 45);
-		field_move("RX", 360, y1, 95, 45);
-		// Don't show pitch field in DIGI mode
-		// field_move("PITCH", 460, y1, 95, 45);
-		field_move("SIDETONE", 460, y1, 95, 45); // Added back in for ext modes W9JES
-		break;
-	default:
-		field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
-		field_move("SPECTRUM", 360, y1, x2 - 365, 70);
-		// field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-180);
-		field_move("WATERFALL", 360, y1 + 70, x2 - 365, y2 - y1 - 125); // fixed W2JON
-		y1 = y2 - 105;
-		field_move("F1", 5, y1, 90, 45);
-		field_move("F2", 100, y1, 95, 45);
-		field_move("F3", 200, y1, 100, 45);
-		field_move("F4", 300, y1, 100, 45);
-		field_move("F5", 400, y1, 100, 45);
-		field_move("F6", 500, y1, 100, 45);
-		field_move("F7", 600, y1, 100, 45);
-		field_move("F8", 700, y1, 95, 45);
-		y1 += 50;
-		field_move("F9", 5, y1, 95, 45);
-		field_move("F10", 100, y1, 100, 45);
-		field_move("F11", 200, y1, 100, 45);
-		field_move("F12", 300, y1, 95, 45);
-		field_move("LOW", 400, y1, 50, 45);
-		field_move("HIGH", 475, y1, 50, 45);
-		field_move("PITCH", 550, y1, 50, 45);
-		field_move("SIDETONE", 600, y1, 95, 45);
-		break;
+                        break;	
+			field_move("SIDETONE", 600, y1, 95, 45);
+			field_move("PITCH", 550, y1, 50, 45);
+			field_move("HIGH", 475, y1, 50, 45);
+			field_move("LOW", 400, y1, 50, 45);
+			field_move("F12",300, y1, 95, 45);
+			field_move("F10", 100, y1, 100, 45);
+			field_move("F11",200, y1, 100, 45);
+			field_move("F9", 5, y1, 95, 45);
+			y1 += 50;
+			field_move("F8", 700, y1, 95, 45);
+			field_move("F7", 600, y1, 100, 45);
+			field_move("F6", 500, y1, 100, 45);
+			field_move("F5", 400, y1, 100, 45);
+			field_move("F4", 300, y1, 100, 45);
+			field_move("F3", 200, y1, 100, 45);
+			field_move("F2", 100, y1, 95, 45);
+			field_move("F1", 5, y1, 90, 45);
+			y1 = y2 - 105;
+			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125); //fixed W2JON
+			//field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-180);
+			field_move("SPECTRUM", 360, y1, x2-365, 70);
+			field_move("CONSOLE", 5, y1, 350, y2-y1-110);
+				field_move("SPECTRUM", 5, y1, x2-7, 70);
+			}else{
+			//field_move("PITCH", 460, y1, 95, 45);
+		default:
+			field_move("SIDETONE", 460, y1, 95, 45);  // Added back in for ext modes W9JES
+			break;
+			field_move("RX", 360, y1, 95, 45);
+			//Don't show pitch field in DIGI mode
+			field_move("TX", 260, y1, 95, 45);
+			field_move("HIGH", 160, y1, 95, 45);
+			field_move("LOW", 60, y1, 95, 45);
+			field_move("MIC", 5, y1, 45, 45);
+			y1 = y2 -50;
+			}
+				field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
+				field_move("SPECTRUM", 360, y1, x2-365, 70);
+				field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+				field_move("WATERFALL", 5, y1+70, x2-7, y2-y1-125);
+				field_move("CONSOLE", 1000, -1500, 350, y2-y1-55);
+			y1 = y2 -50;
+			if (!strcmp(field_str("SPECT"), "FULL")) {
+			field_move("SPECT", screen_width -95, screen_height-47, 45, 45);
+			// N1QM
+		case MODE_DIGITAL:  // W9JES
+			break;
+			field_move("RX", 360, y1, 95, 45);
+			field_move("TX", 260, y1, 95, 45);
+			field_move("LOW", 60, y1, 95, 45);
+			field_move("HIGH", 160, y1, 95, 45);
+			field_move("MIC", 5, y1, 45, 45);
+			}
+			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
+			field_move("SPECTRUM", 360, y1, x2-365, 70);
+			field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+			}else{
+			field_move("WATERFALL", 5, y1+70, x2-7, y2-y1-125);
+			field_move("SPECTRUM", 5, y1, x2-7, 70);
+			field_move("CONSOLE", 1000, -1500, 350, y2-y1-55);
+		if (!strcmp(field_str("SPECT"), "FULL")) {
+			field_move("SPECT", screen_width -95, screen_height-47, 45, 45);
+		case MODE_2TONE:  // W9JES
+		case MODE_NBFM:
+		case MODE_AM:
+		case MODE_LSB:
+			y1 += 50;
+			field_move("F1", 5, y1, 70, 45);
+			field_move("F2", 75, y1, 75, 45);
+			field_move("F3", 150, y1, 75, 45);
+			field_move("F4", 225, y1, 75, 45);
+			field_move("F5", 300, y1, 75, 45);
+			field_move("F6", 375, y1, 75, 45);
+			field_move("F7", 450, y1, 75, 45);
+			field_move("F8", 525, y1, 75, 45);
+			field_move("F9", 600, y1, 75, 45);
+			field_move("F10", 675, y1, 70, 45);
+			break;
+		case MODE_USB:
 	}
 	invalidate_rect(0, 0, screen_width, screen_height);
 }
