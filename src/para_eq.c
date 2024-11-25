@@ -50,7 +50,7 @@ float read_value(FILE* file, const char* key, float default_value) {
 }
 
 // Function to initialize EQ parameters
-void init_eq(parametriceq* eq) {
+void init_eq(parametriceq* eq, const char* section) {
     char *home = getenv("HOME");
     if (home == NULL) {
         fprintf(stderr, "Error: HOME environment variable is not set.\n");
@@ -78,22 +78,23 @@ void init_eq(parametriceq* eq) {
         }
     }
 
-    char key[10];
+    char key[20];
 
-    // Default values
+    // Load default values for the specified section (e.g., TX or RX)
     for (int i = 0; i < NUM_BANDS; i++) {
-        snprintf(key, sizeof(key), "#eq_b%df", i);
+        snprintf(key, sizeof(key), "#%s_eq_b%df", section, i);
         eq->bands[i].frequency = read_value(file, key, eq->bands[i].frequency);
 
-        snprintf(key, sizeof(key), "#eq_b%dg", i);
+        snprintf(key, sizeof(key), "#%s_eq_b%dg", section, i);
         eq->bands[i].gain = read_value(file, key, eq->bands[i].gain);
 
-        snprintf(key, sizeof(key), "#eq_b%db", i);
+        snprintf(key, sizeof(key), "#%s_eq_b%db", section, i);
         eq->bands[i].bandwidth = read_value(file, key, eq->bands[i].bandwidth);
     }
 
     fclose(file);
 }
+
 
 // Structure for Biquad filter
 typedef struct {
@@ -172,18 +173,20 @@ void scale_samples(int32_t* samples, int num_samples, float gain_factor) {
 // Function to apply EQ and gain scaling
 void apply_eq(parametriceq* eq, int32_t* samples, int num_samples, double sample_rate) {
     Biquad filters[NUM_BANDS];
+
+    // Calculate coefficients for each band
     for (int i = 0; i < NUM_BANDS; i++) {
         calculate_coefficients(&eq->bands[i], sample_rate, &filters[i]);
     }
 
-    // First we'll be sure to remove the DC offset
+    // Remove DC offset from the samples
     remove_dc_offset(samples, num_samples);
 
-    // Scale up input samples
-    float input_gain_factor = 1.5;  // Adjust this gain valie if your level is too high or low on the inbound side of the filter.
+    // Scale input samples
+    const float input_gain_factor = 1.5;  // Adjust for inbound sample levels
     scale_samples(samples, num_samples, input_gain_factor);
 
-    // Process each sample through EQ filters
+    // Process samples through all bands
     for (int n = 0; n < num_samples; n++) {
         int32_t sample = samples[n];
         for (int i = 0; i < NUM_BANDS; i++) {
@@ -192,7 +195,8 @@ void apply_eq(parametriceq* eq, int32_t* samples, int num_samples, double sample
         samples[n] = sample;
     }
 
-    // Scale up output samples
-    float output_gain_factor = 1.0;  // Adjust this gain valie if your level is too high or low on the outbound side of the filter
+    // Scale output samples
+    const float output_gain_factor = 1.0;  // Adjust for outbound sample levels
     scale_samples(samples, num_samples, output_gain_factor);
 }
+
