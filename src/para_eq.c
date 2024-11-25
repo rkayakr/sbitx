@@ -104,17 +104,25 @@ typedef struct {
 
 // Function to calculate filter coefficients
 void calculate_coefficients(EQBand* band, double sample_rate, Biquad* filter) {
-    double A = pow(10.0, band->gain / 40.0);
+    double clamped_gain = fmax(fmin(band->gain, 24.0), -24.0); // Clamp gain to ±24 dB
+    double A = pow(10.0, clamped_gain / 40.0);
     double omega = 2.0 * M_PI * band->frequency / sample_rate;
-    double alpha = sin(omega) * sinh(log(2.0) / 2.0 * band->bandwidth * omega / sin(omega));
+    double sin_omega = sin(omega);
+    double cos_omega = cos(omega);
+    double alpha = sin_omega * sinh(log(2.0) / 2.0 * band->bandwidth * omega / fmax(sin_omega, 1e-10));
 
-    // Ensure the filter is designed correctly
+    // Ensure the filter coefficients are stable
     filter->b0 = 1.0 + alpha * A;
-    filter->b1 = -2.0 * cos(omega);
+    filter->b1 = -2.0 * cos_omega;
     filter->b2 = 1.0 - alpha * A;
     filter->a0 = 1.0 + alpha / A;
-    filter->a1 = -2.0 * cos(omega);
+    filter->a1 = -2.0 * cos_omega;
     filter->a2 = 1.0 - alpha / A;
+
+    // Check if a0 is close to zero to prevent division by zero
+    if (fabs(filter->a0) < 1e-10) {
+        filter->a0 = 1e-10; // Prevent division by zero
+    }
 
     // Normalize the coefficients
     filter->b0 /= filter->a0;
@@ -122,6 +130,8 @@ void calculate_coefficients(EQBand* band, double sample_rate, Biquad* filter) {
     filter->b2 /= filter->a0;
     filter->a1 /= filter->a0;
     filter->a2 /= filter->a0;
+
+    // a0 should always be normalized to 1.0
     filter->a0 = 1.0;
 
     // Initialize filter states
@@ -173,30 +183,47 @@ void scale_samples(int32_t* samples, int num_samples, float gain_factor) {
 // Function to apply EQ and gain scaling
 void apply_eq(parametriceq* eq, int32_t* samples, int num_samples, double sample_rate) {
     Biquad filters[NUM_BANDS];
+    int32_t temp_samples[NUM_BANDS][num_samples];
 
-    // Calculate coefficients for each band
+    // Step 1: Calculate coefficients for each band
     for (int i = 0; i < NUM_BANDS; i++) {
         calculate_coefficients(&eq->bands[i], sample_rate, &filters[i]);
     }
 
-    // Remove DC offset from the samples
+    // Step 2: Remove DC offset from the samples
     remove_dc_offset(samples, num_samples);
 
-    // Scale input samples
-    const float input_gain_factor = 1.5;  // Adjust for inbound sample levels
-    scale_samples(samples, num_samples, input_gain_factor);
+    // Step 3: Initialize output buffer
+    int32_t output_samples[num_samples];
+    memset(output_samples, 0, sizeof(output_samples));
 
-    // Process samples through all bands
-    for (int n = 0; n < num_samples; n++) {
-        int32_t sample = samples[n];
-        for (int i = 0; i < NUM_BANDS; i++) {
-            sample = process_sample(&filters[i], sample);
+    // Step 4: Process samples for each band
+    for (int i = 0; i < NUM_BANDS; i++) {
+        double band_gain = pow(10.0, eq->bands[i].gain / 20.0); // Convert dB to linear scale
+
+        for (int n = 0; n < num_samples; n++) {
+            // Apply the filter to the sample
+            double band_sample = process_sample(&filters[i], samples[n]);
+
+            // Accumulate the scaled band sample into the output buffer
+            output_samples[n] += (int32_t)(band_sample * band_gain);
         }
-        samples[n] = sample;
     }
 
-    // Scale output samples
-    const float output_gain_factor = 1.0;  // Adjust for outbound sample levels
-    scale_samples(samples, num_samples, output_gain_factor);
+    // Step 5: Normalize the output to avoid unintended amplification
+    double normalization_factor = NUM_BANDS; // Normalize by the number of bands
+    for (int n = 0; n < num_samples; n++) {
+        output_samples[n] = (int32_t)(output_samples[n] / normalization_factor);
+
+        // Clamp the output to prevent overflow
+        if (output_samples[n] > INT32_MAX) output_samples[n] = INT32_MAX;
+        if (output_samples[n] < INT32_MIN) output_samples[n] = INT32_MIN;
+
+        // Write the result back to the input buffer
+        samples[n] = output_samples[n];
+    }
 }
+
+
+
 
