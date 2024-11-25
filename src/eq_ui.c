@@ -21,7 +21,7 @@ void on_tx_gain_value_changed(GtkScale *scale, gpointer user_data)
     gchar *value_str = g_strdup_printf("%.0f", value);
     field_set(field_name, value_str);
     g_free(value_str);
-    g_print("Updated %s with value %f\n", field_name, value);
+    
 }
 
 // Callback for TX EQ Frequency Slider
@@ -37,7 +37,7 @@ void on_tx_freq_value_changed(GtkScale *scale, gpointer user_data)
     gchar *value_str = g_strdup_printf("%.0f", value);
     field_set(field_name, value_str);
     g_free(value_str);
-    g_print("Updated %s with value %f\n", field_name, value);
+    
 }
 
 // Callback for RX EQ Gain Slider
@@ -53,7 +53,7 @@ void on_rx_gain_value_changed(GtkScale *scale, gpointer user_data)
     gchar *value_str = g_strdup_printf("%.0f", value);
     field_set(field_name, value_str);
     g_free(value_str);
-    g_print("Updated %s with value %f\n", field_name, value);
+    
 }
 
 // Callback for RX EQ Frequency Slider
@@ -69,7 +69,7 @@ void on_rx_freq_value_changed(GtkScale *scale, gpointer user_data)
     gchar *value_str = g_strdup_printf("%.0f", value);
     field_set(field_name, value_str);
     g_free(value_str);
-    g_print("Updated %s with value %f\n", field_name, value);
+    
 }
 
 // Callback function to hide the window
