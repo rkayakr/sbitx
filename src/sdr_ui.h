@@ -10,6 +10,7 @@ extern int spectrum_plot[];
 void remote_execute(char *command);
 int remote_update_field(int i, char *text);
 void web_get_spectrum(char *buff);
+void save_user_settings(int forced);
 int web_get_console(char *buff, int max);
 int remote_audio_output(int16_t *samples);
 const char *field_str(char *label);
