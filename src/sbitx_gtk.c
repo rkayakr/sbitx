@@ -2813,167 +2813,96 @@ void menu_display(int show)
 }
 // scales the ui as per current screen width from
 // the nominal 800x480 size of the original layout
-static void layout_ui()
-{
+static void layout_ui(){
 	int x1, y1, x2, y2;
 	struct field *f;
-
-	x1 = 0;
+	
+	x1 =0 ;
 	x2 = screen_width;
 	y1 = 100;
 	y2 = screen_height;
 
-	// first move all the controls that are not common out of sight
+	//first move all the controls that are not common out of sight
 	for (f = active_layout; f->cmd[0]; f++)
-		if (!(f->section & COMMON_CONTROL))
-		{
+		if (!(f->section & COMMON_CONTROL)){
 			update_field(f);
 			f->y = -1000;
 			update_field(f);
 		}
 
-	// locate the kbd to the right corner
-	field_move("KBD", screen_width - 47, screen_height - 47, 45, 45);
-	// now, move the main radio controls to the right
-	field_move("FREQ", x2 - 205, 0, 180, 40);
-	field_move("AUDIO", x2 - 45, 5, 40, 40);
-	field_move("IF", x2 - 45, 50, 40, 40);
-	field_move("DRIVE", x2 - 85, 50, 40, 40);
-	field_move("BW", x2 - 125, 50, 40, 40);
-	field_move("AGC", x2 - 165, 50, 40, 40);
+	//locate the kbd to the right corner
+	field_move("KBD", screen_width - 47, screen_height-47, 45, 45);
+	//now, move the main radio controls to the right
+	field_move("FREQ", x2-205, 0, 180, 40);
+	field_move("AUDIO", x2-45, 5, 40, 40);
+	field_move("IF", x2-45, 50, 40, 40);
+	field_move("DRIVE", x2-85, 50, 40, 40);
+	field_move("BW", x2-125, 50, 40, 40);
+	field_move("AGC", x2-165, 50, 40, 40);
 
-	field_move("STEP", x2 - 252, 5, 40, 40);
-	field_move("RIT", x2 - 292, 5, 40, 40);
-	field_move("SPLIT", x2 - 285, 50, 40, 40);
-	field_move("VFO", x2 - 245, 50, 40, 40);
-	field_move("SPAN", x2 - 205, 50, 40, 40);
-
-	if (!strcmp(field_str("KBD"), "ON"))
-	{
-		// take out 3 button widths from the bottom
+	field_move("STEP", x2-252, 5, 40, 40);
+	field_move("RIT", x2-292, 5, 40, 40);
+	field_move("SPLIT", x2-285, 50, 40, 40);
+	field_move("VFO", x2-245, 50, 40, 40);
+	field_move("SPAN", x2-205, 50, 40, 40);
+ 
+	if (!strcmp(field_str("KBD"), "ON")){
+		//take out 3 button widths from the bottom
 		y2 = screen_height - 150;
 		keyboard_display(1);
 	}
 	else
 		keyboard_display(0);
+	
+if (!strcmp(field_str("MENU"), "ON")) { // W2JON
+    //Same area as kbd. Take out 3 button widths from the bottom
+    y2 = screen_height - 150;
+        menu_display(1);
+    
+} else {
+    menu_display(0);
+}
 
-	if (!strcmp(field_str("MENU"), "ON"))
-	{ // W2JON
-		// Same area as kbd. Take out 3 button widths from the bottom
-		y2 = screen_height - 150;
-		menu_display(1);
-	}
-	else
-	{
-		menu_display(0);
-	}
 
+	
 	int m_id = mode_id(field_str("MODE"));
 	int button_width = 100;
-	switch (m_id)
-	{
-	case MODE_FT8:
-		field_move("CONSOLE", 5, y1, 350, y2 - y1 - 55);
-		field_move("SPECTRUM", 360, y1, x2 - 365, 100);
-		field_move("WATERFALL", 360, y1 + 100, x2 - 365, y2 - y1 - 155);
-		field_move("ESC", 5, y2 - 47, 40, 45);
-		field_move("F1", 50, y2 - 47, 50, 45);
-		field_move("F2", 100, y2 - 47, 50, 45);
-		field_move("F3", 150, y2 - 47, 50, 45);
-		field_move("F4", 200, y2 - 47, 50, 45);
-		field_move("F5", 250, y2 - 47, 50, 45);
-		field_move("F6", 300, y2 - 47, 50, 45);
-		field_move("F7", 350, y2 - 47, 50, 45);
-		field_move("F8", 400, y2 - 47, 45, 45);
-		field_move("FT8_REPEAT", 450, y2 - 47, 50, 45);
-		field_move("FT8_TX1ST", 500, y2 - 47, 50, 45);
-		field_move("FT8_AUTO", 550, y2 - 47, 50, 45);
-		field_move("TX_PITCH", 600, y2 - 47, 73, 45);
-		field_move("SIDETONE", 675, y2 - 47, 73, 45);
-		break;
-	case MODE_CW:
-	case MODE_CWR:
-		field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
-		// field_move("SPECTRUM", 360, y1, x2-365, 100);
-		// field_move("WATERFALL", 360, y1+100, x2-365, y2-y1-110);
-		field_move("SPECTRUM", 360, y1, x2 - 365, 70);					// fixed
-		field_move("WATERFALL", 360, y1 + 70, x2 - 365, y2 - y1 - 125); // fixed
-		// first line below the decoder/waterfall
-		y1 = y2 - 97;
-		field_move("ESC", 5, y1, 70, 45);
-		field_move("WPM", 75, y1, 75, 45);
-		field_move("PITCH", 150, y1, 75, 45);
-		field_move("CW_DELAY", 225, y1, 75, 45);
-		field_move("CW_INPUT", 375, y1, 75, 45);
-		field_move("SIDETONE", 450, y1, 75, 45);
+	switch(m_id){
+		case MODE_FT8:
+     	                field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+			field_move("SPECTRUM", 360, y1, x2-365, 100);
+			field_move("WATERFALL", 360, y1+100, x2-365, y2-y1-155);
+			field_move("ESC", 5, y2-47, 40, 45);
+			field_move("F1", 50, y2-47, 50, 45);
+			field_move("F2", 100, y2-47, 50, 45);
+			field_move("F3", 150, y2-47, 50, 45);
+			field_move("F4", 200, y2-47, 50, 45);
+			field_move("F5", 250, y2-47, 50, 45);
+			field_move("F6", 300, y2-47, 50, 45);
+			field_move("F7", 350, y2-47, 50, 45);
+			field_move("F8", 400, y2-47, 45, 45);
+			field_move("FT8_REPEAT", 450, y2-47, 50, 45);
+			field_move("FT8_TX1ST", 500, y2-47, 50, 45);
+			field_move("FT8_AUTO", 550, y2-47, 50, 45);
+			field_move("TX_PITCH", 600, y2-47, 73, 45);
+			field_move("SIDETONE", 675, y2-47, 73, 45);
+                        break;
+		case MODE_CW:
+		case MODE_CWR:
+                        field_move("CONSOLE", 5, y1, 350, y2-y1-110);
+			//field_move("SPECTRUM", 360, y1, x2-365, 100);
+			//field_move("WATERFALL", 360, y1+100, x2-365, y2-y1-110);
+			field_move("SPECTRUM", 360, y1, x2-365, 70);  //fixed 
+			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);  //fixed 
+			// first line below the decoder/waterfall
+			y1 = y2 - 97;
+			field_move("ESC", 5, y1, 70, 45);
+			field_move("WPM",75, y1, 75, 45);
+			field_move("PITCH", 150, y1, 75, 45);
+			field_move("CW_DELAY", 225, y1, 75, 45);
+			field_move("CW_INPUT", 375, y1, 75 , 45);
+			field_move("SIDETONE", 450, y1, 75, 45);
 
-                        break;	
-			field_move("SIDETONE", 600, y1, 95, 45);
-			field_move("PITCH", 550, y1, 50, 45);
-			field_move("HIGH", 475, y1, 50, 45);
-			field_move("LOW", 400, y1, 50, 45);
-			field_move("F12",300, y1, 95, 45);
-			field_move("F10", 100, y1, 100, 45);
-			field_move("F11",200, y1, 100, 45);
-			field_move("F9", 5, y1, 95, 45);
-			y1 += 50;
-			field_move("F8", 700, y1, 95, 45);
-			field_move("F7", 600, y1, 100, 45);
-			field_move("F6", 500, y1, 100, 45);
-			field_move("F5", 400, y1, 100, 45);
-			field_move("F4", 300, y1, 100, 45);
-			field_move("F3", 200, y1, 100, 45);
-			field_move("F2", 100, y1, 95, 45);
-			field_move("F1", 5, y1, 90, 45);
-			y1 = y2 - 105;
-			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125); //fixed W2JON
-			//field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-180);
-			field_move("SPECTRUM", 360, y1, x2-365, 70);
-			field_move("CONSOLE", 5, y1, 350, y2-y1-110);
-				field_move("SPECTRUM", 5, y1, x2-7, 70);
-			}else{
-			//field_move("PITCH", 460, y1, 95, 45);
-		default:
-			field_move("SIDETONE", 460, y1, 95, 45);  // Added back in for ext modes W9JES
-			break;
-			field_move("RX", 360, y1, 95, 45);
-			//Don't show pitch field in DIGI mode
-			field_move("TX", 260, y1, 95, 45);
-			field_move("HIGH", 160, y1, 95, 45);
-			field_move("LOW", 60, y1, 95, 45);
-			field_move("MIC", 5, y1, 45, 45);
-			y1 = y2 -50;
-			}
-				field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
-				field_move("SPECTRUM", 360, y1, x2-365, 70);
-				field_move("CONSOLE", 5, y1, 350, y2-y1-55);
-				field_move("WATERFALL", 5, y1+70, x2-7, y2-y1-125);
-				field_move("CONSOLE", 1000, -1500, 350, y2-y1-55);
-			y1 = y2 -50;
-			if (!strcmp(field_str("SPECT"), "FULL")) {
-			field_move("SPECT", screen_width -95, screen_height-47, 45, 45);
-			// N1QM
-		case MODE_DIGITAL:  // W9JES
-			break;
-			field_move("RX", 360, y1, 95, 45);
-			field_move("TX", 260, y1, 95, 45);
-			field_move("LOW", 60, y1, 95, 45);
-			field_move("HIGH", 160, y1, 95, 45);
-			field_move("MIC", 5, y1, 45, 45);
-			}
-			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
-			field_move("SPECTRUM", 360, y1, x2-365, 70);
-			field_move("CONSOLE", 5, y1, 350, y2-y1-55);
-			}else{
-			field_move("WATERFALL", 5, y1+70, x2-7, y2-y1-125);
-			field_move("SPECTRUM", 5, y1, x2-7, 70);
-			field_move("CONSOLE", 1000, -1500, 350, y2-y1-55);
-		if (!strcmp(field_str("SPECT"), "FULL")) {
-			field_move("SPECT", screen_width -95, screen_height-47, 45, 45);
-		case MODE_2TONE:  // W9JES
-		case MODE_NBFM:
-		case MODE_AM:
-		case MODE_LSB:
 			y1 += 50;
 			field_move("F1", 5, y1, 70, 45);
 			field_move("F2", 75, y1, 75, 45);
@@ -2987,8 +2916,75 @@ static void layout_ui()
 			field_move("F10", 675, y1, 70, 45);
 			break;
 		case MODE_USB:
+		case MODE_LSB:
+		case MODE_AM:
+		case MODE_NBFM:
+		case MODE_2TONE:  // W9JES
+			field_move("SPECT", screen_width -95, screen_height-47, 45, 45);
+		if (!strcmp(field_str("SPECT"), "FULL")) {
+			field_move("CONSOLE", 1000, -1500, 350, y2-y1-55);
+			field_move("SPECTRUM", 5, y1, x2-7, 70);
+			field_move("WATERFALL", 5, y1+70, x2-7, y2-y1-125);
+			}else{
+			field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+			field_move("SPECTRUM", 360, y1, x2-365, 70);
+			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
+			}
+			y1 = y2 -50;
+			field_move("MIC", 5, y1, 45, 45);
+			field_move("LOW", 60, y1, 95, 45);
+			field_move("HIGH", 160, y1, 95, 45);
+			field_move("TX", 260, y1, 95, 45);
+			field_move("RX", 360, y1, 95, 45);
+			break;
+		case MODE_DIGITAL:  // W9JES
+			// N1QM
+			field_move("SPECT", screen_width -95, screen_height-47, 45, 45);
+			if (!strcmp(field_str("SPECT"), "FULL")) {
+				field_move("CONSOLE", 1000, -1500, 350, y2-y1-55);
+				field_move("SPECTRUM", 5, y1, x2-7, 70);
+				field_move("WATERFALL", 5, y1+70, x2-7, y2-y1-125);
+			}else{
+				field_move("CONSOLE", 5, y1, 350, y2-y1-55);
+				field_move("SPECTRUM", 360, y1, x2-365, 70);
+				field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
+			}
+			y1 = y2 -50;
+			field_move("MIC", 5, y1, 45, 45);
+			field_move("LOW", 60, y1, 95, 45);
+			field_move("HIGH", 160, y1, 95, 45);
+			field_move("TX", 260, y1, 95, 45);
+			field_move("RX", 360, y1, 95, 45);
+			//Don't show pitch field in DIGI mode
+			//field_move("PITCH", 460, y1, 95, 45);
+			field_move("SIDETONE", 460, y1, 95, 45);  // Added back in for ext modes W9JES
+			break;
+		default:
+			field_move("CONSOLE", 5, y1, 350, y2-y1-110);
+			field_move("SPECTRUM", 360, y1, x2-365, 70);
+			//field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-180);
+			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125); //fixed W2JON
+			y1 = y2 - 105;
+			field_move("F1", 5, y1, 90, 45);
+			field_move("F2", 100, y1, 95, 45);
+			field_move("F3", 200, y1, 100, 45);
+			field_move("F4", 300, y1, 100, 45);
+			field_move("F5", 400, y1, 100, 45);
+			field_move("F6", 500, y1, 100, 45);
+			field_move("F7", 600, y1, 100, 45);
+			field_move("F8", 700, y1, 95, 45);
+			y1 += 50;
+			field_move("F9", 5, y1, 95, 45);
+			field_move("F10", 100, y1, 100, 45);
+			field_move("F11",200, y1, 100, 45);
+			field_move("F12",300, y1, 95, 45);
+			field_move("LOW", 400, y1, 50, 45);
+			field_move("HIGH", 475, y1, 50, 45);
+			field_move("PITCH", 550, y1, 50, 45);
+			field_move("SIDETONE", 600, y1, 95, 45);
+                        break;	
 	}
-	invalidate_rect(0, 0, screen_width, screen_height);
+	invalidate_rect(0,0,screen_width, screen_height);
 }
 void dump_ui()
 {
