@@ -65,8 +65,10 @@ int qro_enabled = 0;
 int comp_enabled = 0;
 int input_volume = 0;
 int vfo_lock_enabled = 0;
+float BIN_WIDTH = SAMPLE_RATE / (MAX_BINS / 2.000f);
 
-static float waterfall_gain_percentage = 1.0f; // Default to 100%
+static float wf_min = 1.0f; // Default to 100%
+static float wf_max = 1.0f; // Default to 100%
 
 /* Front Panel controls */
 char pins[15] = {0, 2, 3, 6, 7,
@@ -727,8 +729,11 @@ struct field main_controls[] = {
 	 "", 0, 10, 1, 0},
 
 	// WF Gain
-	{"#wf_gain", do_wf_edit, 1000, -1000, 40, 40, "WF", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE,
-	 "", 50, 150, 1, 0},
+	{"#wf_min", do_wf_edit, 1000, -1000, 40, 40, "WFMIN", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 0, 200, 1, 0},
+	// WF Gain
+	{"#wf_max", do_wf_edit, 1000, -1000, 40, 40, "WFMAX", 40, "100", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 0, 200, 1, 0},
 
 	// VFO Lock ON/OFF
 	{"#vfo_lock", do_toggle_option, 1000, -1000, 40, 40, "VFOLK", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
@@ -1052,7 +1057,7 @@ struct field *get_field_by_label(const char *label)
 	return NULL;
 }
 
-const char *field_str(char *label)
+const char *field_str(const char *label)
 {
 	struct field *f = get_field_by_label(label);
 	if (f)
@@ -1669,6 +1674,9 @@ static int user_settings_handler(void *user, const char *section,
 	char new_value[200];
 
 	strcpy(new_value, value);
+
+	
+
 	if (!strcmp(section, "r1"))
 	{
 		sprintf(cmd, "%s:%s", section, name);
@@ -1724,6 +1732,8 @@ static int user_settings_handler(void *user, const char *section,
 		}
 		return 1;
 	}
+
+	
 
 	// band stacks
 	int band = -1;
@@ -1867,6 +1877,19 @@ guint8 *waterfall_map = NULL;
 void init_waterfall()
 {
 	struct field *f = get_field("waterfall");
+	// Retrieve #wf_min field and update wf_min
+	struct field *f_min = get_field("#wf_min");
+	if (f_min)
+	{
+		wf_min = atof(f_min->value) / 100.0f; // Assuming field value is stored as a scaled integer
+	}
+
+	// Retrieve #wf_max field and update wf_max
+	struct field *f_max = get_field("#wf_max");
+	if (f_max)
+	{
+		wf_max = atof(f_max->value) / 100.0f; // Assuming field value is stored as a scaled integer
+	}
 
 	// Print dimensions for debugging -W2ON
 	// printf("Waterfall dimensions: width = %d, height = %d\n", f->width, f->height);
@@ -1938,12 +1961,21 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 
 void draw_waterfall(struct field *f, cairo_t *gfx)
 {
+	// Temp local variables.  To be updated by GUI later.
+	float initial_wf_min = 0.0f;
+	float initial_wf_max = 100.0f;
+
+	float min_db = (wf_min - 1.0f) * 100.0f;
+
+	float max_db = initial_wf_max * wf_max;
 
 	if (in_tx)
 	{
 		draw_tx_meters(f, gfx);
 		return;
 	}
+
+	// Scroll the existing waterfall data down
 	memmove(waterfall_map + f->width * 3, waterfall_map,
 			f->width * (f->height - 1) * 3);
 
@@ -1951,12 +1983,23 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 
 	for (int i = 0; i < f->width; i++)
 	{
-		int v = wf[i] * 2 * waterfall_gain_percentage;
-		if (v > 100) // we limit ourselves to 100 db range
-			v = 100;
+		// Scale the input value (original behavior restored)
+		float scaled_value = wf[i] * 2.4;
 
+		// Normalize data to the range [0, 100] based on adjusted min/max
+		float normalized = (scaled_value - min_db) / (max_db - min_db) * 100.0f;
+
+		// Clamp normalized values to [0, 100]
+		if (normalized < 0)
+			normalized = 0;
+		else if (normalized > 100)
+			normalized = 100;
+
+		int v = (int)(normalized);
+
+		// Gradient mapping logic
 		if (v < 20)
-		{ // r = 0, g= 0, increase blue
+		{ // r = 0, g = 0, increase blue
 			waterfall_map[index++] = 0;
 			waterfall_map[index++] = 0;
 			waterfall_map[index++] = v * 12;
@@ -1968,7 +2011,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 			waterfall_map[index++] = 255;
 		}
 		else if (v < 60)
-		{ // r = 0, g= max, decrease b
+		{ // r = 0, g = max, decrease b
 			waterfall_map[index++] = 0;
 			waterfall_map[index++] = 255;
 			waterfall_map[index++] = (60 - v) * 12;
@@ -1987,6 +2030,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		}
 	}
 
+	// Draw the updated waterfall
 	gdk_cairo_set_source_pixbuf(gfx, waterfall_pixbuf, f->x, f->y);
 	cairo_paint(gfx);
 	cairo_fill(gfx);
@@ -2467,7 +2511,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	// we only plot the second half of the bins (on the lower sideband
 	int last_y = 100;
 
-	int n_bins = (int)((1.0 * spectrum_span) / 46.875);
+	int n_bins = (int)((1.0 * spectrum_span) / BIN_WIDTH);
 	// the center frequency is at the center of the lower sideband,
 	// i.e, three-fourth way up the bins.
 	int starting_bin = (3 * MAX_BINS) / 4 - n_bins / 2;
@@ -2480,33 +2524,57 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 						 palette[SPECTRUM_PLOT][1], palette[SPECTRUM_PLOT][2]);
 	cairo_move_to(gfx, f->x + f->width, f->y + grid_height);
 
-	//	float x = fmod((1.0 * spectrum_span), 46.875);
-	float x = 0;
-	int j = 0;
+	//	float x = fmod((1.0 * spectrum_span), BIN_WIDTH);
+	float x = 0; // Start at the leftmost edge of the screen
+int j = 0;
 
-	for (i = starting_bin; i <= ending_bin; i++)
-	{
-		int y;
+for (i = starting_bin; i <= ending_bin; i++)
+{
+    int y;
 
-		// the center fft bin is at zero, from MAX_BINS/2 onwards,
-		// the bins are at lowest frequency (-ve frequency)
-		// y axis is the power  in db of each bin, scaled to 80 db
-		y = ((spectrum_plot[i] + waterfall_offset) * f->height) / 80;
-		// limit y inside the spectrum display box
-		if (y < 0)
-			y = 0;
-		if (y > f->height)
-			y = f->height - 1;
-		// the plot should be increase upwards
-		cairo_line_to(gfx, f->x + f->width - (int)x, f->y + grid_height - y);
+    // Calculate the power in dB, scaled to 80 dB
+    y = ((spectrum_plot[i] + waterfall_offset) * f->height) / 80;
 
-		// fill the waterfall
-		for (int k = 0; k <= 1 + (int)x_step; k++)
-			wf[k + f->width - (int)x] = (y * 100) / grid_height;
-		x += x_step;
-		if (f->width <= x)
-			x = f->width - 1;
-	}
+    // Clamp y within display bounds
+    if (y < 0)
+        y = 0;
+    if (y > f->height)
+        y = f->height - 1;
+
+    // Plot the line
+    cairo_line_to(gfx, f->x + f->width - 1 - (int)x, f->y + grid_height - y);
+
+    // Calculate x_step dynamically
+    float x_step = (float)f->width / (float)(ending_bin - starting_bin);
+    if (x_step < 1.0f)
+        x_step = 1.0f;
+
+    // Fill the waterfall
+    for (int k = 0; k <= 1 + (int)x_step; k++)
+    {
+        int index = f->width - 1 - (int)(x + k);
+
+        // Ensure index is within bounds
+        if (index >= 0 && index < f->width)
+        {
+            wf[index] = (y * 100) / grid_height;
+
+            // Optional: Interpolation for smoother transitions
+            if (index > 0)
+            {
+                wf[index - 1] = (wf[index - 1] + wf[index]) / 2;
+            }
+        }
+    }
+
+    // Increment x by x_step
+    x += x_step;
+
+    // Ensure x stays within bounds
+    if (x >= f->width)
+        x = f->width - 1;
+}
+
 
 	cairo_stroke(gfx);
 
@@ -2766,7 +2834,8 @@ void menu_display(int show)
 				field_move("TXEQ", 130, screen_height - 140, 45, 45);
 				field_move("RXEQ", 70, screen_height - 140, 45, 45);
 				field_move("TXMON", 180, screen_height - 140, 45, 45);
-				field_move("WF", 70, screen_height - 90, 45, 45);
+				field_move("WFMIN", 5, screen_height - 90, 45, 45);
+				field_move("WFMAX", 70, screen_height - 90, 45, 45);
 				field_move("NOTCH", 240, screen_height - 140, 95, 45);
 				field_move("NFREQ", 240, screen_height - 90, 45, 45);
 				field_move("BNDWTH", 290, screen_height - 90, 45, 45);
@@ -2813,178 +2882,188 @@ void menu_display(int show)
 }
 // scales the ui as per current screen width from
 // the nominal 800x480 size of the original layout
-static void layout_ui(){
+static void layout_ui()
+{
 	int x1, y1, x2, y2;
 	struct field *f;
-	
-	x1 =0 ;
+
+	x1 = 0;
 	x2 = screen_width;
 	y1 = 100;
 	y2 = screen_height;
 
-	//first move all the controls that are not common out of sight
+	// first move all the controls that are not common out of sight
 	for (f = active_layout; f->cmd[0]; f++)
-		if (!(f->section & COMMON_CONTROL)){
+		if (!(f->section & COMMON_CONTROL))
+		{
 			update_field(f);
 			f->y = -1000;
 			update_field(f);
 		}
 
-	//locate the kbd to the right corner
-	field_move("KBD", screen_width - 47, screen_height-47, 45, 45);
-	//now, move the main radio controls to the right
-	field_move("FREQ", x2-205, 0, 180, 40);
-	field_move("AUDIO", x2-45, 5, 40, 40);
-	field_move("IF", x2-45, 50, 40, 40);
-	field_move("DRIVE", x2-85, 50, 40, 40);
-	field_move("BW", x2-125, 50, 40, 40);
-	field_move("AGC", x2-165, 50, 40, 40);
+	// locate the kbd to the right corner
+	field_move("KBD", screen_width - 47, screen_height - 47, 45, 45);
+	// now, move the main radio controls to the right
+	field_move("FREQ", x2 - 205, 0, 180, 40);
+	field_move("AUDIO", x2 - 45, 5, 40, 40);
+	field_move("IF", x2 - 45, 50, 40, 40);
+	field_move("DRIVE", x2 - 85, 50, 40, 40);
+	field_move("BW", x2 - 125, 50, 40, 40);
+	field_move("AGC", x2 - 165, 50, 40, 40);
 
-	field_move("STEP", x2-252, 5, 40, 40);
-	field_move("RIT", x2-292, 5, 40, 40);
-	field_move("SPLIT", x2-285, 50, 40, 40);
-	field_move("VFO", x2-245, 50, 40, 40);
-	field_move("SPAN", x2-205, 50, 40, 40);
- 
-	if (!strcmp(field_str("KBD"), "ON")){
-		//take out 3 button widths from the bottom
+	field_move("STEP", x2 - 252, 5, 40, 40);
+	field_move("RIT", x2 - 292, 5, 40, 40);
+	field_move("SPLIT", x2 - 285, 50, 40, 40);
+	field_move("VFO", x2 - 245, 50, 40, 40);
+	field_move("SPAN", x2 - 205, 50, 40, 40);
+
+	if (!strcmp(field_str("KBD"), "ON"))
+	{
+		// take out 3 button widths from the bottom
 		y2 = screen_height - 150;
 		keyboard_display(1);
 	}
 	else
 		keyboard_display(0);
-	
-if (!strcmp(field_str("MENU"), "ON")) { // W2JON
-    //Same area as kbd. Take out 3 button widths from the bottom
-    y2 = screen_height - 150;
-        menu_display(1);
-    
-} else {
-    menu_display(0);
-}
 
+	if (!strcmp(field_str("MENU"), "ON"))
+	{ // W2JON
+		// Same area as kbd. Take out 3 button widths from the bottom
+		y2 = screen_height - 150;
+		menu_display(1);
+	}
+	else
+	{
+		menu_display(0);
+	}
 
-	
 	int m_id = mode_id(field_str("MODE"));
 	int button_width = 100;
-	switch(m_id){
-		case MODE_FT8:
-     	                field_move("CONSOLE", 5, y1, 350, y2-y1-55);
-			field_move("SPECTRUM", 360, y1, x2-365, 100);
-			field_move("WATERFALL", 360, y1+100, x2-365, y2-y1-155);
-			field_move("ESC", 5, y2-47, 40, 45);
-			field_move("F1", 50, y2-47, 50, 45);
-			field_move("F2", 100, y2-47, 50, 45);
-			field_move("F3", 150, y2-47, 50, 45);
-			field_move("F4", 200, y2-47, 50, 45);
-			field_move("F5", 250, y2-47, 50, 45);
-			field_move("F6", 300, y2-47, 50, 45);
-			field_move("F7", 350, y2-47, 50, 45);
-			field_move("F8", 400, y2-47, 45, 45);
-			field_move("FT8_REPEAT", 450, y2-47, 50, 45);
-			field_move("FT8_TX1ST", 500, y2-47, 50, 45);
-			field_move("FT8_AUTO", 550, y2-47, 50, 45);
-			field_move("TX_PITCH", 600, y2-47, 73, 45);
-			field_move("SIDETONE", 675, y2-47, 73, 45);
-                        break;
-		case MODE_CW:
-		case MODE_CWR:
-                        field_move("CONSOLE", 5, y1, 350, y2-y1-110);
-			//field_move("SPECTRUM", 360, y1, x2-365, 100);
-			//field_move("WATERFALL", 360, y1+100, x2-365, y2-y1-110);
-			field_move("SPECTRUM", 360, y1, x2-365, 70);  //fixed 
-			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);  //fixed 
-			// first line below the decoder/waterfall
-			y1 = y2 - 97;
-			field_move("ESC", 5, y1, 70, 45);
-			field_move("WPM",75, y1, 75, 45);
-			field_move("PITCH", 150, y1, 75, 45);
-			field_move("CW_DELAY", 225, y1, 75, 45);
-			field_move("CW_INPUT", 375, y1, 75 , 45);
-			field_move("SIDETONE", 450, y1, 75, 45);
+	switch (m_id)
+	{
+	case MODE_FT8:
+		field_move("CONSOLE", 5, y1, 350, y2 - y1 - 55);
+		field_move("SPECTRUM", 360, y1, x2 - 365, 100);
+		field_move("WATERFALL", 360, y1 + 100, x2 - 365, y2 - y1 - 155);
+		field_move("ESC", 5, y2 - 47, 40, 45);
+		field_move("F1", 50, y2 - 47, 50, 45);
+		field_move("F2", 100, y2 - 47, 50, 45);
+		field_move("F3", 150, y2 - 47, 50, 45);
+		field_move("F4", 200, y2 - 47, 50, 45);
+		field_move("F5", 250, y2 - 47, 50, 45);
+		field_move("F6", 300, y2 - 47, 50, 45);
+		field_move("F7", 350, y2 - 47, 50, 45);
+		field_move("F8", 400, y2 - 47, 45, 45);
+		field_move("FT8_REPEAT", 450, y2 - 47, 50, 45);
+		field_move("FT8_TX1ST", 500, y2 - 47, 50, 45);
+		field_move("FT8_AUTO", 550, y2 - 47, 50, 45);
+		field_move("TX_PITCH", 600, y2 - 47, 73, 45);
+		field_move("SIDETONE", 675, y2 - 47, 73, 45);
+		break;
+	case MODE_CW:
+	case MODE_CWR:
+		field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
+		// field_move("SPECTRUM", 360, y1, x2-365, 100);
+		// field_move("WATERFALL", 360, y1+100, x2-365, y2-y1-110);
+		field_move("SPECTRUM", 360, y1, x2 - 365, 70);					// fixed
+		field_move("WATERFALL", 360, y1 + 70, x2 - 365, y2 - y1 - 125); // fixed
+		// first line below the decoder/waterfall
+		y1 = y2 - 97;
+		field_move("ESC", 5, y1, 70, 45);
+		field_move("WPM", 75, y1, 75, 45);
+		field_move("PITCH", 150, y1, 75, 45);
+		field_move("CW_DELAY", 225, y1, 75, 45);
+		field_move("CW_INPUT", 375, y1, 75, 45);
+		field_move("SIDETONE", 450, y1, 75, 45);
 
-			y1 += 50;
-			field_move("F1", 5, y1, 70, 45);
-			field_move("F2", 75, y1, 75, 45);
-			field_move("F3", 150, y1, 75, 45);
-			field_move("F4", 225, y1, 75, 45);
-			field_move("F5", 300, y1, 75, 45);
-			field_move("F6", 375, y1, 75, 45);
-			field_move("F7", 450, y1, 75, 45);
-			field_move("F8", 525, y1, 75, 45);
-			field_move("F9", 600, y1, 75, 45);
-			field_move("F10", 675, y1, 70, 45);
-			break;
-		case MODE_USB:
-		case MODE_LSB:
-		case MODE_AM:
-		case MODE_NBFM:
-		case MODE_2TONE:  // W9JES
-			field_move("SPECT", screen_width -95, screen_height-47, 45, 45);
-		if (!strcmp(field_str("SPECT"), "FULL")) {
-			field_move("CONSOLE", 1000, -1500, 350, y2-y1-55);
-			field_move("SPECTRUM", 5, y1, x2-7, 70);
-			field_move("WATERFALL", 5, y1+70, x2-7, y2-y1-125);
-			}else{
-			field_move("CONSOLE", 5, y1, 350, y2-y1-55);
-			field_move("SPECTRUM", 360, y1, x2-365, 70);
-			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
-			}
-			y1 = y2 -50;
-			field_move("MIC", 5, y1, 45, 45);
-			field_move("LOW", 60, y1, 95, 45);
-			field_move("HIGH", 160, y1, 95, 45);
-			field_move("TX", 260, y1, 95, 45);
-			field_move("RX", 360, y1, 95, 45);
-			break;
-		case MODE_DIGITAL:  // W9JES
-			// N1QM
-			field_move("SPECT", screen_width -95, screen_height-47, 45, 45);
-			if (!strcmp(field_str("SPECT"), "FULL")) {
-				field_move("CONSOLE", 1000, -1500, 350, y2-y1-55);
-				field_move("SPECTRUM", 5, y1, x2-7, 70);
-				field_move("WATERFALL", 5, y1+70, x2-7, y2-y1-125);
-			}else{
-				field_move("CONSOLE", 5, y1, 350, y2-y1-55);
-				field_move("SPECTRUM", 360, y1, x2-365, 70);
-				field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125);
-			}
-			y1 = y2 -50;
-			field_move("MIC", 5, y1, 45, 45);
-			field_move("LOW", 60, y1, 95, 45);
-			field_move("HIGH", 160, y1, 95, 45);
-			field_move("TX", 260, y1, 95, 45);
-			field_move("RX", 360, y1, 95, 45);
-			//Don't show pitch field in DIGI mode
-			//field_move("PITCH", 460, y1, 95, 45);
-			field_move("SIDETONE", 460, y1, 95, 45);  // Added back in for ext modes W9JES
-			break;
-		default:
-			field_move("CONSOLE", 5, y1, 350, y2-y1-110);
-			field_move("SPECTRUM", 360, y1, x2-365, 70);
-			//field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-180);
-			field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-125); //fixed W2JON
-			y1 = y2 - 105;
-			field_move("F1", 5, y1, 90, 45);
-			field_move("F2", 100, y1, 95, 45);
-			field_move("F3", 200, y1, 100, 45);
-			field_move("F4", 300, y1, 100, 45);
-			field_move("F5", 400, y1, 100, 45);
-			field_move("F6", 500, y1, 100, 45);
-			field_move("F7", 600, y1, 100, 45);
-			field_move("F8", 700, y1, 95, 45);
-			y1 += 50;
-			field_move("F9", 5, y1, 95, 45);
-			field_move("F10", 100, y1, 100, 45);
-			field_move("F11",200, y1, 100, 45);
-			field_move("F12",300, y1, 95, 45);
-			field_move("LOW", 400, y1, 50, 45);
-			field_move("HIGH", 475, y1, 50, 45);
-			field_move("PITCH", 550, y1, 50, 45);
-			field_move("SIDETONE", 600, y1, 95, 45);
-                        break;	
+		y1 += 50;
+		field_move("F1", 5, y1, 70, 45);
+		field_move("F2", 75, y1, 75, 45);
+		field_move("F3", 150, y1, 75, 45);
+		field_move("F4", 225, y1, 75, 45);
+		field_move("F5", 300, y1, 75, 45);
+		field_move("F6", 375, y1, 75, 45);
+		field_move("F7", 450, y1, 75, 45);
+		field_move("F8", 525, y1, 75, 45);
+		field_move("F9", 600, y1, 75, 45);
+		field_move("F10", 675, y1, 70, 45);
+		break;
+	case MODE_USB:
+	case MODE_LSB:
+	case MODE_AM:
+	case MODE_NBFM:
+	case MODE_2TONE: // W9JES
+		field_move("SPECT", screen_width - 95, screen_height - 47, 45, 45);
+		if (!strcmp(field_str("SPECT"), "FULL"))
+		{
+			field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
+			field_move("SPECTRUM", 5, y1, x2 - 7, 70);
+			field_move("WATERFALL", 5, y1 + 70, x2 - 7, y2 - y1 - 125);
+		}
+		else
+		{
+			field_move("CONSOLE", 5, y1, 350, y2 - y1 - 55);
+			field_move("SPECTRUM", 360, y1, x2 - 365, 70);
+			field_move("WATERFALL", 360, y1 + 70, x2 - 365, y2 - y1 - 125);
+		}
+		y1 = y2 - 50;
+		field_move("MIC", 5, y1, 45, 45);
+		field_move("LOW", 60, y1, 95, 45);
+		field_move("HIGH", 160, y1, 95, 45);
+		field_move("TX", 260, y1, 95, 45);
+		field_move("RX", 360, y1, 95, 45);
+		break;
+	case MODE_DIGITAL: // W9JES
+		// N1QM
+		field_move("SPECT", screen_width - 95, screen_height - 47, 45, 45);
+		if (!strcmp(field_str("SPECT"), "FULL"))
+		{
+			field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
+			field_move("SPECTRUM", 5, y1, x2 - 7, 70);
+			field_move("WATERFALL", 5, y1 + 70, x2 - 7, y2 - y1 - 125);
+		}
+		else
+		{
+			field_move("CONSOLE", 5, y1, 350, y2 - y1 - 55);
+			field_move("SPECTRUM", 360, y1, x2 - 365, 70);
+			field_move("WATERFALL", 360, y1 + 70, x2 - 365, y2 - y1 - 125);
+		}
+		y1 = y2 - 50;
+		field_move("MIC", 5, y1, 45, 45);
+		field_move("LOW", 60, y1, 95, 45);
+		field_move("HIGH", 160, y1, 95, 45);
+		field_move("TX", 260, y1, 95, 45);
+		field_move("RX", 360, y1, 95, 45);
+		// Don't show pitch field in DIGI mode
+		// field_move("PITCH", 460, y1, 95, 45);
+		field_move("SIDETONE", 460, y1, 95, 45); // Added back in for ext modes W9JES
+		break;
+	default:
+		field_move("CONSOLE", 5, y1, 350, y2 - y1 - 110);
+		field_move("SPECTRUM", 360, y1, x2 - 365, 70);
+		// field_move("WATERFALL", 360, y1+70, x2-365, y2-y1-180);
+		field_move("WATERFALL", 360, y1 + 70, x2 - 365, y2 - y1 - 125); // fixed W2JON
+		y1 = y2 - 105;
+		field_move("F1", 5, y1, 90, 45);
+		field_move("F2", 100, y1, 95, 45);
+		field_move("F3", 200, y1, 100, 45);
+		field_move("F4", 300, y1, 100, 45);
+		field_move("F5", 400, y1, 100, 45);
+		field_move("F6", 500, y1, 100, 45);
+		field_move("F7", 600, y1, 100, 45);
+		field_move("F8", 700, y1, 95, 45);
+		y1 += 50;
+		field_move("F9", 5, y1, 95, 45);
+		field_move("F10", 100, y1, 100, 45);
+		field_move("F11", 200, y1, 100, 45);
+		field_move("F12", 300, y1, 95, 45);
+		field_move("LOW", 400, y1, 50, 45);
+		field_move("HIGH", 475, y1, 50, 45);
+		field_move("PITCH", 550, y1, 50, 45);
+		field_move("SIDETONE", 600, y1, 95, 45);
+		break;
 	}
-	invalidate_rect(0,0,screen_width, screen_height);
+	invalidate_rect(0, 0, screen_width, screen_height);
 }
 void dump_ui()
 {
@@ -4275,9 +4354,18 @@ int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
-	const char *wf_control_field = field_str("WF");
-	int wf_control_level_value = atoi(wf_control_field);
-	waterfall_gain_percentage = wf_control_level_value / 100.00;
+	const char *field_name = f->label;					 // Get the field label
+	const char *field_value_str = field_str(field_name); // Get the field value as string
+	int field_value = atoi(field_value_str);			 // Convert to integer
+
+	if (strcmp(field_name, "WFMIN") == 0)
+	{
+		wf_min = (float)field_value / 100;
+	}
+	else if (strcmp(field_name, "WFMAX") == 0)
+	{
+		wf_max = (float)field_value / 100;
+	}
 	return 0;
 }
 
@@ -5408,7 +5496,7 @@ int web_get_console(char *buff, int max)
 void web_get_spectrum(char *buff)
 {
 
-	int n_bins = (int)((1.0 * spectrum_span) / 46.875);
+	int n_bins = (int)((1.0 * spectrum_span) / BIN_WIDTH);
 	// the center frequency is at the center of the lower sideband,
 	// i.e, three-fourth way up the bins.
 	int starting_bin = (3 * MAX_BINS) / 4 - n_bins / 2;
@@ -6799,11 +6887,6 @@ void print_eq_int(const parametriceq *eq, const char *label)
 	printf("=========================\n");
 }
 
-void on_waterfall_gain_changed(GtkRange *range, gpointer user_data)
-{
-	waterfall_gain_percentage = gtk_range_get_value(range) / 100.0f; // Convert to a factor between 0 and 1
-}
-
 void get_print_and_set_values(GtkWidget *freq_sliders[], GtkWidget *gain_sliders[], const char *prefix)
 {
 	for (gint i = 0; i < 5; i++)
@@ -6889,6 +6972,7 @@ int main(int argc, char *argv[])
 	memset(tx_mod_buff, 0, sizeof(int32_t) * tx_mod_max);
 	tx_mod_index = 0;
 	init_waterfall();
+	
 
 	// set the radio to some decent defaults
 	do_control_action("FREQ 7100000");
