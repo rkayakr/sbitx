@@ -19,9 +19,7 @@ int is_in_tx();
 void abort_tx();
 void enter_qso();
 extern int display_freq;
-// ALC meter variables
-extern double alc_meter_value;       // Current ALC meter value
-extern const double alc_meter_smoothing; // Smoothing factor for ALC meter updates
+
 
 #define FONT_FIELD_LABEL 0
 #define FONT_FIELD_VALUE 1

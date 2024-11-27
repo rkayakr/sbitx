@@ -1228,11 +1228,6 @@ void tx_process(
 
 	struct rx *r = tx_list;
 
-	static double alc_meter_value = 0.0;
-	const double alc_meter_smoothing = 0.1; // Adjust smoothing factor (0.0 = no smoothing, 1.0 = full smoothing)
-	double current_peak = 0.0;
-	double normalized_peak;
-
 	// fix the burst at the start of transmission
 	if (tx_process_restart)
 	{
