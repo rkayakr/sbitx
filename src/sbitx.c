@@ -893,7 +893,7 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 		static int noise_est_initialized = 0;
 		static int noise_update_counter = 0;
 		// Scale the noise_threshold value
-		double scaled_noise_threshold = scaleNoiseThreshold(noise_threshold);
+		double scaled_noise_threshold = scaleNoiseThreshold(noise_threshold * 1.2);
 
 		// Notch filter
 		if (notch_enabled)
@@ -918,8 +918,7 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 				}
 			}
 		}
-
-		// Noise Estimation
+		// Noise Estimation Original
 		if (!noise_est_initialized || noise_update_counter >= noise_update_interval)
 		{
 			for (i = 0; i < MAX_BINS; i++)
@@ -974,6 +973,89 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 				r->fft_freq[i] *= wiener_filter;
 			}
 		}
+
+		/* // Noise Estimation, ANR, DSP mods W4WHL
+		if (!noise_est_initialized || noise_update_counter >= noise_update_interval)
+		{
+			for (i = 0; i < MAX_BINS; i++)
+			{
+				double current_magnitude = cabs(r->fft_freq[i]);
+
+				// Dynamically adjust noise estimation rate vs fixed
+				double dynamic_alpha = (current_magnitude > noise_est[i]) ? 0.95 : 0.75;
+				noise_est[i] = dynamic_alpha * noise_est[i] + (1 - dynamic_alpha) * current_magnitude;
+
+				// Enforce a noise floor
+				noise_est[i] = fmax(1e-6, noise_est[i]);
+			}
+			noise_update_counter = 0;
+			noise_est_initialized = 1;
+		}
+		else
+		{
+			noise_update_counter++;
+		}
+
+		if (dsp_enabled)
+		{
+			// Spectral Subtraction filter
+			for (i = 0; i < MAX_BINS; i++)
+			{
+				double magnitude = cabs(r->fft_freq[i]);
+				double phase = carg(r->fft_freq[i]);
+				double noise_magnitude = noise_est[i];
+
+				// Calculate the SNR
+				double snr = magnitude / (noise_magnitude + 1e-6); // Avoid division by zero
+				double new_magnitude;
+
+				// Sigmoid-based reduction factor
+				double reduction_factor = 1.0 / (1.0 + exp(-5.0 * (snr - 0.5))); // Sharp and low-midpoint curve
+
+
+				// Calculate new magnitude with residual noise preservation
+				double noise_residual = 0.10; // Retain 10% of noise, reduces
+				new_magnitude = fmax(noise_residual * noise_magnitude,
+									magnitude - reduction_factor * noise_magnitude);
+
+				// Smoother bin-to-bin transitions (blend current and adjacent bins)
+				static double previous_magnitude[MAX_BINS] = {0};
+				new_magnitude = 0.9 * new_magnitude + 0.1 * previous_magnitude[i]; // Stronger weight on current bin
+				previous_magnitude[i] = new_magnitude;
+
+				// Reconstruct the frequency domain signal
+				r->fft_freq[i] = new_magnitude * cexp(I * phase);
+			}
+		}
+
+		if (anr_enabled)
+		{
+			// Signal Estimation for Wiener filter
+			for (i = 0; i < MAX_BINS; i++)
+			{
+				double current_magnitude = cabs(r->fft_freq[i]);
+				signal_est[i] = SIGNAL_ALPHA * signal_est[i] + (1 - SIGNAL_ALPHA) * current_magnitude;
+			}
+
+			// Wiener Filter (ANR)
+			for (i = 0; i < MAX_BINS; i++)
+			{
+				double signal_power = fmax(1e-6, signal_est[i] * signal_est[i]);
+				double noise_power = fmax(1e-6, noise_est[i] * noise_est[i]);
+
+				// Relaxed Wiener filter gain
+				double wiener_filter = (signal_power + 0.2 * noise_power) / (signal_power + noise_power);
+				wiener_filter = fmax(0.2, wiener_filter); // Minimum gain to preserve quiet signals
+
+				r->fft_freq[i] *= wiener_filter;
+			}
+
+			// Improved bin smoothing
+			for (i = 1; i < MAX_BINS - 1; i++)
+			{
+				r->fft_freq[i] = (0.8 * r->fft_freq[i]) + (0.1 * r->fft_freq[i - 1]) + (0.1 * r->fft_freq[i + 1]);
+			}
+		} */
 	}
 
 	// STEP 5: Zero out the other sideband
@@ -1050,12 +1132,46 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 	// Push the data to any potential modem
 	modem_rx(rx_list->mode, output_speaker, MAX_BINS / 2);
 
-	// Apply RXEQ after Modem only on none digital modes
+	// Apply RXEQ after Modem only on non-digital modes
 	if (r->mode != MODE_DIGITAL && r->mode != MODE_FT8 && r->mode != MODE_2TONE)
 	{
 		if (rx_eq_is_enabled == 1)
 		{
+			const double limiter_threshold = 0.8 * INT32_MAX; // Lower limiter threshold for more headroom
+
+			// Step 1: Apply EQ
 			apply_eq(&rx_eq, output_speaker, n_samples, 48000.0);
+
+			// Step 2: Apply combined normalization and soft limiting
+			double max_amplitude = 0.0;
+
+			// Find the maximum absolute value in the signal
+			for (i = 0; i < n_samples; i++)
+			{
+				if (fabs(output_speaker[i]) > max_amplitude)
+				{
+					max_amplitude = fabs(output_speaker[i]);
+				}
+			}
+
+			// Calculate normalization factor only if needed
+			double normalization_factor = 1.0;
+			const double target_amplitude = 0.8 * limiter_threshold; // Ensure no clipping post-normalization
+			if (max_amplitude > target_amplitude)
+			{
+				normalization_factor = target_amplitude / max_amplitude;
+			}
+
+			// Normalize and apply soft limiting in a single pass
+			for (i = 0; i < n_samples; i++)
+			{
+				double sample = output_speaker[i] * normalization_factor;
+				if (fabs(sample) > limiter_threshold)
+				{
+					sample = limiter_threshold * tanh(sample / limiter_threshold); // Smooth limiting
+				}
+				output_speaker[i] = (int32_t)sample;
+			}
 		}
 	}
 }
