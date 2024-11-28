@@ -1675,8 +1675,6 @@ static int user_settings_handler(void *user, const char *section,
 
 	strcpy(new_value, value);
 
-	
-
 	if (!strcmp(section, "r1"))
 	{
 		sprintf(cmd, "%s:%s", section, name);
@@ -1732,8 +1730,6 @@ static int user_settings_handler(void *user, const char *section,
 		}
 		return 1;
 	}
-
-	
 
 	// band stacks
 	int band = -1;
@@ -2526,55 +2522,54 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	//	float x = fmod((1.0 * spectrum_span), BIN_WIDTH);
 	float x = 0; // Start at the leftmost edge of the screen
-int j = 0;
+	int j = 0;
 
-for (i = starting_bin; i <= ending_bin; i++)
-{
-    int y;
+	for (i = starting_bin; i <= ending_bin; i++)
+	{
+		int y;
 
-    // Calculate the power in dB, scaled to 80 dB
-    y = ((spectrum_plot[i] + waterfall_offset) * f->height) / 80;
+		// Calculate the power in dB, scaled to 80 dB
+		y = ((spectrum_plot[i] + waterfall_offset) * f->height) / 80;
 
-    // Clamp y within display bounds
-    if (y < 0)
-        y = 0;
-    if (y > f->height)
-        y = f->height - 1;
+		// Clamp y within display bounds
+		if (y < 0)
+			y = 0;
+		if (y > f->height)
+			y = f->height - 1;
 
-    // Plot the line
-    cairo_line_to(gfx, f->x + f->width - 1 - (int)x, f->y + grid_height - y);
+		// Plot the line
+		cairo_line_to(gfx, f->x + f->width - 1 - (int)x, f->y + grid_height - y);
 
-    // Calculate x_step dynamically
-    float x_step = (float)f->width / (float)(ending_bin - starting_bin);
-    if (x_step < 1.0f)
-        x_step = 1.0f;
+		// Calculate x_step dynamically
+		float x_step = (float)f->width / (float)(ending_bin - starting_bin);
+		if (x_step < 1.0f)
+			x_step = 1.0f;
 
-    // Fill the waterfall
-    for (int k = 0; k <= 1 + (int)x_step; k++)
-    {
-        int index = f->width - 1 - (int)(x + k);
+		// Fill the waterfall
+		for (int k = 0; k <= 1 + (int)x_step; k++)
+		{
+			int index = f->width - 1 - (int)(x + k);
 
-        // Ensure index is within bounds
-        if (index >= 0 && index < f->width)
-        {
-            wf[index] = (y * 100) / grid_height;
+			// Ensure index is within bounds
+			if (index >= 0 && index < f->width)
+			{
+				wf[index] = (y * 100) / grid_height;
 
-            // Optional: Interpolation for smoother transitions
-            if (index > 0)
-            {
-                wf[index - 1] = (wf[index - 1] + wf[index]) / 2;
-            }
-        }
-    }
+				// Optional: Interpolation for smoother transitions
+				if (index > 0)
+				{
+					wf[index - 1] = (wf[index - 1] + wf[index]) / 2;
+				}
+			}
+		}
 
-    // Increment x by x_step
-    x += x_step;
+		// Increment x by x_step
+		x += x_step;
 
-    // Ensure x stays within bounds
-    if (x >= f->width)
-        x = f->width - 1;
-}
-
+		// Ensure x stays within bounds
+		if (x >= f->width)
+			x = f->width - 1;
+	}
 
 	cairo_stroke(gfx);
 
@@ -2825,34 +2820,35 @@ void menu_display(int show)
 		{
 			if (show)
 			{
-
 				// NEW LAYOUT @ 3.2
-				// Move each control to the appropriate position
+				// Move each control to the appropriate position, grouped by line and ordered left to right
 
-				field_move("SET", 5, screen_height - 140, 45, 45); // w9jes
-				field_move("EQSET", 130, screen_height - 90, 95, 45);
+				// Line 1 (screen_height - 140)
+				field_move("SET", 5, screen_height - 140, 45, 45);	  
+				field_move("WFMIN", 70, screen_height - 140, 45, 45); 
 				field_move("TXEQ", 130, screen_height - 140, 45, 45);
-				field_move("RXEQ", 70, screen_height - 140, 45, 45);
-				field_move("TXMON", 180, screen_height - 140, 45, 45);
-				field_move("WFMIN", 5, screen_height - 90, 45, 45);
-				field_move("WFMAX", 70, screen_height - 90, 45, 45);
+				field_move("RXEQ", 180, screen_height - 140, 45, 45); 
 				field_move("NOTCH", 240, screen_height - 140, 95, 45);
-				field_move("NFREQ", 240, screen_height - 90, 45, 45);
-				field_move("BNDWTH", 290, screen_height - 90, 45, 45);
-				field_move("COMP", 350, screen_height - 140, 95, 45);
-				field_move("ANR", 460, screen_height - 140, 95, 45);
-				field_move("DSP", 350, screen_height - 90, 95, 45);
-				// field_move("DSP", 350, screen_height - 90, 45, 45);
-				// field_move("THSHLD", 400, screen_height - 90, 45, 45);
-				field_move("BFO", 460, screen_height - 90, 45, 45);
-				field_move("VFOLK", 510, screen_height - 90, 45, 45);
+				field_move("ANR", 350, screen_height - 140, 95, 45);  
+				field_move("COMP", 460, screen_height - 140, 95, 45); 
+				field_move("TUNE", 570, screen_height - 140, 95, 45);
 				if (!strcmp(field_str("QROOPT"), "ON"))
 				{
-					field_move("QRO", 680, screen_height - 140, 95, 45);
+					field_move("QRO", 680, screen_height - 140, 95, 45); // Rightmost
 				}
-				field_move("TUNE", 570, screen_height - 140, 95, 45);
-				field_move("TNPWR", 570, screen_height - 90, 45, 45);
+
+				// Line 2 (screen_height - 90)
+				field_move("TXMON", 5, screen_height - 90, 45, 45); 
+				field_move("WFMAX", 70, screen_height - 90, 45, 45);
+				field_move("EQSET", 130, screen_height - 90, 95, 45);
+				field_move("NFREQ", 240, screen_height - 90, 45, 45);
+				field_move("BNDWTH", 290, screen_height - 90, 45, 45);
+				field_move("DSP", 350, screen_height - 90, 95, 45);
+				field_move("BFO", 460, screen_height - 90, 45, 45);
+				field_move("VFOLK", 510, screen_height - 90, 45, 45);
+				field_move("TNPWR", 570, screen_height - 90, 45, 45); 
 			}
+
 			else
 			{
 				// Move the fields off-screen if not showing
@@ -6972,7 +6968,6 @@ int main(int argc, char *argv[])
 	memset(tx_mod_buff, 0, sizeof(int32_t) * tx_mod_max);
 	tx_mod_index = 0;
 	init_waterfall();
-	
 
 	// set the radio to some decent defaults
 	do_control_action("FREQ 7100000");
