@@ -183,46 +183,43 @@ void scale_samples(int32_t* samples, int num_samples, float gain_factor) {
 // Function to apply EQ and gain scaling
 void apply_eq(parametriceq* eq, int32_t* samples, int num_samples, double sample_rate) {
     Biquad filters[NUM_BANDS];
-    int32_t temp_samples[NUM_BANDS][num_samples];
 
     // Step 1: Calculate coefficients for each band
     for (int i = 0; i < NUM_BANDS; i++) {
         calculate_coefficients(&eq->bands[i], sample_rate, &filters[i]);
     }
 
-    // Step 2: Remove DC offset from the samples
-    remove_dc_offset(samples, num_samples);
-
-    // Step 3: Initialize output buffer
+    // Step 2: Initialize output buffer
     int32_t output_samples[num_samples];
     memset(output_samples, 0, sizeof(output_samples));
 
-    // Step 4: Process samples for each band
+    // Step 3: Process samples for each band
     for (int i = 0; i < NUM_BANDS; i++) {
         double band_gain = pow(10.0, eq->bands[i].gain / 20.0); // Convert dB to linear scale
 
         for (int n = 0; n < num_samples; n++) {
-            // Apply the filter to the sample
-            double band_sample = process_sample(&filters[i], samples[n]);
+            // Apply the filter to the current sample
+            double filtered_sample = process_sample(&filters[i], samples[n]);
 
-            // Accumulate the scaled band sample into the output buffer
-            output_samples[n] += (int32_t)(band_sample * band_gain);
+            // Accumulate the scaled filtered output
+            output_samples[n] += (int32_t)(filtered_sample * band_gain);
         }
     }
 
-    // Step 5: Normalize the output to avoid unintended amplification
-    double normalization_factor = NUM_BANDS; // Normalize by the number of bands
+    // Step 4: Normalize the summed output
     for (int n = 0; n < num_samples; n++) {
-        output_samples[n] = (int32_t)(output_samples[n] / normalization_factor);
-
-        // Clamp the output to prevent overflow
-        if (output_samples[n] > INT32_MAX) output_samples[n] = INT32_MAX;
-        if (output_samples[n] < INT32_MIN) output_samples[n] = INT32_MIN;
-
-        // Write the result back to the input buffer
-        samples[n] = output_samples[n];
+        output_samples[n] /= NUM_BANDS; // Prevent unintentional gain
     }
+
+    // Step 5: Scale and clamp using scale_samples
+    scale_samples(output_samples, num_samples, 1.0);
+
+    // Step 6: Copy normalized output back to input buffer
+    memcpy(samples, output_samples, sizeof(int32_t) * num_samples);
 }
+
+
+
 
 
 
