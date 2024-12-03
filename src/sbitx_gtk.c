@@ -65,7 +65,6 @@ int eptt_enabled = 0;
 int comp_enabled = 0;
 int input_volume = 0;
 int vfo_lock_enabled = 0;
-float BIN_WIDTH = SAMPLE_RATE / (MAX_BINS / 2.000f);
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
@@ -2504,70 +2503,46 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		}
 	}
 
-	// we only plot the second half of the bins (on the lower sideband
+	//we only plot the second half of the bins (on the lower sideband
 	int last_y = 100;
 
-	int n_bins = (int)((1.0 * spectrum_span) / BIN_WIDTH);
-	// the center frequency is at the center of the lower sideband,
-	// i.e, three-fourth way up the bins.
-	int starting_bin = (3 * MAX_BINS) / 4 - n_bins / 2;
-	int ending_bin = starting_bin + n_bins;
+	int n_bins = (int)((1.0 * spectrum_span) / 46.875);
+	//the center frequency is at the center of the lower sideband,
+	//i.e, three-fourth way up the bins.
+	int starting_bin = (3 *MAX_BINS)/4 - n_bins/2;
+	int ending_bin = starting_bin + n_bins; 
 
-	float x_step = (1.0 * f->width) / n_bins;
+	float x_step = (1.0 * f->width )/n_bins;
 
-	// start the plot
-	cairo_set_source_rgb(gfx, palette[SPECTRUM_PLOT][0],
-						 palette[SPECTRUM_PLOT][1], palette[SPECTRUM_PLOT][2]);
+	//start the plot
+	cairo_set_source_rgb(gfx, palette[SPECTRUM_PLOT][0], 
+		palette[SPECTRUM_PLOT][1], palette[SPECTRUM_PLOT][2]);
 	cairo_move_to(gfx, f->x + f->width, f->y + grid_height);
 
-	//	float x = fmod((1.0 * spectrum_span), BIN_WIDTH);
-	float x = 0; // Start at the leftmost edge of the screen
+//	float x = fmod((1.0 * spectrum_span), 46.875);
+	float x = 0;
 	int j = 0;
 
-	for (i = starting_bin; i <= ending_bin; i++)
-	{
+	for (i = starting_bin; i <= ending_bin; i++){
 		int y;
 
-		// Calculate the power in dB, scaled to 80 dB
-		y = ((spectrum_plot[i] + waterfall_offset) * f->height) / 80;
-
-		// Clamp y within display bounds
-		if (y < 0)
+		// the center fft bin is at zero, from MAX_BINS/2 onwards,
+		// the bins are at lowest frequency (-ve frequency)
+		//y axis is the power  in db of each bin, scaled to 80 db
+		y = ((spectrum_plot[i] + waterfall_offset) * f->height)/80; 
+		// limit y inside the spectrum display box
+		if ( y <  0)
 			y = 0;
 		if (y > f->height)
 			y = f->height - 1;
+		//the plot should be increase upwards
+		cairo_line_to(gfx, f->x + f->width - (int)x, f->y + grid_height - y);
 
-		// Plot the line
-		cairo_line_to(gfx, f->x + f->width - 1 - (int)x, f->y + grid_height - y);
-
-		// Calculate x_step dynamically
-		float x_step = (float)f->width / (float)(ending_bin - starting_bin);
-		if (x_step < 1.0f)
-			x_step = 1.0f;
-
-		// Fill the waterfall
+		//fill the waterfall
 		for (int k = 0; k <= 1 + (int)x_step; k++)
-		{
-			int index = f->width - 1 - (int)(x + k);
-
-			// Ensure index is within bounds
-			if (index >= 0 && index < f->width)
-			{
-				wf[index] = (y * 100) / grid_height;
-
-				// Optional: Interpolation for smoother transitions
-				if (index > 0)
-				{
-					wf[index - 1] = (wf[index - 1] + wf[index]) / 2;
-				}
-			}
-		}
-
-		// Increment x by x_step
+			wf[k + f->width - (int)x] = (y * 100)/grid_height;
 		x += x_step;
-
-		// Ensure x stays within bounds
-		if (x >= f->width)
+		if (f->width <= x)
 			x = f->width - 1;
 	}
 
@@ -2824,13 +2799,13 @@ void menu_display(int show)
 				// Move each control to the appropriate position, grouped by line and ordered left to right
 
 				// Line 1 (screen_height - 140)
-				field_move("SET", 5, screen_height - 140, 45, 45);	  
-				field_move("WFMIN", 70, screen_height - 140, 45, 45); 
+				field_move("SET", 5, screen_height - 140, 45, 45);
+				field_move("WFMIN", 70, screen_height - 140, 45, 45);
 				field_move("TXEQ", 130, screen_height - 140, 45, 45);
-				field_move("RXEQ", 180, screen_height - 140, 45, 45); 
+				field_move("RXEQ", 180, screen_height - 140, 45, 45);
 				field_move("NOTCH", 240, screen_height - 140, 95, 45);
-				field_move("ANR", 350, screen_height - 140, 95, 45);  
-				field_move("COMP", 460, screen_height - 140, 95, 45); 
+				field_move("ANR", 350, screen_height - 140, 95, 45);
+				field_move("COMP", 460, screen_height - 140, 95, 45);
 				field_move("TUNE", 570, screen_height - 140, 95, 45);
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
@@ -2838,7 +2813,7 @@ void menu_display(int show)
 				}
 
 				// Line 2 (screen_height - 90)
-				field_move("TXMON", 5, screen_height - 90, 45, 45); 
+				field_move("TXMON", 5, screen_height - 90, 45, 45);
 				field_move("WFMAX", 70, screen_height - 90, 45, 45);
 				field_move("EQSET", 130, screen_height - 90, 95, 45);
 				field_move("NFREQ", 240, screen_height - 90, 45, 45);
@@ -2846,7 +2821,7 @@ void menu_display(int show)
 				field_move("DSP", 350, screen_height - 90, 95, 45);
 				field_move("BFO", 460, screen_height - 90, 45, 45);
 				field_move("VFOLK", 510, screen_height - 90, 45, 45);
-				field_move("TNPWR", 570, screen_height - 90, 45, 45); 
+				field_move("TNPWR", 570, screen_height - 90, 45, 45);
 			}
 
 			else
@@ -5492,7 +5467,7 @@ int web_get_console(char *buff, int max)
 void web_get_spectrum(char *buff)
 {
 
-	int n_bins = (int)((1.0 * spectrum_span) / BIN_WIDTH);
+	int n_bins = (int)((1.0 * spectrum_span) / 46.875);
 	// the center frequency is at the center of the lower sideband,
 	// i.e, three-fourth way up the bins.
 	int starting_bin = (3 * MAX_BINS) / 4 - n_bins / 2;
