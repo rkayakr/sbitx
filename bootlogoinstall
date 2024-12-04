@@ -28,13 +28,4 @@ else
     exit 1
 fi
 
-echo "Updating Plymouth configuration."
-sudo update-initramfs -u
-if [ $? -eq 0 ]; then
-    echo "Plymouth configuration updated successfully."
-else
-    echo "Failed to update Plymouth configuration. Please check manually."
-    exit 1
-fi
-
 echo "Operation completed successfully!"
