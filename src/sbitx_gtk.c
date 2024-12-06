@@ -61,11 +61,10 @@ struct Queue q_remote_commands;
 struct Queue q_tx_text;
 int eq_is_enabled = 0;
 int rx_eq_is_enabled = 0;
-int qro_enabled = 0;
+int eptt_enabled = 0;
 int comp_enabled = 0;
 int input_volume = 0;
 int vfo_lock_enabled = 0;
-float BIN_WIDTH = SAMPLE_RATE / (MAX_BINS / 2.000f);
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
@@ -747,11 +746,11 @@ struct field main_controls[] = {
 	{"#smeter_option", do_toggle_option, 1000, -1000, 40, 40, "SMETEROPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
-	// QRO option ON/OFF (hides/reveals menu button)
-	{"#qro_option", do_toggle_option, 1000, -1000, 40, 40, "QROOPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	// ePTT option ON/OFF (hides/reveals menu button)
+	{"#eptt_option", do_toggle_option, 1000, -1000, 40, 40, "EPTTOPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
-	// QRO Enable/Bypass Control
-	{"#qro", do_toggle_option, 1000, -1000, 40, 40, "QRO", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	// ePTT Enable/Bypass Control
+	{"#eptt", do_toggle_option, 1000, -1000, 40, 40, "ePTT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
 	// Sub Menu Control 473,50 <- was
@@ -2230,12 +2229,12 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	}
 
 	// display active plugins
-	//  --- QRO plugin indicator W2JON
-	const char *qro_text = "QRO";
+	//  --- ePTT plugin indicator W2JON
+	const char *eptt_text = "ePTT";
 	cairo_set_font_size(gfx, FONT_SMALL);
 
-	// Check the qro_enabled variable and set the text color
-	if (qro_enabled)
+	// Check the eptt_enabled variable and set the text color
+	if (eptt_enabled)
 	{
 		cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Green when enabled
 	}
@@ -2244,21 +2243,21 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Gray when disabled
 	}
 
-	// Cast qro_text to char* to avoid the warning
+	// Cast eptt_text to char* to avoid the warning
 
-	int qro_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)qro_text, FONT_SMALL) - 188;
-	int qro_text_y = f_spectrum->y + 7;
-	if (!strcmp(field_str("QROOPT"), "ON"))
+	int eptt_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)eptt_text, FONT_SMALL) - 188;
+	int eptt_text_y = f_spectrum->y + 7;
+	if (!strcmp(field_str("EPTTOPT"), "ON"))
 	{
-		cairo_move_to(gfx, qro_text_x, qro_text_y);
-		cairo_show_text(gfx, qro_text);
+		cairo_move_to(gfx, eptt_text_x, eptt_text_y);
+		cairo_show_text(gfx, eptt_text);
 	}
 
 	// --- Compressor plugin indicator W2JON
 	const char *comp_text = "COMP";
 	cairo_set_font_size(gfx, FONT_SMALL);
 
-	// Check the qro_enabled variable and set the text color
+	// Check the comp_enabled variable and set the text color
 	if (comp_enabled)
 	{
 		cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0); // Green when enabled
@@ -2268,9 +2267,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Gray when disabled
 	}
 
-	// Cast qro_text to char* to avoid the warning
+	// Cast comp_text to char* to avoid the warning
 
-	int comp_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)comp_text, FONT_SMALL) - 158;
+	int comp_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)comp_text, FONT_SMALL) - 154;
 	int comp_text_y = f_spectrum->y + 7;
 	cairo_move_to(gfx, comp_text_x, comp_text_y);
 	cairo_show_text(gfx, comp_text);
@@ -2290,7 +2289,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	}
 
 	// Cast notch_text to char* to avoid the warning
-	int notch_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)notch_text, FONT_SMALL) - 118;
+	int notch_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)notch_text, FONT_SMALL) - 117;
 	int notch_text_y = f_spectrum->y + 7;
 
 	cairo_move_to(gfx, notch_text_x, notch_text_y);
@@ -2312,7 +2311,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// Cast txeq_text to char* to avoid the warning
 
-	int txeq_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)txeq_text, FONT_SMALL) - 88;
+	int txeq_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)txeq_text, FONT_SMALL) - 85;
 	int txeq_text_y = f_spectrum->y + 7;
 
 	cairo_move_to(gfx, txeq_text_x, txeq_text_y);
@@ -2333,7 +2332,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// Cast txeq_text to char* to avoid the warning
 
-	int rxeq_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)rxeq_text, FONT_SMALL) - 58;
+	int rxeq_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)rxeq_text, FONT_SMALL) - 53;
 	int rxeq_text_y = f_spectrum->y + 7;
 
 	cairo_move_to(gfx, rxeq_text_x, rxeq_text_y);
@@ -2355,7 +2354,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	// Cast dsp_text to char* to avoid the warning
 
-	int dsp_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)dsp_text, FONT_SMALL) - 28;
+	int dsp_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)dsp_text, FONT_SMALL) - 29;
 	int dsp_text_y = f_spectrum->y + 7;
 
 	cairo_move_to(gfx, dsp_text_x, dsp_text_y);
@@ -2504,70 +2503,46 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		}
 	}
 
-	// we only plot the second half of the bins (on the lower sideband
+	//we only plot the second half of the bins (on the lower sideband
 	int last_y = 100;
 
-	int n_bins = (int)((1.0 * spectrum_span) / BIN_WIDTH);
-	// the center frequency is at the center of the lower sideband,
-	// i.e, three-fourth way up the bins.
-	int starting_bin = (3 * MAX_BINS) / 4 - n_bins / 2;
-	int ending_bin = starting_bin + n_bins;
+	int n_bins = (int)((1.0 * spectrum_span) / 46.875);
+	//the center frequency is at the center of the lower sideband,
+	//i.e, three-fourth way up the bins.
+	int starting_bin = (3 *MAX_BINS)/4 - n_bins/2;
+	int ending_bin = starting_bin + n_bins; 
 
-	float x_step = (1.0 * f->width) / n_bins;
+	float x_step = (1.0 * f->width )/n_bins;
 
-	// start the plot
-	cairo_set_source_rgb(gfx, palette[SPECTRUM_PLOT][0],
-						 palette[SPECTRUM_PLOT][1], palette[SPECTRUM_PLOT][2]);
+	//start the plot
+	cairo_set_source_rgb(gfx, palette[SPECTRUM_PLOT][0], 
+		palette[SPECTRUM_PLOT][1], palette[SPECTRUM_PLOT][2]);
 	cairo_move_to(gfx, f->x + f->width, f->y + grid_height);
 
-	//	float x = fmod((1.0 * spectrum_span), BIN_WIDTH);
-	float x = 0; // Start at the leftmost edge of the screen
+//	float x = fmod((1.0 * spectrum_span), 46.875);
+	float x = 0;
 	int j = 0;
 
-	for (i = starting_bin; i <= ending_bin; i++)
-	{
+	for (i = starting_bin; i <= ending_bin; i++){
 		int y;
 
-		// Calculate the power in dB, scaled to 80 dB
-		y = ((spectrum_plot[i] + waterfall_offset) * f->height) / 80;
-
-		// Clamp y within display bounds
-		if (y < 0)
+		// the center fft bin is at zero, from MAX_BINS/2 onwards,
+		// the bins are at lowest frequency (-ve frequency)
+		//y axis is the power  in db of each bin, scaled to 80 db
+		y = ((spectrum_plot[i] + waterfall_offset) * f->height)/80; 
+		// limit y inside the spectrum display box
+		if ( y <  0)
 			y = 0;
 		if (y > f->height)
 			y = f->height - 1;
+		//the plot should be increase upwards
+		cairo_line_to(gfx, f->x + f->width - (int)x, f->y + grid_height - y);
 
-		// Plot the line
-		cairo_line_to(gfx, f->x + f->width - 1 - (int)x, f->y + grid_height - y);
-
-		// Calculate x_step dynamically
-		float x_step = (float)f->width / (float)(ending_bin - starting_bin);
-		if (x_step < 1.0f)
-			x_step = 1.0f;
-
-		// Fill the waterfall
+		//fill the waterfall
 		for (int k = 0; k <= 1 + (int)x_step; k++)
-		{
-			int index = f->width - 1 - (int)(x + k);
-
-			// Ensure index is within bounds
-			if (index >= 0 && index < f->width)
-			{
-				wf[index] = (y * 100) / grid_height;
-
-				// Optional: Interpolation for smoother transitions
-				if (index > 0)
-				{
-					wf[index - 1] = (wf[index - 1] + wf[index]) / 2;
-				}
-			}
-		}
-
-		// Increment x by x_step
+			wf[k + f->width - (int)x] = (y * 100)/grid_height;
 		x += x_step;
-
-		// Ensure x stays within bounds
-		if (x >= f->width)
+		if (f->width <= x)
 			x = f->width - 1;
 	}
 
@@ -2824,21 +2799,21 @@ void menu_display(int show)
 				// Move each control to the appropriate position, grouped by line and ordered left to right
 
 				// Line 1 (screen_height - 140)
-				field_move("SET", 5, screen_height - 140, 45, 45);	  
-				field_move("WFMIN", 70, screen_height - 140, 45, 45); 
+				field_move("SET", 5, screen_height - 140, 45, 45);
+				field_move("WFMIN", 70, screen_height - 140, 45, 45);
 				field_move("TXEQ", 130, screen_height - 140, 45, 45);
-				field_move("RXEQ", 180, screen_height - 140, 45, 45); 
+				field_move("RXEQ", 180, screen_height - 140, 45, 45);
 				field_move("NOTCH", 240, screen_height - 140, 95, 45);
-				field_move("ANR", 350, screen_height - 140, 95, 45);  
-				field_move("COMP", 460, screen_height - 140, 95, 45); 
+				field_move("ANR", 350, screen_height - 140, 95, 45);
+				field_move("COMP", 460, screen_height - 140, 95, 45);
 				field_move("TUNE", 570, screen_height - 140, 95, 45);
-				if (!strcmp(field_str("QROOPT"), "ON"))
+				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
-					field_move("QRO", 680, screen_height - 140, 95, 45); // Rightmost
+					field_move("ePTT", 680, screen_height - 140, 95, 45); // Rightmost
 				}
 
 				// Line 2 (screen_height - 90)
-				field_move("TXMON", 5, screen_height - 90, 45, 45); 
+				field_move("TXMON", 5, screen_height - 90, 45, 45);
 				field_move("WFMAX", 70, screen_height - 90, 45, 45);
 				field_move("EQSET", 130, screen_height - 90, 95, 45);
 				field_move("NFREQ", 240, screen_height - 90, 45, 45);
@@ -2846,7 +2821,7 @@ void menu_display(int show)
 				field_move("DSP", 350, screen_height - 90, 95, 45);
 				field_move("BFO", 460, screen_height - 90, 45, 45);
 				field_move("VFOLK", 510, screen_height - 90, 45, 45);
-				field_move("TNPWR", 570, screen_height - 90, 45, 45); 
+				field_move("TNPWR", 570, screen_height - 90, 45, 45);
 			}
 
 			else
@@ -4437,15 +4412,15 @@ void tx_on(int trigger)
 		return;
 	}
 
-	// QRO Enable/Disable W2JON
-	struct field *qro = get_field("#qro");
-	if (qro)
+	// ePTT Enable/Disable W2JON
+	struct field *eptt = get_field("#eptt");
+	if (eptt)
 	{
-		if (!strcmp(qro->value, "ON"))
+		if (!strcmp(eptt->value, "ON"))
 		{
 			ext_ptt_enable = 1;
 		}
-		else if (!strcmp(qro->value, "OFF"))
+		else if (!strcmp(eptt->value, "OFF"))
 		{
 			ext_ptt_enable = 0;
 		}
@@ -4498,7 +4473,7 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *notch_stat = get_field("#notch_plugin");
 	struct field *dsp_stat = get_field("#dsp_plugin");
 	struct field *anr_stat = get_field("#anr_plugin");
-	struct field *qro_stat = get_field("#qro");
+	struct field *eptt_stat = get_field("#eptt");
 	struct field *vfo_stat = get_field("#vfo_lock");
 	struct field *comp_stat = get_field("#comp_plugin");
 
@@ -4562,15 +4537,15 @@ gboolean check_plugin_controls(gpointer data)
 		}
 	}
 
-	if (qro_stat)
+	if (eptt_stat)
 	{
-		if (!strcmp(qro_stat->value, "ON"))
+		if (!strcmp(eptt_stat->value, "ON"))
 		{
-			qro_enabled = 1;
+			eptt_enabled = 1;
 		}
-		else if (!strcmp(qro_stat->value, "OFF"))
+		else if (!strcmp(eptt_stat->value, "OFF"))
 		{
-			qro_enabled = 0;
+			eptt_enabled = 0;
 		}
 	}
 
@@ -5492,7 +5467,7 @@ int web_get_console(char *buff, int max)
 void web_get_spectrum(char *buff)
 {
 
-	int n_bins = (int)((1.0 * spectrum_span) / BIN_WIDTH);
+	int n_bins = (int)((1.0 * spectrum_span) / 46.875);
 	// the center frequency is at the center of the lower sideband,
 	// i.e, three-fourth way up the bins.
 	int starting_bin = (3 * MAX_BINS) / 4 - n_bins / 2;
@@ -7033,7 +7008,7 @@ int main(int argc, char *argv[])
 	set_field("#text_in", "");
 	field_set("REC", "OFF");
 	field_set("KBD", "OFF");
-	field_set("QRO", "OFF");
+	field_set("ePTT", "OFF");
 	field_set("MENU", "OFF");
 	field_set("TUNE", "OFF");
 	field_set("NOTCH", "OFF");
