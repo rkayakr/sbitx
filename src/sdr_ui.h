@@ -10,14 +10,16 @@ extern int spectrum_plot[];
 void remote_execute(char *command);
 int remote_update_field(int i, char *text);
 void web_get_spectrum(char *buff);
+void save_user_settings(int forced);
 int web_get_console(char *buff, int max);
 int remote_audio_output(int16_t *samples);
-const char *field_str(char *label);
+const char *field_str(const char *label);
 int field_int(char *label);
 int is_in_tx();
 void abort_tx();
 void enter_qso();
 extern int display_freq;
+
 
 #define FONT_FIELD_LABEL 0
 #define FONT_FIELD_VALUE 1
@@ -55,5 +57,4 @@ void update_log_ed();
 void write_call_log();
 time_t time_sbitx();
 
-
-#define VER_STR "sbitx v4.12" // Thanks to W9JES, W2JON, N1QM, OZ7BX, and KF7YDU
+#define VER_STR "sbitx v4.2" // Thanks to W9JES, W2JON, N1QM, OZ7BX, W4WHL, and KF7YDU
