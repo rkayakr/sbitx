@@ -70,6 +70,7 @@
 	
 */
 #include <stdio.h>
+#include <sys/time.h>   //added to support debug timing code
 #include <stdlib.h>
 #include <assert.h>
 #include <string.h>
@@ -288,8 +289,7 @@ static int cw_bytes_available = 0; //chars available in the tx queue
 #define CW_MAX_SYMBOLS 12
 char cw_key_letter[CW_MAX_SYMBOLS];
 
-//the of morse code needs to translate into CW_DOT, CW_DASH, etc
-static uint8_t cw_get_next_symbol(){
+static uint8_t cw_get_next_symbol(){  //symbol to translate into CW_DOT, CW_DASH, etc
 
 	if (!symbol_next)
 		return CW_IDLE;
@@ -313,16 +313,15 @@ static uint8_t cw_get_next_symbol(){
 }
 
 
-// cw_read_key() routine is called 96000 times a second
-//it can't poll gpio lines or text input, those are done in modem_poll()
+//cw_read_key() is called 96000 times a second
+//it should not poll gpio lines or text input, those are done in modem_poll()
 //and we only read the status from the variable updated by modem_poll()
 
 static int cw_read_key(){
 	char c;
 
-	//preferance to the keyer activity
+	//process cw key before other cw inputs (macros, keyboard)
 	if (cw_key_state != CW_IDLE) {
-		//cw_key_state = key_poll();
 		return cw_key_state;
 	}
 
@@ -359,14 +358,11 @@ static int cw_read_key(){
 // Trying to improve CW straight-key performance (and performance with external electronic keyers)
 // without changing electronic keyer function, performance or timing
 float cw_tx_get_sample() {
-  float sample;        // the shaped CW level (0 to 1)
-  uint8_t symbol_now;
-  sample = 0;          // used in CW envelope shaping
+  float sample = 0;        // the shaped CW level (0 to 1)
+  uint8_t symbol_now = cw_read_key();
   
-  symbol_now = cw_read_key();
-  
-  if (!keydown_count && !keyup_count) { // CW key may be going down - because it's not up
-    millis_now = sbitx_millis();        // remember time of possible keydown
+  if (!keydown_count && !keyup_count) { 
+    millis_now = millis();  //REVERT FARHAN JUL 2024 CW FIX
     if (cw_tone.freq_hz != get_pitch()) // set CW pitch if needed
       vfo_start( &cw_tone, get_pitch(), 0);
   }
@@ -374,7 +370,7 @@ float cw_tx_get_sample() {
   switch (cw_current_symbol) {
   case CW_IDLE:                   // this is the start case 
     if (symbol_now & CW_DOWN) {   // the straight key has just gone down
-      keydown_count = 1;
+      keydown_count = 1;   // this was 2000, did not seem right ....
       keyup_count = 0;
       cw_current_symbol = CW_DOWN;
     } else if (symbol_now & CW_DOT) {
@@ -403,12 +399,19 @@ float cw_tx_get_sample() {
     }
     break;
   case CW_DOWN:      // the straight key is down
-    if (symbol_now & CW_DOWN) {   // we don't really care how long it's held down
+    if (symbol_now & CW_DOWN) {   // we don't need to track how long it's held down
       keydown_count++;             // but maybe one day we will check for a maximum
       keyup_count = 0;
+      //modem_poll() did not detect key-up but we are going to check right now
+      //(this is an experiment to try to cut off some long dots and dashes)
+	    //cw_key_state = key_poll();  
+	    //if (cw_key_state != CW_DOWN) {  // early detection of key-up!
+		    //cw_current_symbol = CW_IDLE; 
+	      //keydown_count = 0;
+        //keyup_count = 1;}        // experiment ends here
     } else {                       // key was down but now it's not
-      //keydown_count = 0;         // might prevent shaping?
-      keyup_count++;
+      keydown_count = 0;           // this was commented out ...
+      keyup_count = 1;
       cw_current_symbol = CW_IDLE; //go back to idle
     }
     break;
@@ -475,7 +478,11 @@ float cw_tx_get_sample() {
 
   // keep extending 'cw_tx_until' while we're sending
   if (symbol_now & CW_DOWN || keydown_count > 0)
-	cw_tx_until = millis_now + get_cw_delay();
+	  cw_tx_until = millis_now + get_cw_delay();
+  //if macro or keyboard characters remain in the buffer
+  //prevent switching from xmit to rcv and cutting off macro
+  if (cw_bytes_available != 0)
+    cw_tx_until = millis_now + 1000;  
   return sample / 8;
 }
 
@@ -743,7 +750,10 @@ void cw_init(){
 	cw_rx_bin_init(&decoder.signal, INIT_TONE, N_BINS, SAMPLING_FREQ);
 	
 	//init cw tx with some reasonable values
-	vfo_start(&cw_env, 50, 49044); //start in the third quardrant, 270 degree
+  //cw_env shapes the envelope of the cw waveform
+  //frequency was at 50 (20 ms rise time), changed it to 200 (4 ms rise time)
+  //to improve cw performance at higher speeds
+	vfo_start(&cw_env, 200, 49044); //start in the third quardrant, 270 degree
 	vfo_start(&cw_tone, 700, 0);
 	cw_period = 9600; 		// At 96ksps, 0.1sec = 1 dot at 12wpm
 	cw_key_letter[0] = 0;
@@ -774,7 +784,7 @@ void cw_poll(int bytes_available, int tx_is_on){
 	
 	if (!tx_is_on && (cw_bytes_available || cw_key_state || (symbol_next && *symbol_next)) > 0){
 		tx_on(TX_SOFT);
-		millis_now = sbitx_millis();
+		millis_now = millis();
 		cw_tx_until = get_cw_delay() + millis_now;
 		cw_mode = get_cw_input_method();
 	}
@@ -785,42 +795,5 @@ void cw_poll(int bytes_available, int tx_is_on){
 
 void cw_abort(){
 	//flush all the tx text buffer
+  //actually does nothing
 }
-
-/*
-//we play with n-bins, and frequency distances between the bins
-int main(int argc, char  **argv){
-	int testData[10000];
-	int n_bins;
-	int sampling_freq = 12000;
-
-	if (argc != 5){
-		puts("cmd [filename] [n_bins] [freq] [wpm]");
-		exit(-1);
-	}
-	
-	n_bins = atoi(argv[2]);
-	int freq = atoi(argv[3]);
-	int wpm = atoi(argv[4]);
-
-	cw_init(&decoder, sampling_freq, n_bins, freq, wpm); 
-
-	FILE *pf = fopen(argv[1], "r");
-	pfout = fopen("mag.raw", "w");
-	int block_count = 0;
-	while(1){
-	  for (int index = 0; index < decoder.n_bins; index++) {
-			int16_t s;
-			if(fread(&s, 1, 2, pf) <= 0){
-				//puts("File error");
-				fclose(pfout);
-				fclose(pf);
-				exit(0);
-			}
-    	testData[index] = s;
-  	}
-		cw_process(&decoder, testData);
-	}
-	fclose(pf);
-}
-*/
