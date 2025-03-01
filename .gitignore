@@ -13,3 +13,4 @@ web/*.mc
 *.gcda
 src/ft8_lib/libft8.a
 docs/Wiki-Resources/*.*
+docs/Wiki-Resources/Disassembly
