@@ -20,6 +20,8 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include <ncurses.h>
 #include <gtk/gtk.h>
 #include <gdk/gdkkeysyms.h>
+#include <gdk/gdkx.h>
+#include <gtk/gtkx.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -48,7 +50,6 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "para_eq.h"
 #include "eq_ui.h"
 #include <time.h>
-
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
 extern struct rx *rx_list;
@@ -67,14 +68,13 @@ int comp_enabled = 0;
 int input_volume = 0;
 int vfo_lock_enabled = 0;
 int has_ina260 = 0;
+int zero_beat_enabled = 0;
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
 
 int scope_avg = 10; // Default value for SCOPEAVG
 float sp_baseline = 0;
-
-// Declare global variables for WFSPD and SCOPEGAIN
 int wf_spd = 50;		// Default value for WFSPD
 float scope_gain = 1.0; // Default value for SCOPEGAIN
 int scope_size = 100;	// Default size
@@ -115,6 +115,9 @@ char pins[15] = {0, 2, 3, 6, 7,
 // time sync, when the NTP time is not synced, this tracks the number of seconds
 // between the system cloc and the actual time set by \utc command
 static long time_delta = 0;
+
+// Zero beat detection
+int zero_beat_min_magnitude = 0;
 
 // INA260 I2C Address and Register Definitions
 #define INA260_ADDRESS 0x40
@@ -539,7 +542,10 @@ int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+void cleanup_on_exit(void);
 
 struct field *active_layout = NULL;
 char settings_updated = 0;
@@ -593,6 +599,8 @@ struct field main_controls[] = {
 	 "", 1, 100, 1, COMMON_CONTROL},
 	{"r1:freq", do_tuning, 600, 0, 150, 49, "FREQ", 5, "14000000", FIELD_NUMBER, FONT_LARGE_VALUE,
 	 "", 500000, 32000000, 100, COMMON_CONTROL},
+	{"#vfo_keypad_overlay", do_vfo_keypad, 600, 0, 150, 49, "", 0, "", FIELD_STATIC, FONT_FIELD_VALUE,
+	 "", 0, 0, 0, COMMON_CONTROL},
 	{"r1:volume", NULL, 755, 5, 40, 40, "AUDIO", 40, "60", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
 	{"#step", NULL, 560, 5, 40, 40, "STEP", 1, "10Hz", FIELD_SELECTION, FONT_FIELD_VALUE,
@@ -756,6 +764,8 @@ struct field main_controls[] = {
 	 "", 0, 0, 0, 0, COMMON_CONTROL}, // w9jes
 	{"#poff", NULL, 1000, -1000, 40, 40, "PWR-DWN", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
 	 "", 0, 0, 0, 0, COMMON_CONTROL},
+	 {"#wf_call", NULL, 1000, -1000, 40, 40, "WFCALL", 1, "", FIELD_BUTTON, FONT_FIELD_VALUE,
+		"", 0, 0, 0, 0, COMMON_CONTROL}, 
 
 	// EQ TX Audio Setting Controls
 	{"#eq_sliders", do_toggle_option, 1000, -1000, 40, 40, "EQSET", 40, "", FIELD_BUTTON, FONT_FIELD_VALUE,
@@ -811,6 +821,10 @@ struct field main_controls[] = {
 	 "ON/OFF", 0, 0, 0, 0},
 	// ePTT Enable/Bypass Control
 	{"#eptt", do_toggle_option, 1000, -1000, 40, 40, "ePTT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+
+	// WFCALL option ON/OFF
+	{"#wfcall_option", do_toggle_option, 1000, -1000, 40, 40, "WFCALLOPT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
 	// INA260 Option ON/OFF (enable/disable sensor readout)
@@ -872,6 +886,10 @@ struct field main_controls[] = {
 	 "", 500000, 30000000, 1, 0},
 	{"#rit_delta", NULL, 1000, -1000, 50, 50, "RIT_DELTA", 40, "000000", FIELD_NUMBER, FONT_FIELD_VALUE,
 	 "", -25000, 25000, 1, 0},
+	{"#zero_beat", do_toggle_option, 1000, -1000, 40, 40, "ZEROBEAT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	{"#zero_sense", do_zero_beat_sense_edit, 1000, -1000, 50, 50, "ZEROSENS", 40, "10", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 1, 10, 1, CW_CONTROL},
 
 	{"#cwinput", NULL, 1000, -1000, 50, 50, "CW_INPUT", 40, "KEYBOARD", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "STRAIGHT/IAMBICB/IAMBIC/ULTIMAT/BUG", 0, 0, 0, CW_CONTROL},
@@ -1908,6 +1926,112 @@ static void on_power_down_button_click(GtkWidget *widget, gpointer data)
 	}
 }
 
+
+// Transmit Callsign in Waterfall
+extern struct field *get_field(const char *name);
+
+// Struct to pass data to the thread
+typedef struct {
+    GtkWidget *dialog;
+    char text[128];  // Just store the callsign text
+} TransmitData;
+
+// Thread function to run the command and close the dialog
+
+//
+// Idle callback to destroy the dialog safely
+static gboolean destroy_dialog_idle(gpointer user_data)
+{
+    GtkWidget *dialog = GTK_WIDGET(user_data);
+
+    if (GTK_IS_WIDGET(dialog)) {
+        gtk_widget_destroy(dialog);
+    }
+
+    // Unref the dialog since we ref'd it before the thread
+    g_object_unref(dialog);
+    return FALSE;  // Remove the idle callback
+}
+
+static gpointer transmit_callsign_thread(gpointer user_data)
+{
+    TransmitData *tdata = (TransmitData *)user_data;
+
+    // Arguments for the system command
+    gchar *argv[] = {
+        "python3",
+        "/home/pi/spectrum_painting/spectrogram-generator.py",
+        "--text",
+        NULL,  // This will be set later
+        "--transmit",
+        NULL
+    };
+
+    argv[3] = g_strdup(tdata->text);  // Set the callsign
+
+    gint exit_status = 0;
+    GError *error = NULL;
+    gboolean success = g_spawn_sync(
+        NULL,            // Working directory
+        argv,            // Argument vector
+        NULL,            // Environment
+        G_SPAWN_SEARCH_PATH,
+        NULL,            // Child setup function
+        NULL,            // User data
+        NULL,            // Stdout
+        NULL,            // Stderr
+        &exit_status,
+        &error
+    );
+
+    if (!success) {
+        g_warning("Failed to run command: %s", error->message);
+        g_error_free(error);
+    }
+
+    g_free(argv[3]);
+
+    // Safely destroy the dialog from the main thread
+    g_idle_add(destroy_dialog_idle, tdata->dialog);
+
+    g_free(tdata);
+    return NULL;
+}
+
+static void on_wf_call_button_click(GtkWidget *widget, gpointer data)
+{
+    const char *callsign = get_field("#mycallsign")->value;
+    if (!callsign || strlen(callsign) == 0)
+        callsign = "N0CALL";
+
+    // Create a top-level, undecorated window
+    GtkWidget *dialog = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_decorated(GTK_WINDOW(dialog), FALSE);  
+    gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+    gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
+    gtk_window_set_position(GTK_WINDOW(dialog), GTK_WIN_POS_CENTER);
+
+    // Create the content for the dialog
+    GtkWidget *box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    GtkWidget *label = gtk_label_new("Transmitting Callsign in Waterfall");
+    gtk_container_add(GTK_CONTAINER(box), label);
+    gtk_container_add(GTK_CONTAINER(dialog), box);
+
+    gtk_widget_show_all(dialog);
+
+    // Ref the dialog to ensure it's valid when we destroy it later
+    g_object_ref(dialog);
+
+    // Prepare data for thread
+    TransmitData *tdata = g_malloc(sizeof(TransmitData));
+    tdata->dialog = dialog;
+    snprintf(tdata->text, sizeof(tdata->text), "%s", callsign);
+
+    // Run the command in a separate thread
+    g_thread_new("transmit_thread", transmit_callsign_thread, tdata);
+}
+
+
 /* rendering of the fields */
 
 // mod disiplay holds the tx modulation time domain envelope
@@ -2108,6 +2232,39 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 
 void draw_waterfall(struct field *f, cairo_t *gfx)
 {
+	// Check if remote browser session is active and not from localhost (127.0.0.1)
+	if (is_remote_browser_active() && !is_localhost_connection_only())
+	{
+		// Display message instead of rendering waterfall
+		cairo_set_source_rgb(gfx, 0.0, 0.0, 0.0);
+		cairo_rectangle(gfx, f->x, f->y, f->width, f->height);
+		cairo_fill(gfx);
+
+		cairo_set_source_rgb(gfx, 1.0, 1.0, 1.0);
+		cairo_select_font_face(gfx, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+		cairo_set_font_size(gfx, 14);
+
+		// Get the IP address of the connected client
+		char ip_list[256];
+		get_active_connection_ips(ip_list, sizeof(ip_list));
+		
+		// Create the message with IP address
+		char message[512];
+		snprintf(message, sizeof(message), "Waterfall display disabled - Remote session from %s", ip_list);
+		
+		// Calculate text position
+		cairo_text_extents_t extents;
+		cairo_text_extents(gfx, message, &extents);
+
+		// Center the text
+		float x = f->x + (f->width - extents.width) / 2;
+		float y = f->y + (f->height + extents.height) / 2;
+
+		cairo_move_to(gfx, x, y);
+		cairo_show_text(gfx, message);
+		return;
+	}
+
 	// Temp local variables.  To be updated by GUI later.
 	float initial_wf_min = 0.0f;
 	float initial_wf_max = 100.0f;
@@ -2268,6 +2425,39 @@ void compute_time_based_average(int *averaged_spectrum, int n_bins)
 
 void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 {
+	// Check if remote browser session is active and not from localhost (127.0.0.1)
+	if (is_remote_browser_active() && !is_localhost_connection_only())
+	{
+		// Display message instead of rendering spectrum
+		cairo_set_source_rgb(gfx, 0.0, 0.0, 0.0);
+		cairo_rectangle(gfx, f_spectrum->x, f_spectrum->y, f_spectrum->width, f_spectrum->height);
+		cairo_fill(gfx);
+
+		cairo_set_source_rgb(gfx, 1.0, 1.0, 1.0);
+		cairo_select_font_face(gfx, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+		cairo_set_font_size(gfx, 14);
+
+		// Get the IP address of the connected client
+		char ip_list[256];
+		get_active_connection_ips(ip_list, sizeof(ip_list));
+		
+		// Create the message with IP address
+		char message[512];
+		snprintf(message, sizeof(message), "Spectrum display disabled - Remote session from %s", ip_list);
+		
+		// Calculate text position
+		cairo_text_extents_t extents;
+		cairo_text_extents(gfx, message, &extents);
+
+		// Center the text
+		float x = f_spectrum->x + (f_spectrum->width - extents.width) / 2;
+		float y = f_spectrum->y + (f_spectrum->height + extents.height) / 2;
+
+		cairo_move_to(gfx, x, y);
+		cairo_show_text(gfx, message);
+		return;
+	}
+
 	int y, sub_division, i, grid_height, bw_high, bw_low, pitch, tx_pitch;
 	float span;
 	struct field *f;
@@ -2605,6 +2795,86 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	cairo_show_text(gfx, vfolk_text);
 
 	cairo_stroke(gfx);
+
+	if (zero_beat_enabled)
+	{
+		// --- Zero Beat indicator
+		const char *zerobeat_text = "ZBEAT";
+		cairo_set_font_size(gfx, FONT_SMALL);
+	
+		
+		// Only show zero beat indicator in CW/CWR modes
+		if (!strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "CWR")) {
+			// Get zero beat value from calculate_zero_beat
+			int zerobeat_value = calculate_zero_beat(rx_list, 96000.0);
+	
+	
+			// Position and draw the text in gray
+			int zerobeat_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) - 183 ;
+			int zerobeat_text_y = f_spectrum->y + 30;
+	
+			// Draw text in gray always
+			cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Gray text
+			cairo_move_to(gfx, zerobeat_text_x, zerobeat_text_y);
+			cairo_show_text(gfx, zerobeat_text);
+	
+			// Draw LED indicators
+			int box_width = 15;
+			int box_height = 5;
+			int spacing = 2;
+			int led_y = zerobeat_text_y - 5;
+			int led_x = zerobeat_text_x + measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) + 5;
+	
+			// Draw LED background
+			cairo_save(gfx);
+			cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.5);
+			cairo_rectangle(gfx, led_x - 2, led_y - 2, 
+						   (box_width + spacing) * 5 + 4, box_height + 4);
+			cairo_fill(gfx);
+	
+			// Draw 5 LEDs
+	
+			
+			for(int i = 0; i < 5; i++) {
+				cairo_rectangle(gfx, led_x + i * (box_width + spacing), led_y, box_width, box_height);
+				
+				// Set LED color based on zero beat value and position
+				if (i == 0 && zerobeat_value == 1) { // Far below
+		
+		
+					cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
+				}
+				else if (i == 1 && zerobeat_value == 2) { // Slightly below
+		
+		
+					cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);
+				}
+				else if (i == 2 && zerobeat_value == 3) { // Centered
+		
+		
+					cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0);
+				}
+				else if (i == 3 && zerobeat_value == 4) { // Slightly above
+		
+		
+					cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);
+				}
+				else if (i == 4 && zerobeat_value == 5) { // Far above
+		
+		
+					cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
+				}
+				else {
+		
+		
+					cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Inactive LED
+				}
+	
+				cairo_fill(gfx);
+			}
+			cairo_restore(gfx);
+		}
+	}
 
 	// draw the frequency readout at the bottom
 	cairo_set_source_rgb(gfx, palette[COLOR_TEXT_MUTED][0],
@@ -3028,10 +3298,11 @@ void draw_dial(struct field *f, cairo_t *gfx)
 void invalidate_rect(int x, int y, int width, int height)
 {
 	if (display_area)
-	{
 		gtk_widget_queue_draw_area(display_area, x, y, width, height);
-	}
 }
+
+// These functions have been removed to avoid memory corruption issues
+// The regular UI update cycle will handle refreshing the display when needed
 
 // the keyboard appears at the bottom 150 pixels of the window
 void keyboard_display(int show)
@@ -3103,7 +3374,7 @@ void menu_display(int show)
 				field_move("TNDUR", 500, screen_height - 100, 45, 45);
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
-					field_move("ePTT", 630, screen_height - 100, 95, 45); // Rightmost
+					field_move("ePTT", screen_width - 94, screen_height - 100, 92, 45);
 				}
 
 				// Line 2 (screen_height - 90)
@@ -3165,8 +3436,19 @@ void menu2_display(int show)
 		field_move("SCOPEAVG", 170, screen_height - 50, 70, 45);  // Add SCOPEAVG field
 		field_move("SCOPESIZE", 245, screen_height - 100, 70, 45); // Add SCOPESIZE field
 		field_move("INTENSITY", 245, screen_height - 50, 70, 45); // Add SCOPE ALPHA field
-                field_move("AUTOSCOPE", 320, screen_height - 50, 70, 45); // Add AUTOADJUST spectrum field
+		field_move("AUTOSCOPE", 320, screen_height - 50, 70, 45); // Add AUTOADJUST spectrum field
 		field_move("PWR-DWN", screen_width - 94, screen_height - 100, 92, 45); // Add PWR-DWN field
+		// Only show WFCALL if option is ON and mode is not FT8, CW, or CWR
+		const char *current_mode = field_str("MODE");
+		if (!strcmp(field_str("WFCALLOPT"), "ON") && 
+		    strcmp(current_mode, "FT8") != 0 && 
+		    strcmp(current_mode, "CW") != 0 && 
+		    strcmp(current_mode, "CWR") != 0)
+		{
+			field_move("WFCALL", screen_width - 94, screen_height - 155, 92, 45); // Add WFCALL
+		}
+		
+
 	}
 	else
 	{
@@ -3299,6 +3581,7 @@ static void layout_ui()
 		field_move("F8", 525, y1, 75, 45);
 		field_move("SIDETONE", 600, y1, 75, 45);
 		field_move("ESC", 675, y1, 75, 45);
+		field_move("TUNE", 1000, -1000, 40, 40);
 		break;
 
 	case MODE_CW:
@@ -3311,9 +3594,13 @@ static void layout_ui()
       
 		if (!strcmp(field_str("SPECT"), "FULL"))
 		{
-			field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
-			field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
-			field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, waterfall_height);
+			// shorten waterfall space to make room for small console
+      field_move("CONSOLE", 5, y1 + default_spectrum_height + waterfall_height -37, x2 - 7, 40);
+      field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
+      field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, waterfall_height - 40);
+      //field_move("CONSOLE", 1000, -1500, 350, y2 - y1 - 55);
+			//field_move("SPECTRUM", 5, y1, x2 - 7, default_spectrum_height);
+			//field_move("WATERFALL", 5, y1 + default_spectrum_height, x2 - 7, waterfall_height);
 		}
 		else
 		{
@@ -3333,9 +3620,11 @@ static void layout_ui()
 		field_move("WPM", 75, y1, 75, 45);
 		field_move("PITCH", 150, y1, 75, 45);
 		field_move("CW_DELAY", 225, y1, 75, 45);
-		field_move("CW_INPUT", 375, y1, 75, 45);
-		field_move("SIDETONE", 450, y1, 75, 45);
-		field_move("MACRO", 525, y1, 75, 45); 
+		field_move("CW_INPUT", 300, y1, 75, 45);
+		field_move("SIDETONE", 375, y1, 75, 45);
+		field_move("MACRO", 450, y1, 75, 45); 
+		field_move("ZEROBEAT", 600, y1, 75, 45);
+
 		field_move("SPECT", 752, y1, 45, 45);
 		y1 += 50;
 		field_move("F1", 5, y1, 70, 45);
@@ -3348,6 +3637,8 @@ static void layout_ui()
 		field_move("F8", 525, y1, 75, 45);
 		field_move("F9", 600, y1, 75, 45);
 		field_move("F10", 675, y1, 70, 45);
+		field_move("TUNE", 1000, -1000, 40, 40);
+		
 		break;
 	case MODE_USB:
 	case MODE_LSB:
@@ -3377,6 +3668,8 @@ static void layout_ui()
 		field_move("HIGH", 160, y1, 95, 45);
 		field_move("TX", 260, y1, 95, 45);
 		field_move("RX", 360, y1, 95, 45);
+		field_move("TUNE", 460, 5, 40, 40);
+		 
 		break;
 	case MODE_DIGITAL: // W9JES
 		// N1QM
@@ -3402,6 +3695,7 @@ static void layout_ui()
 		field_move("HIGH", 160, y1, 95, 45);
 		field_move("TX", 260, y1, 95, 45);
 		field_move("RX", 360, y1, 95, 45);
+		field_move("TUNE", 460, 5, 40, 40);
 		// Don't show pitch field in DIGI mode
 		// field_move("PITCH", 460, y1, 95, 45);
 		field_move("SIDETONE", 460, y1, 95, 45); // Added back in for ext modes W9JES
@@ -4408,6 +4702,35 @@ int do_toggle_option(struct field *f, cairo_t *gfx, int event, int a, int b, int
 	return 0;
 }
 
+// Function to launch freq-direct.py keypad when VFO area is touched
+int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	if (event == FIELD_DRAW)
+	{
+		// Don't draw anything - make it completely transparent
+		// This ensures the VFO display remains visible
+		return 1; // Return 1 to indicate we've handled the drawing
+	}
+	else if (event == GDK_BUTTON_PRESS || event == FIELD_EDIT)
+	{
+		// Use the focus_keypad.sh script to either focus the existing keypad
+		// or launch a new one if it's not running
+		system("/home/pi/sbitx/src/focus_keypad.sh &");
+		
+		// Force a redraw of the VFO area to prevent black background
+		invalidate_rect(f->x, f->y, f->width, f->height);
+		
+		// Also redraw the r1:freq field which is underneath
+		struct field *freq_field = get_field("r1:freq");
+		if (freq_field) {
+			invalidate_rect(freq_field->x, freq_field->y, freq_field->width, freq_field->height);
+		}
+		
+		return 1;
+	}
+	return 0;
+}
+
 void open_url(char *url)
 {
 	char temp_line[200];
@@ -4835,6 +5158,14 @@ int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	return 0;
 }
 
+int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	const char *zero_beat_sense_field = field_str("ZEROSENS");
+	int zero_beat_sense_value = atoi(zero_beat_sense_field);
+	zero_beat_min_magnitude = zero_beat_sense_value;
+	return 0;
+}
+
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	const char *field_name = f->label;					 // Get the field label
@@ -5016,6 +5347,18 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *vfo_stat = get_field("#vfo_lock");
 	struct field *comp_stat = get_field("#comp_plugin");
 	struct field *ina260_stat = get_field("#ina260_option");
+	struct field *zero_beat_stat = get_field("#zero_beat");
+	if (zero_beat_stat)
+	{
+		if (!strcmp(zero_beat_stat->value, "ON"))
+		{
+			zero_beat_enabled = 1;
+		}
+		else if (!strcmp(zero_beat_stat->value, "OFF"))
+		{
+			zero_beat_enabled = 0;
+		}
+	}	
 	if (ina260_stat)
 	{
 		if (!strcmp(ina260_stat->value, "ON"))
@@ -6558,6 +6901,7 @@ gboolean ui_tick(gpointer gook)
 		else
 			edit_field(f_focus, MIN_KEY_UP);
 	}
+	
 	return TRUE;
 }
 
@@ -6963,6 +7307,11 @@ void do_control_action(char *cmd)
 	{
 		on_power_down_button_click(NULL, NULL);
 	}
+	else if (!strcmp(request, "WFCALL"))
+	{
+		on_wf_call_button_click(NULL, NULL);
+	}
+
 	else if (!strcmp(request, "LOG"))
 	{
 		logbook_list_open();
@@ -7839,7 +8188,19 @@ int main(int argc, char *argv[])
 	//	"--enable-features=OverlayScrollbar http://127.0.0.1:8080"
 	//	"  &>/dev/null &");
 
+	// Register a function to be called when the application exits
+	atexit(cleanup_on_exit);
+
 	gtk_main();
 
 	return 0;
+}
+
+// Function to clean up resources when the application exits
+void cleanup_on_exit() {
+	// Close the frequency keypad if it's running
+	system("/home/pi/sbitx/src/cleanup_keypad.sh");
+	
+	// Add any other cleanup tasks here
+	printf("Cleaning up resources before exit\n");
 }
