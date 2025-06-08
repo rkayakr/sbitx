@@ -2041,269 +2041,76 @@ static void on_wf_call_button_click(GtkWidget *widget, gpointer data)
 int mod_display[MOD_MAX];
 int mod_display_index = 0;
 
-// Circular buffer for oscilloscope-like display
-#define MOD_BUFFER_SIZE 1024
-static int32_t mod_circular_buffer[MOD_BUFFER_SIZE];
-static int mod_buffer_pos = 0;
-static int mod_trigger_level = 0;
-static int mod_triggered = 0;
-static int mod_trigger_pos = 0;
-
-// Previous modulation state for hysteresis
-static int prev_modulation_state = 0;
-static int modulation_count = 0;
-
-// Low-pass filter for noise reduction
-static double prev_samples[8] = {0};
-static int filter_index = 0;
-
-// This function updates the modulation display data from the TX audio samples
 void sdr_modulation_update(int32_t *samples, int count, double scale_up)
 {
-	int i;
-	
-	// Apply a simple low-pass filter to reduce noise
-	double filtered_samples[1024]; // Temporary buffer for filtered samples
-	int filter_size = (count > 1024) ? 1024 : count;
-	
-	// Apply moving average filter to reduce high-frequency noise
-	for (i = 0; i < filter_size; i++) {
-		// Update the circular filter buffer
-		prev_samples[filter_index] = samples[i];
-		filter_index = (filter_index + 1) % 8;
-		
-		// Calculate moving average
-		double sum = 0;
-		for (int j = 0; j < 8; j++) {
-			sum += prev_samples[j];
+	double min = 0, max = 0;
+
+	for (int i = 0; i < count; i++)
+	{
+		if (i % 48 == 0 && i > 0)
+		{
+			if (mod_display_index >= MOD_MAX)
+				mod_display_index = 0;
+			mod_display[mod_display_index++] = (min / 40000000.0) / scale_up;
+			mod_display[mod_display_index++] = (max / 40000000.0) / scale_up;
+			min = 0x7fffffff;
+			max = -0x7fffffff;
 		}
-		filtered_samples[i] = sum / 8.0;
+		if (*samples < min)
+			min = *samples;
+		if (*samples > max)
+			max = *samples;
+		samples++;
 	}
-	
-	// Calculate DC offset (average) to remove it
-	double dc_offset = 0;
-	for (i = 0; i < filter_size; i++) {
-		dc_offset += filtered_samples[i];
-	}
-	dc_offset /= filter_size;
-	
-	// Find the peak amplitude for adaptive scaling and noise gate
-	double peak = 1.0;
-	double rms = 0.0;
-	double max_sample = 0.0;
-	
-	// Calculate RMS and find maximum sample value
-	for (i = 0; i < filter_size; i++) {
-		double sample_value = fabs(filtered_samples[i] - dc_offset);
-		if (sample_value > peak) peak = sample_value;
-		if (sample_value > max_sample) max_sample = sample_value;
-		rms += sample_value * sample_value;
-	}
-	rms = sqrt(rms / filter_size);
-	
-	// Use both RMS and peak-to-average ratio for better noise detection
-	// Much higher threshold for better noise rejection
-	const double NOISE_THRESHOLD = 1000.0; 
-	const double PEAK_RATIO_THRESHOLD = 5.0; 
-	
-	// Real modulation typically has higher peak-to-RMS ratio than noise
-	double peak_to_rms = (rms > 0) ? (max_sample / rms) : 0;
-	int is_modulation_present = (rms > NOISE_THRESHOLD) || (peak_to_rms > PEAK_RATIO_THRESHOLD && rms > 2000.0);
-	
-	// Apply hysteresis - require several consecutive frames to change state
-	if (is_modulation_present == prev_modulation_state) {
-		modulation_count = 0;
-	} else if (++modulation_count > 5) { // Increased to require more consecutive frames
-		prev_modulation_state = is_modulation_present;
-		modulation_count = 0;
-	} else {
-		is_modulation_present = prev_modulation_state; // Keep previous state until confirmed
-	}
-	
-	// Use a reasonable scaling factor
-	double scale_factor = 10.0 / peak;
-	if (scale_factor > 1.0/1000.0) scale_factor = 1.0/1000.0; // Prevent excessive scaling
-	
-	// Reset the circular buffer if no modulation is present
-	if (!is_modulation_present) {
-		// Clear the circular buffer
-		for (i = 0; i < MOD_BUFFER_SIZE; i++) {
-			mod_circular_buffer[i] = 0;
-		}
-		mod_buffer_pos = 0;
-		mod_triggered = 0;
-	}
-	
-	// Add samples to the circular buffer
-	int step = 4; // Skip some samples to avoid filling buffer too quickly
-	if (filter_size < 512) step = 2; // Use more samples if we have fewer
-	
-	for (i = 0; i < filter_size; i += step) {
-		// Get the sample value with DC offset removed
-		int value;
-		
-		if (is_modulation_present) {
-			// Normal processing when modulation is present
-			value = (int)((filtered_samples[i] - dc_offset) * scale_factor);
-			
-			// Apply soft limiting
-			if (value > 15) {
-				value = 15 + (int)((value - 15) * 0.3);
-				if (value > 18) value = 18;
-			} else if (value < -15) {
-				value = -15 + (int)((value + 15) * 0.3);
-				if (value < -18) value = -18;
-			}
-		} else {
-			// When no modulation is present, show a flat line
-			value = 0;
-		}
-		
-		// Store in circular buffer
-		mod_circular_buffer[mod_buffer_pos] = value;
-		mod_buffer_pos = (mod_buffer_pos + 1) % MOD_BUFFER_SIZE;
-		
-		// Simple trigger detection (rising edge crossing zero)
-		if (!mod_triggered && value >= 0 && 
-			(mod_buffer_pos > 0 && mod_circular_buffer[(mod_buffer_pos - 1 + MOD_BUFFER_SIZE) % MOD_BUFFER_SIZE] < 0)) {
-			mod_triggered = 1;
-			mod_trigger_pos = mod_buffer_pos;
-		}
-	}
-	
-	// Reset the modulation display buffer
-	for (i = 0; i < MOD_MAX; i++) {
-		mod_display[i] = 0;
-	}
-	
-	// Reset index
-	mod_display_index = 0;
-	
-	// If no modulation is present, just show a flat line
-	if (!is_modulation_present) {
-		// Fill the display buffer with zeros (flat line)
-		for (i = 0; i < MOD_MAX; i++) {
-			mod_display[mod_display_index++] = 0;
-		}
-		
-		// Reset trigger
-		mod_triggered = 0;
-		return;
-	}
-	
-	// If we haven't triggered yet, just use the most recent data
-	if (!mod_triggered) {
-		mod_trigger_pos = mod_buffer_pos;
-	}
-	
-	// Copy data from circular buffer to display buffer, starting from trigger position
-	// Use the full MOD_MAX width to span the entire viewport
-	int display_width = MOD_MAX;
-	
-	// Calculate a good starting position that will show a complete waveform
-	int start_pos = (mod_trigger_pos - 10 + MOD_BUFFER_SIZE) % MOD_BUFFER_SIZE; // Start slightly before trigger
-	
-	// Fill the display buffer with evenly spaced samples from the circular buffer
-	for (i = 0; i < display_width && mod_display_index < MOD_MAX; i++) {
-		// Calculate buffer index with proper spacing to show one complete waveform
-		int buffer_idx = (start_pos + (i * MOD_BUFFER_SIZE / display_width)) % MOD_BUFFER_SIZE;
-		mod_display[mod_display_index++] = mod_circular_buffer[buffer_idx];
-	}
-	
-	// Reset trigger for next update (auto trigger mode)
-	mod_triggered = 0;
-	
-	// Ensure we have a valid count of samples
-	if (mod_display_index < 2) {
-		mod_display_index = 2;
-		mod_display[0] = 0;
-		mod_display[1] = 0;
-	}
-	return;
 }
 
 void draw_modulation(struct field *f, cairo_t *gfx)
 {
-	int i, grid_height;
-	
-	// Calculate usable dimensions
-	grid_height = f->height - 15; // Leave space for the label at top
-	
-	// Clear the background
+
+	int y, sub_division, i, grid_height;
+	long freq, freq_div;
+	char freq_text[20];
+
+	//	f = get_field("spectrum");
+	sub_division = f->width / 10;
+	grid_height = f->height - 10;
+
+	// clear the spectrum
 	fill_rect(gfx, f->x, f->y, f->width, f->height, SPECTRUM_BACKGROUND);
 	cairo_stroke(gfx);
-	
-	// Draw horizontal grid lines
-	cairo_set_line_width(gfx, 0.5);
-	cairo_set_source_rgba(gfx, 0.3, 0.3, 0.3, 0.5); // Subtle gray for grid
-	
-	// Draw center line
-	int h_center = f->y + 15 + (grid_height / 2);
-	cairo_move_to(gfx, f->x, h_center);
-	cairo_line_to(gfx, f->x + f->width, h_center);
+	cairo_set_line_width(gfx, 1);
+	cairo_set_source_rgb(gfx, palette[SPECTRUM_GRID][0], palette[SPECTRUM_GRID][1], palette[SPECTRUM_GRID][2]);
+
+	// draw the horizontal grid
+	for (i = 0; i <= grid_height; i += grid_height / 10)
+	{
+		cairo_move_to(gfx, f->x, f->y + i);
+		cairo_line_to(gfx, f->x + f->width, f->y + i);
+	}
+
+	// draw the vertical grid
+	for (i = 0; i <= f->width; i += f->width / 10)
+	{
+		cairo_move_to(gfx, f->x + i, f->y);
+		cairo_line_to(gfx, f->x + i, f->y + grid_height);
+	}
 	cairo_stroke(gfx);
-	
-	// Draw upper and lower reference lines (at 50% of max amplitude)
-	cairo_set_dash(gfx, (double[]){1.0, 2.0}, 2, 0);
-	cairo_move_to(gfx, f->x, h_center - 10);
-	cairo_line_to(gfx, f->x + f->width, h_center - 10);
-	cairo_move_to(gfx, f->x, h_center + 10);
-	cairo_line_to(gfx, f->x + f->width, h_center + 10);
-	cairo_stroke(gfx);
-	cairo_set_dash(gfx, NULL, 0, 0); // Reset dash pattern
-	
-	// Calculate how many mod_display samples we have
-	int valid_samples = mod_display_index;
-	if (valid_samples < 2) { // Need at least 2 points
-		return; // Not enough data to draw
+
+	// start the plot
+	cairo_set_source_rgb(gfx, palette[SPECTRUM_PLOT][0],
+						 palette[SPECTRUM_PLOT][1], palette[SPECTRUM_PLOT][2]);
+	cairo_move_to(gfx, f->x + f->width, f->y + grid_height);
+
+	int n_env_samples = sizeof(mod_display) / sizeof(int32_t);
+	int h_center = f->y + grid_height / 2;
+	for (i = 0; i < f->width; i++)
+	{
+		int index = (i * n_env_samples) / f->width;
+		int min = mod_display[index++];
+		int max = mod_display[index++];
+		cairo_move_to(gfx, f->x + i, min + h_center);
+		cairo_line_to(gfx, f->x + i, max + h_center + 1);
 	}
-	
-	// Calculate scaling factors to fit the waveform in the display
-	int start_x = f->x + 2; // Start with a small margin
-	int usable_width = f->width - 4; // Leave small margin on both sides
-	float x_scale = (float)usable_width / valid_samples;
-	
-	// Draw the filled area under the waveform for better visibility
-	cairo_move_to(gfx, start_x, h_center);
-	
-	// Draw the upper part of the waveform
-	for (i = 0; i < valid_samples; i++) {
-		int x = start_x + (int)(i * x_scale);
-		int y = h_center + mod_display[i];
-		
-		// Ensure we stay within bounds
-		if (x >= f->x + f->width) break;
-		
-		cairo_line_to(gfx, x, y);
-	}
-	
-	// Complete the path back to the center line
-	cairo_line_to(gfx, start_x + (int)((valid_samples-1) * x_scale), h_center);
-	cairo_line_to(gfx, start_x, h_center);
-	
-	// Fill with semi-transparent green
-	cairo_set_source_rgba(gfx, 0.0, 1.0, 0.0, 0.15);
-	cairo_fill(gfx);
-	
-	// Draw the waveform line with a thicker, brighter line
-	cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Bright green for the waveform
-	cairo_set_line_width(gfx, 1.5); // Thicker line for better visibility
-	
-	// Start the waveform path
-	cairo_move_to(gfx, start_x, h_center + mod_display[0]);
-	
-	// Draw the waveform line
-	for (i = 1; i < valid_samples; i++) {
-		int x = start_x + (int)(i * x_scale);
-		int y = h_center + mod_display[i];
-		
-		// Ensure we stay within bounds
-		if (x >= f->x + f->width) break;
-		
-		cairo_line_to(gfx, x, y);
-	}
-	
-	// Stroke the waveform
 	cairo_stroke(gfx);
 }
 
@@ -2468,10 +2275,8 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 
 	if (in_tx)
 	{
-		//draw_tx_meters(f, gfx);
-		//return;
-		// In TX mode, we'll continue to draw the waterfall with TX audio data
-		// The TX meters are now displayed in the spectrum grid instead
+		draw_tx_meters(f, gfx);
+		return;
 	}
 
 	// Scroll the existing waterfall data down
@@ -2659,6 +2464,12 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	long freq, freq_div;
 	char freq_text[20];
 
+	if (in_tx)
+	{
+		draw_modulation(f_spectrum, gfx);
+		return;
+	}
+
 	pitch = field_int("PITCH");
 	tx_pitch = field_int("TX_PITCH");
 	struct field *mode_f = get_field("r1:mode");
@@ -2730,49 +2541,6 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	draw_spectrum_grid(f_spectrum, gfx);
 	f = f_spectrum;
-	
-	// Display TX meters in the top left corner of the spectrum grid during transmission
-	if (in_tx) {
-		// Create a semi-transparent black background for the TX meters
-		cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.7);
-		cairo_rectangle(gfx, f->x + 5, f->y + 5, 250, 20);
-		cairo_fill(gfx);
-		
-		// Draw the TX meters in the top left corner of the spectrum
-		struct field meter_field = *f;
-		meter_field.x = f->x + 5;
-		meter_field.y = f->y + 5;
-		meter_field.height = 20;
-		draw_tx_meters(&meter_field, gfx);
-		
-		// Create a small modulation display in the top right corner
-		int mod_width = 150;
-		int mod_height = 50;
-		int mod_x = f->x + f->width - mod_width - 5;
-		int mod_y = f->y + 12;
-		
-		// Create a semi-transparent black background for the modulation display
-		cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.7);
-		cairo_rectangle(gfx, mod_x, mod_y, mod_width, mod_height);
-		cairo_fill(gfx);
-		
-		// Draw a border around the modulation display
-		cairo_set_source_rgba(gfx, 0.5, 0.5, 0.5, 0.8);
-		cairo_rectangle(gfx, mod_x, mod_y, mod_width, mod_height);
-		cairo_stroke(gfx);
-		
-		// Draw the modulation waveform
-		struct field mod_field;
-		mod_field.x = mod_x;
-		mod_field.y = mod_y;
-		mod_field.width = mod_width;
-		mod_field.height = mod_height;
-		draw_modulation(&mod_field, gfx);
-		
-		// Add a small label for the modulation display
-		cairo_set_source_rgb(gfx, 1.0, 1.0, 1.0);
-		draw_text(gfx, mod_x + 5, mod_y + 10, "TX Modulation", FONT_SMALL);
-	}
 
 	// Cast notch filter display
 	double yellow_opacity = 0.5; // (0.0 - 1.0)
