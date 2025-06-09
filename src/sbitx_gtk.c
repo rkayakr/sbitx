@@ -3234,14 +3234,14 @@ void draw_dial(struct field *f, cairo_t *gfx)
 			draw_text(gfx, f->x + 5, f->y + 1, buff, FONT_LARGE_FIELD);
 		}
 	}
-	else if (!strcmp(split->value, "ON"))
+        else if (!strcmp(split->value, "ON"))
 	{
 		if (!in_tx)
 		{
 			strcpy(temp_str, vfo_b->value);
 			sprintf(buff, "TX:%s", freq_with_separators(temp_str));
 			draw_text(gfx, f->x + 5, f->y + 1, buff, FONT_LARGE_FIELD);
-			sprintf(buff, "RX:%s", freq_with_separators(f->value));
+			sprintf(buff, "RX:%s", freq_with_separators(vfo_a->value)); // Use VFO A for RX  W9JES
 			draw_text(gfx, f->x + 5, f->y + 15, buff, FONT_LARGE_VALUE);
 		}
 		else
@@ -3249,7 +3249,7 @@ void draw_dial(struct field *f, cairo_t *gfx)
 			strcpy(temp_str, vfo_b->value);
 			sprintf(buff, "TX:%s", freq_with_separators(temp_str));
 			draw_text(gfx, f->x + 5, f->y + 15, buff, FONT_LARGE_VALUE);
-			sprintf(buff, "RX:%d", atoi(f->value) + atoi(rit_delta->value));
+			sprintf(buff, "RX:%s", freq_with_separators(vfo_a->value)); // Use VFO A for RX  W9JES
 			draw_text(gfx, f->x + 5, f->y + 1, buff, FONT_LARGE_FIELD);
 		}
 	}
@@ -4101,9 +4101,9 @@ void set_operating_freq(int dial_freq, char *response)
 	else if (!strcmp(split->value, "ON"))
 	{
 		if (!in_tx)
-			sprintf(freq_request, "r1:freq=%s", vfo_b->value);
+			sprintf(freq_request, "r1:freq=%s", vfo_a->value); // RX uses VFO A  W9JES
 		else
-			sprintf(freq_request, "r1:freq=%d", dial_freq);
+			sprintf(freq_request, "r1:freq=%s", vfo_b->value); // TX uses VFO B  W9JES
 	}
 	else
 	{
