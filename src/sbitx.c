@@ -133,11 +133,31 @@ int get_input_volume()
 {
 	return input_volume;
 }
-
+ 
 static int multicast_socket = -1;
 
 #define MUTE_MAX 6
 static int mute_count = 50;
+
+// Queue for browser microphone audio data
+struct Queue qbrowser_mic;
+static int browser_mic_active = 0;
+static int browser_mic_last_activity = 0;
+#define BROWSER_MIC_TIMEOUT 100 // 100ms timeout for physical mic fallback 
+
+// Audio buffer for smoothing browser mic audio
+#define BROWSER_MIC_BUFFER_SIZE 48000 // 500ms at 96kHz
+static int32_t browser_mic_buffer[BROWSER_MIC_BUFFER_SIZE];
+static int browser_mic_buffer_index = 0;
+static int browser_mic_buffer_filled = 0;
+
+// Ring buffer for jitter compensation
+#define JITTER_BUFFER_SIZE 96000 // 1 second at 96kHz
+static int16_t jitter_buffer[JITTER_BUFFER_SIZE];
+static int jitter_buffer_write = 0;
+static int jitter_buffer_read = 0;
+static int jitter_buffer_samples = 0;
+static pthread_mutex_t jitter_buffer_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 FILE *pf_record;
 int16_t record_buffer[1024];
@@ -430,6 +450,150 @@ int remote_audio_output(int16_t *samples)
 		samples[i] = q_read(&qremote) / 32786;
 	}
 	return length;
+}
+
+// Helper function to get available space in a queue
+int q_available_space(struct Queue *q)
+{
+	return q->max_q - q_length(q);
+}
+
+// Simple fixed-size buffer for 8kHz samples
+#define JITTER_BUFFER_MAX_SAMPLES 1600 // Maximum samples to store (200ms at 8kHz)
+
+// Function to add samples to jitter buffer
+static void jitter_buffer_add(int16_t *samples, int count)
+{
+	pthread_mutex_lock(&jitter_buffer_mutex);
+	
+	// Simple buffer management - if we have too many samples, drop the oldest ones
+	if (jitter_buffer_samples + count > JITTER_BUFFER_MAX_SAMPLES) {
+		// Keep only the most recent samples
+		int to_keep = JITTER_BUFFER_MAX_SAMPLES - count;
+		if (to_keep < 0) to_keep = 0;
+		
+		// Calculate how many to drop
+		int to_drop = jitter_buffer_samples - to_keep;
+		if (to_drop > 0) {
+			jitter_buffer_read = (jitter_buffer_read + to_drop) % JITTER_BUFFER_SIZE;
+			jitter_buffer_samples -= to_drop;
+		}
+	}
+	
+	// Add new samples
+	for (int i = 0; i < count; i++) {
+		jitter_buffer[jitter_buffer_write] = samples[i];
+		jitter_buffer_write = (jitter_buffer_write + 1) % JITTER_BUFFER_SIZE;
+		jitter_buffer_samples++;
+	}
+	
+	pthread_mutex_unlock(&jitter_buffer_mutex);
+}
+
+// Function to get samples from jitter buffer
+static int jitter_buffer_get(int16_t *samples, int count)
+{
+	pthread_mutex_lock(&jitter_buffer_mutex);
+	
+	// Simple read - just get what we have
+	int available = jitter_buffer_samples;
+	if (count > available) count = available;
+	
+	// Read available samples
+	for (int i = 0; i < count; i++) {
+		samples[i] = jitter_buffer[jitter_buffer_read];
+		jitter_buffer_read = (jitter_buffer_read + 1) % JITTER_BUFFER_SIZE;
+		jitter_buffer_samples--;
+	}
+	
+	// If we didn't have enough samples, fill the rest with zeros
+	for (int i = count; i < count; i++) { // This loop never runs due to the condition
+		samples[i] = 0;
+	}
+	
+	pthread_mutex_unlock(&jitter_buffer_mutex);
+	return count;
+}
+
+// Function to receive browser microphone audio data
+int browser_mic_input(int16_t *samples, int count)
+{
+	if (count <= 0)
+		return 0;
+	
+	// Mark browser mic as active and update last activity timestamp
+	browser_mic_active = 1;
+	browser_mic_last_activity = millis();
+	
+	// Add samples to jitter buffer for smoother playback
+	jitter_buffer_add(samples, count);
+	
+	return count;
+}
+
+// Function to check if browser mic is active
+int is_browser_mic_active()
+{
+	// Check if browser mic has been inactive for too long
+	if (browser_mic_active && (millis() - browser_mic_last_activity > BROWSER_MIC_TIMEOUT))
+	{
+		browser_mic_active = 0;
+	}
+	
+	return browser_mic_active;
+}
+
+// Function to convert 16-bit samples at 8kHz to 32-bit samples at 96kHz
+void upsample_browser_mic(int32_t *output, int n_samples)
+{
+	int i = 0;
+	
+	// Get samples from jitter buffer - 8kHz input
+	// For 96kHz output, we need a 12x ratio (8kHz → 96kHz)
+	int16_t input_samples[n_samples / 12 + 1]; // Extra space for safety
+	int samples_read = jitter_buffer_get(input_samples, n_samples / 12);
+	
+	if (samples_read == 0)
+	{
+		// No browser mic data, fill with zeros
+		for (int i = 0; i < n_samples; i++) {
+			output[i] = 0;
+		}
+		return;
+	}
+	
+	// Apply gain reduction to prevent clipping
+	for (int j = 0; j < samples_read; j++) {
+		// Reduce gain to 25% to prevent clipping
+		input_samples[j] = (int16_t)(input_samples[j] * 0.25);
+	}
+	
+	// Apply strong high-frequency enhancement for better clarity
+	int16_t prev_sample = 0;
+	for (int j = 0; j < samples_read; j++) {
+		// Simple high-pass filter (current - previous)
+		int16_t high_freq = input_samples[j] - prev_sample;
+		prev_sample = input_samples[j];
+		
+		// Add high frequencies back to enhance clarity (strong boost)
+		input_samples[j] = input_samples[j] + (high_freq * 0.7);
+	}
+	
+	// Simple upsampling from 8kHz to 96kHz (12x)
+	for (int j = 0; j < samples_read && i < n_samples; j++) {
+		// Get current sample
+		int16_t current = input_samples[j];
+		
+		// Generate 12 identical output samples for 96kHz
+		for (int k = 0; k < 12 && i < n_samples; k++) {
+			output[i++] = current * 65536;
+		}
+	}
+	
+	// If we still need more samples, fill with zeros
+	while (i < n_samples) {
+		output[i++] = 0;
+	}
 }
 
 static int prev_lpf = -1;
@@ -829,6 +993,154 @@ void rx_am(int32_t *input_rx, int32_t *input_mic,
 	//		output_speaker[i] = rx_am_avg = ((rx_am_avg * 9) + abs(input_rx[i]))/10;
 }
 
+// Global variables for zero beat detection (sbitx.c)
+#define ZEROBEAT_TOLERANCE 50    // ±50 Hz from target
+#define ZEROBEAT_HYST 0.05       // Not currently used — replaced with scaled hysteresis
+#define ZEROBEAT_AVG_LEN 4       // Moving average length (higher values = more stable but slower response to changes)
+#define ZEROBEAT_UPDATE_MS 20    // Update interval (20 Hz)
+#define SIGNAL_TIMEOUT_MS 250    // Time to clear cache if no signal
+#define MIN_SIGNAL_HOLD_MS 30    // Hold signal for at least 30ms
+#define ZEROBEAT_DEBUG 0         // Set to 1 to enable debug output
+
+static int zero_beat_indicator = 0;
+static double last_max_magnitude = 0.0;
+static double mag_history[ZEROBEAT_AVG_LEN] = {0};
+static double freq_history[ZEROBEAT_AVG_LEN] = {0};
+static int history_index = 0;
+static struct timespec last_update_time = {0, 0};
+static struct timespec last_signal_time = {0, 0};
+static int last_result = 0;
+
+int calculate_zero_beat(struct rx *r, double sampling_rate) {
+    if (!r || !r->fft_freq) {
+        printf("Error: rx or fft_freq is NULL\n");
+        return 0;
+    }
+
+    struct timespec current_time;
+    clock_gettime(CLOCK_MONOTONIC, &current_time);
+
+    long diff_ms = (current_time.tv_sec - last_update_time.tv_sec) * 1000 +
+                   (current_time.tv_nsec - last_update_time.tv_nsec) / 1000000;
+
+    long signal_diff_ms = (current_time.tv_sec - last_signal_time.tv_sec) * 1000 +
+                          (current_time.tv_nsec - last_signal_time.tv_nsec) / 1000000;
+
+    if (signal_diff_ms > SIGNAL_TIMEOUT_MS && diff_ms > MIN_SIGNAL_HOLD_MS) {
+        last_result = 0;
+        last_max_magnitude = 0.0;
+        memset(mag_history, 0, sizeof(mag_history));
+        memset(freq_history, 0, sizeof(freq_history));
+    }
+
+    if (diff_ms < ZEROBEAT_UPDATE_MS || (last_result != 0 && diff_ms < MIN_SIGNAL_HOLD_MS)) {
+        return last_result;
+    }
+
+    last_update_time = current_time;
+
+    double bin_width = sampling_rate / MAX_BINS;
+
+    int start_bin = (int)((rx_pitch - ZEROBEAT_TOLERANCE) / bin_width);
+    int end_bin = (int)((rx_pitch + ZEROBEAT_TOLERANCE) / bin_width);
+    start_bin = start_bin < 0 ? 0 : (start_bin >= MAX_BINS ? MAX_BINS - 1 : start_bin);
+    end_bin = end_bin < 0 ? 0 : (end_bin >= MAX_BINS ? MAX_BINS - 1 : end_bin);
+
+    int max_bin = 0;
+    double max_magnitude = 0.0;
+    double peak_freq = 0.0;
+    double noise_floor = 0.0;
+    int sample_count = 0;
+
+    // Estimate noise floor
+    for (int i = start_bin - 5; i < start_bin; i++) {
+        if (i >= 0 && i < MAX_BINS) {
+            noise_floor += 20 * log10(cabs(r->fft_freq[i]) + 1e-10);
+            sample_count++;
+        }
+    }
+    for (int i = end_bin + 1; i <= end_bin + 5; i++) {
+        if (i >= 0 && i < MAX_BINS) {
+            noise_floor += 20 * log10(cabs(r->fft_freq[i]) + 1e-10);
+            sample_count++;
+        }
+    }
+    noise_floor = sample_count > 0 ? noise_floor / sample_count : -120.0;
+
+    // Find max peak within range (no pre-thresholding here)
+    for (int i = start_bin; i <= end_bin; i++) {
+        double magnitude = 20 * log10(cabs(r->fft_freq[i]) + 1e-10);
+        double freq = i * bin_width;
+
+        if (magnitude > max_magnitude) {
+            max_magnitude = magnitude;
+            max_bin = i;
+            peak_freq = freq;
+        }
+    }
+
+    int sensitivity_level = zero_beat_min_magnitude; // 1–10
+    double dB_threshold = 20.0 - (sensitivity_level - 1) * (17.0 / 9.0);
+    if (dB_threshold < 2.0) dB_threshold = 2.0;
+
+    double base_threshold = noise_floor + dB_threshold;
+
+    // Scaled hysteresis: 3.0 dB at low sensitivity, down to 0.5 dB at high sensitivity
+    double hysteresis = 3.0 - (sensitivity_level - 1) * (2.5 / 9.0);
+    if (hysteresis < 0.5) hysteresis = 0.5;
+
+    double current_threshold = last_max_magnitude >= base_threshold ?
+                               base_threshold - hysteresis : base_threshold;
+
+    if (max_magnitude < current_threshold || max_bin == 0) {
+        last_max_magnitude = max_magnitude;
+        return 0;
+    }
+
+    last_signal_time = current_time;
+
+    // Update history
+    mag_history[history_index] = max_magnitude;
+    freq_history[history_index] = peak_freq - rx_pitch;
+
+    double avg_magnitude = 0.0, avg_freq_diff = 0.0;
+    for (int i = 0; i < ZEROBEAT_AVG_LEN; i++) {
+        avg_magnitude += mag_history[i];
+        avg_freq_diff += freq_history[i];
+    }
+    avg_magnitude /= ZEROBEAT_AVG_LEN;
+    avg_freq_diff /= ZEROBEAT_AVG_LEN;
+
+    if (avg_magnitude > base_threshold + 3.0)
+        last_max_magnitude = avg_magnitude;
+
+    history_index = (history_index + 1) % ZEROBEAT_AVG_LEN;
+
+    int result;
+    if (fabs(avg_freq_diff) <= 5.0)
+        result = 3;       // Centered
+    else if (avg_freq_diff < -20.0)
+        result = 1;       // Far below
+    else if (avg_freq_diff < -5.0)
+        result = 2;       // Slightly below
+    else if (avg_freq_diff <= 20.0)
+        result = 4;       // Slightly above
+    else if (avg_freq_diff <= 50.0)
+        result = 5;       // Far above
+    else
+        result = 0;
+
+    last_result = result;
+
+#if ZEROBEAT_DEBUG
+    printf("Freq=%.1fHz, Δ=%.1fHz, Mag=%.1fdB, NF=%.1fdB, Thr=%.1fdB, Res=%d\n",
+           peak_freq, avg_freq_diff, avg_magnitude, noise_floor, current_threshold, result);
+#endif
+
+    return result;
+}
+
+
 // rx_linear with Spectral Subtraction and Wiener Filter DSP filtering - W2JON
 void rx_linear(int32_t *input_rx, int32_t *input_mic,
 			   int32_t *output_speaker, int32_t *output_tx, int n_samples)
@@ -877,6 +1189,21 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 		if (b < 0)
 			b += MAX_BINS;
 		r->fft_freq[i] = fft_out[b];
+	}
+
+	// STEP 4a Calculate zero beat indicator for CW modes if in CW modes
+	if (r->mode == MODE_CW || r->mode == MODE_CWR) {
+		int prev_indicator = zero_beat_indicator;
+		zero_beat_indicator = calculate_zero_beat(r, 96000.0);
+		// Only print when the indicator changes to avoid console spam
+		if (prev_indicator != zero_beat_indicator) {
+			const char* indicators[] = {"No Signal", "Much Lower", "Slightly Lower", "Centered", "Slightly Higher", "Much Higher"};
+			//printf("Zero Beat: %s (%d)\n", indicators[zero_beat_indicator], zero_beat_indicator);
+			//printf("Zero Beat Target Frequency: %d\n", zero_beat_target_frequency);
+			//printf("Zero Beat Sense: %d\n", zero_beat_min_magnitude);
+		}
+	} else {
+		zero_beat_indicator = 0;
 	}
 
 	static int rx_eq_initialized = 0;
@@ -1123,10 +1450,10 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 		}
 
 		// Push the samples to the remote audio queue, decimated to 16000 samples/sec
-		for (i = 0; i < MAX_BINS / 2; i += 6)
-		{
-			q_write(&qremote, output_speaker[i]);
-		}
+		//for (i = 0; i < MAX_BINS / 2; i += 6)
+		//{
+		//	q_write(&qremote, output_speaker[i]);
+		//}
 	}
 
 	if (mute_count)
@@ -1163,7 +1490,14 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
         }
     }
 }
-
+// Push the samples to the remote audio queue, decimated to 16000 samples/sec
+// Moved after EQ processing so qremote gets the equalized audio when applicable
+	if (rx_list->output == 0) {
+		for (i = 0; i < MAX_BINS / 2; i += 6)
+		{
+			q_write(&qremote, output_speaker[i]);
+		}
+	}
 }
 void read_power()
 {
@@ -1235,6 +1569,15 @@ void tx_process(
 {
 	int i;
 	double i_sample, q_sample, i_carrier;
+	
+	// Check if browser microphone is active and use it instead of physical mic
+	int32_t browser_mic_samples[n_samples];
+	int use_browser_mic = is_browser_mic_active();
+	
+	if (use_browser_mic) {
+		// Get upsampled browser mic audio
+		upsample_browser_mic(browser_mic_samples, n_samples);
+	}
 
 	struct rx *r = tx_list;
 
@@ -1265,7 +1608,11 @@ void tx_process(
 			// Convert input_mic (int32_t) to float for compression
 			for (int i = 0; i < n_samples; i++)
 			{
-				temp_input_mic[i] = (float)input_mic[i] / 2000000000.0;
+				if (use_browser_mic) {
+					temp_input_mic[i] = (float)browser_mic_samples[i] / 2000000000.0;
+				} else {
+					temp_input_mic[i] = (float)input_mic[i] / 2000000000.0;
+				}
 			}
 
 			for (int i = 0; i < 5 && i < n_samples; i++)
@@ -1280,7 +1627,11 @@ void tx_process(
 			// Convert back the processed data to int32_t after compression
 			for (int i = 0; i < n_samples; i++)
 			{
-				input_mic[i] = (int32_t)(temp_input_mic[i] * 2000000000.0);
+				if (use_browser_mic) {
+					browser_mic_samples[i] = (int32_t)(temp_input_mic[i] * 2000000000.0);
+				} else {
+					input_mic[i] = (int32_t)(temp_input_mic[i] * 2000000000.0);
+				}
 			}
 			for (int i = 0; i < 5 && i < n_samples; i++)
 			{
@@ -1289,13 +1640,20 @@ void tx_process(
 
 		if (eq_is_enabled == 1)
 		{
-			apply_eq(&tx_eq, input_mic, n_samples, 48000.0);
+			if (use_browser_mic) {
+				apply_eq(&tx_eq, browser_mic_samples, n_samples, 48000.0);
+			} else {
+				apply_eq(&tx_eq, input_mic, n_samples, 48000.0);
+			}
 		}
 	}
 
 	if (mute_count && (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM))
 	{
 		memset(input_mic, 0, n_samples * sizeof(int32_t));
+		if (use_browser_mic) {
+			memset(browser_mic_samples, 0, n_samples * sizeof(int32_t));
+		}
 		mute_count--;
 	}
 	// first add the previous M samples
@@ -1319,14 +1677,25 @@ void tx_process(
 		else if (r->mode == MODE_AM)
 		{
 			// double modulation = (1.0 * vfo_read(&tone_a)) / 1073741824.0;
-			double modulation = (1.0 * input_mic[j]) / 200000000.0;
+			double modulation;
+			if (use_browser_mic) {
+				modulation = (1.0 * browser_mic_samples[j]) / 200000000.0;
+			} else {
+				modulation = (1.0 * input_mic[j]) / 200000000.0;
+			}
 			if (modulation < -1.0)
 				modulation = -1.0;
 			i_carrier = (1.0 * vfo_read(&am_carrier)) / 50000000000.0;
 			i_sample = (1.0 + modulation) * i_carrier;
 		}
 		else
-			i_sample = (1.0 * input_mic[j]) / 2000000000.0;
+		{
+			if (use_browser_mic) {
+				i_sample = (1.0 * browser_mic_samples[j]) / 2000000000.0;
+			} else {
+				i_sample = (1.0 * input_mic[j]) / 2000000000.0;
+			}
+		}
 
 		// clip the overdrive to prevent damage up the processing chain, PA
 		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM)
@@ -1369,8 +1738,9 @@ void tx_process(
 	}
 
 	// push the samples to the remote audio queue, decimated to 16000 samples/sec
-	for (i = 0; i < MAX_BINS / 2; i += 6)
+	for (i = 0; i < MAX_BINS / 2; i += 6) {
 		q_write(&qremote, output_speaker[i]);
+	}
 
 	// convert to frequency
 	fftw_execute(plan_fwd);
@@ -1446,6 +1816,102 @@ void tx_process(
 	//	printf("min %d, max %d\n", min, max);
 
 	read_power();
+
+	// Instead of using sdr_modulation_update, we'll update the spectrum data directly
+	// This allows the TX audio to be displayed in the spectrum and waterfall
+	
+	// Create input buffer for FFT
+	complex float *tx_fft_in = (complex float *)malloc(sizeof(complex float) * MAX_BINS);
+	
+	// Calculate DC offset (average) to remove it
+	float dc_offset = 0;
+	for (i = 0; i < MAX_BINS / 2; i++) {
+		dc_offset += output_tx[i];
+	}
+	dc_offset /= (MAX_BINS / 2);
+	
+	// Copy the output_tx samples to the FFT input buffer with a window function
+	for (i = 0; i < MAX_BINS / 2; i++) {
+		// Apply Hann window for better spectral resolution
+		float window = 0.5 * (1 - cos(2 * M_PI * i / (MAX_BINS / 2 - 1)));
+		// Remove DC offset and scale down
+		tx_fft_in[i] = (output_tx[i] - dc_offset) * window / (tx_amp * 150000000.0); // Significantly reduced scaling
+	}
+	
+	// Zero-pad the second half
+	for (i = MAX_BINS / 2; i < MAX_BINS; i++) {
+		tx_fft_in[i] = 0;
+	}
+	
+	// Use the existing FFT infrastructure
+	for (i = 0; i < MAX_BINS; i++) {
+		__real__ fft_in[i] = crealf(tx_fft_in[i]);
+		__imag__ fft_in[i] = 0;
+	}
+	
+	// Perform FFT using the existing plan
+	fftw_execute(plan_fwd);
+	
+	// Update the fft_spectrum array with the FFT results
+	// This is important because the spectrum_update function uses this array
+	
+	// First pass - enhanced detail with frequency-dependent scaling
+	for (i = 0; i < MAX_BINS; i++) {
+		// Calculate bin frequency relative to center (for frequency-dependent scaling)
+		int bin_from_center = i - MAX_BINS / 2;
+		if (bin_from_center < 0) bin_from_center = -bin_from_center;
+		
+		// Apply slightly higher gain to mid-range frequencies where voice details matter most
+		float freq_scale = 1.0;
+		if (bin_from_center > 10 && bin_from_center < 100) {
+			freq_scale = 1.3; // Boost mid-range frequencies
+		}
+		
+		// Store the FFT results with enhanced detail
+		fft_spectrum[i] = fft_out[i] * 0.025 * freq_scale; // Slightly increased from 0.02 for more detail
+	}
+	
+	// Apply a more refined smoothing that preserves detail while reducing noise
+	complex float *smoothed = (complex float *)malloc(sizeof(complex float) * MAX_BINS);
+	
+	// Copy first and last points as-is
+	smoothed[0] = fft_spectrum[0];
+	smoothed[MAX_BINS-1] = fft_spectrum[MAX_BINS-1];
+	
+	// Apply minimal smoothing to preserve maximum detail
+	for (i = 1; i < MAX_BINS-1; i++) {
+		// Use weighted average with heavy weight on current bin: 80% current bin, 10% each adjacent bin
+		smoothed[i] = fft_spectrum[i-1] * 0.1 + fft_spectrum[i] * 0.8 + fft_spectrum[i+1] * 0.1;
+		
+		// Apply stronger contrast enhancement to make fine details more visible
+		float mag = cabsf(smoothed[i]);
+		if (mag > 0) {
+			// Use stronger non-linear enhancement to reveal subtle details
+			smoothed[i] *= (1.0 + 0.5 * log10f(mag + 1.0));
+			
+			// Add slight sharpening effect to enhance edges between frequency components
+			if (i > 1 && i < MAX_BINS-2) {
+				complex float edge_detect = smoothed[i] * 2.0 - smoothed[i-1] * 0.5 - smoothed[i+1] * 0.5;
+				smoothed[i] = smoothed[i] * 0.7 + edge_detect * 0.3;
+			}
+		}
+	}
+	
+	// Copy smoothed spectrum back to fft_spectrum
+	for (i = 0; i < MAX_BINS; i++) {
+		fft_spectrum[i] = smoothed[i];
+	}
+	
+	// Free the temporary buffer
+	free(smoothed);
+	
+	// Call the standard spectrum update function to ensure consistent processing
+	spectrum_update();
+	
+	// Clean up
+	free(tx_fft_in);
+
+	// The old sdr_modulation_update function is still called for API compatibility
 	sdr_modulation_update(output_tx, MAX_BINS / 2, tx_amp);
 }
 
@@ -1748,8 +2214,9 @@ void tr_switch(int tx_on) {
 		if (rx_list->mode != MODE_CW && rx_list->mode != MODE_CWR) {
 		delay(20);
 	}
-    mute_count = 20;             // number of audio samples to zero out
-    fft_reset_m_bins();          // fixes burst at start of transmission
+    //mute_count = 20;             // number of audio samples to zero out
+    mute_count = 1;             // number of audio samples to zero out
+	fft_reset_m_bins();          // fixes burst at start of transmission
     set_tx_power_levels();       // use values for tx_power_watts, tx_gain
     //ADDED BY KF7YDU - Check if ptt is enabled, if so, set ptt pin to high
 			if (ext_ptt_enable == 1) {
@@ -1818,10 +2285,17 @@ void setup()
 	fft_init();
 	vfo_init_phase_table();
 	setup_oscillators();
+	//initialize the queues
 	q_init(&qremote, 8000);
+	q_init(&qbrowser_mic, 32000); // Initialize browser microphone queue with much larger buffer
+	
+	// Initialize jitter buffer
+	jitter_buffer_write = 0;
+	jitter_buffer_read = 0;
+	jitter_buffer_samples = 0;
 
 	modem_init();
-
+	
 	add_rx(7000000, MODE_LSB, -3000, -300);
 	add_tx(7000000, MODE_LSB, -3000, -300);
 	rx_list->tuned_bin = 512;

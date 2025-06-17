@@ -1,10 +1,10 @@
 # sBitx - 64-Bit Version
-![sBitx image](sbitx44.png)
+![sBitx image](sbv50.png)
 
 
 An improved version of the sBitx application designed for the sBitx hardware. This version is only for the 64-bit Raspberry Pi image, which can be downloaded [here](https://github.com/drexjj/sbitx/releases).
 
-## 🚀 Development Team
+## 🚀 Core Development Team
 
 We have an incredible development team collaborating on improvements for the sBitx platform:
 
@@ -46,7 +46,7 @@ cd $HOME && mv sbitx sbitx_orig
 To restore your backup after installation:
 
 ```console
-cd $HOME && cp -r sbitx_orig/web/* sbitx/web/ && cp -r sbitx_orig/data/* sbitx/data/
+cd $HOME && cp -r sbitx_orig/web/*.mc sbitx/web/ && cp -r sbitx_orig/data/* sbitx/data/
 ```
 
 ## 🔧 Installation & Upgrades
@@ -81,6 +81,7 @@ A huge thank you to the contributors who have played a vital role in this projec
 - **Paul - G0KAO**
 - **Don - KK7OIM**
 - **Fabrizio - F4VUK**
+- **Bob - KD8CGH**
 
 ## 🌟 Support the Project
 
