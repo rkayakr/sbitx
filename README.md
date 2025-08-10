@@ -10,11 +10,9 @@ We have an incredible development team collaborating on improvements for the sBi
 
 - **JJ - W9JES**
 - **Jon - W2JON**
-- **Alan - N1QM**
-- **Lars - OZ7BX**
 - **Lee - W4WHL**
 - **Mike - KB2ML**
-- **Jeff - KF7YDU**
+- **Lars - OZ7BX**
 
 A huge thank you to everyone who contributes their time and expertise to this project!
 
