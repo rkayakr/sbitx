@@ -8094,7 +8094,7 @@ else if (!strcmp(exec, "apf"))  // read command, load params in struct
 			token = strtok(args," ,");
 			if (token != NULL) {
 				 apf1.gain = atof(token);			 
-				if (apf1.gain > 0 .0) {
+				if (apf1.gain > 0.0) {
 					apf1.ison=1;
 					token = strtok(NULL," ,");
 					if (token != NULL) {				
