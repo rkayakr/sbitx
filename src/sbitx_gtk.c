@@ -448,20 +448,20 @@ struct cmd
 };
 
 struct apf apf1 = { .ison=0, .gain=0.0, .width=0.0 };
-
+// gain in db, evaluate function in db
+// then convert back to linear for application
 int init_apf()  // define filter gain coefficients
 {
 	printf( " gain %.2f  width %.2f\n", apf1.gain, apf1.width );	
 	double binw = 96000.0 / MAX_BINS;  // about 46.9
 	double  q = 2*apf1.width*apf1.width;
-// evaluate gaussian function at mid points of bins to assign bin gain
-// set gain floor at 1
-	apf1.coeff[0]=MAX((apf1.gain * exp(-(16*binw*binw)/q)),1.0 );
-	apf1.coeff[1]=MAX((apf1.gain * exp(-(9*binw*binw)/q )), 1.0);
-	apf1.coeff[2]=MAX((apf1.gain * exp(-(4*binw*binw)/q )),1.0);
-	apf1.coeff[3]=apf1.gain * exp(-(binw*binw)/q );
-	apf1.coeff[4]=apf1.gain;
-	apf1.coeff[5]=apf1.coeff[3];
+
+	apf1.coeff[0]= pow(10,apf1.gain * exp(-(16*binw*binw)/q)/10);
+	apf1.coeff[1]= pow(10,apf1.gain * exp(-(9*binw*binw)/q)/10);
+	apf1.coeff[2]= pow(10,apf1.gain * exp(-(4*binw*binw)/q)/10);
+	apf1.coeff[3]= pow(10,apf1.gain * exp(-(binw*binw)/q)/10);
+	apf1.coeff[4]= pow(10,apf1.gain/10);  // peak
+	apf1.coeff[5]=apf1.coeff[3];  // symmetry
 	apf1.coeff[6]=apf1.coeff[2];
 	apf1.coeff[7]=apf1.coeff[1];
 	apf1.coeff[8]=apf1.coeff[0];
