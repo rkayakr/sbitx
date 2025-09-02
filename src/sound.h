@@ -49,6 +49,20 @@ extern int noise_threshold;
 extern int noise_update_interval; 
 double scaleNoiseThreshold(int control);
 
+//WPSD/APF system (new WDSP-based noise reduction and audio peak filter)
+extern int apf_enabled;
+extern float apf_center_hz;
+extern float apf_q;
+extern float apf_gain_db;
+extern int apf_track_peak;
+extern int apf_bin_lo;
+extern int apf_bin_hi;
+extern float wpsd_alpha_psd;
+extern float wpsd_alpha_noise;
+
+// Bridge function to apply WDSP parameters
+void wdsp_apply_params(void);
+
 // Aduio Compression tool
 extern int compression_control_level;
 void apply_fixed_compression(float *input, int num_samples, int compression_control_value);

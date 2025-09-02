@@ -23,6 +23,7 @@
 #include "si5351.h"
 #include "ini.h"
 #include "para_eq.h"
+#include "wdsp_pipeline.h"
 
 #define DEBUG 0
 
@@ -113,6 +114,17 @@ double notch_freq = 0;		   // Notch frequency in Hz W2JON
 double notch_bandwidth = 0;	   // Notch bandwidth in Hz W2JON
 int compression_control_level; // Audio Compression level W2JON
 int txmon_control_level;	   // TX Monitor level W2JON
+
+// WPSD/APF system globals
+int apf_enabled = 0;
+float apf_center_hz = 700.0f;
+float apf_q = 5.0f;
+float apf_gain_db = 6.0f;
+int apf_track_peak = 1;
+int apf_bin_lo = 5;
+int apf_bin_hi = 150;
+float wpsd_alpha_psd = 0.90f;
+float wpsd_alpha_noise = 0.995f;
 int get_rx_gain(void)
 {
 	// printf("rx_gain %d\n", rx_gain);
@@ -253,6 +265,9 @@ void fft_init()
 	}
 
 	make_hann_window(spectrum_window, MAX_BINS);
+	
+	// Initialize WDSP system with sample rate 96 kHz 
+	wdsp_init(MAX_BINS, 96000.0f);
 }
 
 void fft_reset_m_bins()
@@ -1249,145 +1264,19 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 				}
 			}
 		}
-		/*
-		// Noise Estimation Original
-		if (!noise_est_initialized || noise_update_counter >= noise_update_interval)
-		{
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double current_magnitude = cabs(r->fft_freq[i]);
-				if (!noise_est_initialized)
-				{
-					noise_est[i] = current_magnitude;
-				}
-				else
-				{
-					noise_est[i] = NOISE_ALPHA * noise_est[i] + (1 - NOISE_ALPHA) * current_magnitude;
-				}
-			}
-			noise_update_counter = 0;
-			noise_est_initialized = 1;
+		// WDSP-based noise reduction (always applied)
+		// Convert fftw_complex (double complex) to complex float for WDSP
+		static complex float wdsp_bins[MAX_BINS];
+		for (i = 0; i < MAX_BINS; i++) {
+			wdsp_bins[i] = (float)creal(r->fft_freq[i]) + I * (float)cimag(r->fft_freq[i]);
 		}
-		else
-		{
-			noise_update_counter++;
-		}
-
-		if (dsp_enabled)
-		{
-			// Spectral Subtraction filter
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double magnitude = cabs(r->fft_freq[i]);
-				double phase = carg(r->fft_freq[i]);
-				double noise_magnitude = noise_est[i];
-				double new_magnitude = fmax(scaled_noise_threshold, magnitude - noise_magnitude);
-				r->fft_freq[i] = new_magnitude * cexp(I * phase);
-				rx_list->agc_speed = -1;
-			}
-		}
-
-		if (anr_enabled)
-		{
-			// Signal Estimation for Wiener filter
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double current_magnitude = cabs(r->fft_freq[i]);
-				signal_est[i] = SIGNAL_ALPHA * signal_est[i] + (1 - SIGNAL_ALPHA) * current_magnitude;
-			}
-
-			// Wiener Filter (ANR)
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double signal_power = signal_est[i] * signal_est[i];
-				double noise_power = noise_est[i] * noise_est[i];
-				double wiener_filter = signal_power / (signal_power + noise_power);
-				r->fft_freq[i] *= wiener_filter;
-			}
-		}
-  		*/
-
-		// Noise Estimation, ANR, DSP mods W4WHL
-		if (!noise_est_initialized || noise_update_counter >= noise_update_interval)
-		{
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double current_magnitude = cabs(r->fft_freq[i]);
-
-				// Dynamically adjust noise estimation rate vs fixed
-				double dynamic_alpha = (current_magnitude > noise_est[i]) ? 0.95 : 0.75;
-				noise_est[i] = dynamic_alpha * noise_est[i] + (1 - dynamic_alpha) * current_magnitude;
-
-				// Enforce a noise floor
-				noise_est[i] = fmax(1e-6, noise_est[i]);
-			}
-			noise_update_counter = 0;
-			noise_est_initialized = 1;
-		}
-		else
-		{
-			noise_update_counter++;
-		}
-
-		if (dsp_enabled)
-		{
-			// Spectral Subtraction filter
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double magnitude = cabs(r->fft_freq[i]);
-				double phase = carg(r->fft_freq[i]);
-				double noise_magnitude = noise_est[i];
-
-				// Calculate the SNR
-				double snr = magnitude / (noise_magnitude + 1e-6); // Avoid division by zero
-				double new_magnitude;
-
-				// Sigmoid-based reduction factor
-				double reduction_factor = 1.0 / (1.0 + exp(-5.0 * (snr - 0.5))); // Sharp and low-midpoint curve
-
-
-				// Calculate new magnitude with residual noise preservation
-				double noise_residual = 0.10; // Retain 10% of noise, reduces
-				new_magnitude = fmax(noise_residual * noise_magnitude,
-									magnitude - reduction_factor * noise_magnitude);
-
-				// Smoother bin-to-bin transitions (blend current and adjacent bins)
-				static double previous_magnitude[MAX_BINS] = {0};
-				new_magnitude = 0.9 * new_magnitude + 0.1 * previous_magnitude[i]; // Stronger weight on current bin
-				previous_magnitude[i] = new_magnitude;
-
-				// Reconstruct the frequency domain signal
-				r->fft_freq[i] = new_magnitude * cexp(I * phase);
-			}
-		}
-
-		if (anr_enabled)
-		{
-			// Signal Estimation for Wiener filter
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double current_magnitude = cabs(r->fft_freq[i]);
-				signal_est[i] = SIGNAL_ALPHA * signal_est[i] + (1 - SIGNAL_ALPHA) * current_magnitude;
-			}
-
-			// Wiener Filter (ANR)
-			for (i = 0; i < MAX_BINS; i++)
-			{
-				double signal_power = fmax(1e-6, signal_est[i] * signal_est[i]);
-				double noise_power = fmax(1e-6, noise_est[i] * noise_est[i]);
-
-				// Relaxed Wiener filter gain
-				double wiener_filter = (signal_power + 0.2 * noise_power) / (signal_power + noise_power);
-				wiener_filter = fmax(0.2, wiener_filter); // Minimum gain to preserve quiet signals
-
-				r->fft_freq[i] *= wiener_filter;
-			}
-
-			// Improved bin smoothing
-			for (i = 1; i < MAX_BINS - 1; i++)
-			{
-				r->fft_freq[i] = (0.8 * r->fft_freq[i]) + (0.1 * r->fft_freq[i - 1]) + (0.1 * r->fft_freq[i + 1]);
-			}
+		
+		// Apply WPSD-based spectral subtraction 
+		wdsp_process_bins(wdsp_bins, MAX_BINS);
+		
+		// Convert back to fftw_complex
+		for (i = 0; i < MAX_BINS; i++) {
+			r->fft_freq[i] = (double)crealf(wdsp_bins[i]) + I * (double)cimagf(wdsp_bins[i]);
 		}
 	}
 
@@ -1424,6 +1313,23 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 
 	// STEP 8: AGC
 	agc2(r);
+
+	// STEP 8a: Apply APF for CW/CWR modes only
+	if (r->mode == MODE_CW || r->mode == MODE_CWR) {
+		// Convert complex time domain to float audio for APF processing
+		static float apf_buffer[MAX_BINS / 2];
+		for (i = 0; i < MAX_BINS / 2; i++) {
+			apf_buffer[i] = (float)cimag(r->fft_time[i + (MAX_BINS / 2)]);
+		}
+		
+		// Apply APF
+		wdsp_process_audio(apf_buffer, MAX_BINS / 2);
+		
+		// Convert back to complex time domain
+		for (i = 0; i < MAX_BINS / 2; i++) {
+			__imag__ r->fft_time[i + (MAX_BINS / 2)] = (double)apf_buffer[i];
+		}
+	}
 
 	// STEP 9: Send the output
 	// int is_digital = 0;
@@ -2560,4 +2466,12 @@ void sdr_request(char *request, char *response)
 
 	/* else
 		  printf("*Error request[%s] not accepted\n", request); */
+}
+
+// Bridge function to apply WDSP parameters
+void wdsp_apply_params(void) {
+	wdsp_set_apf_enabled(apf_enabled);
+	wdsp_set_apf_params(apf_center_hz, apf_q, apf_gain_db);
+	wdsp_set_apf_tracking(apf_track_peak, apf_bin_lo, apf_bin_hi, 96000.0f / (float)MAX_BINS);
+	wdsp_set_wpsd_smoothing(wpsd_alpha_psd, wpsd_alpha_noise);
 }
