@@ -2463,6 +2463,49 @@ void sdr_request(char *request, char *response)
 		bandtweak = atoi(value);
 		printf("Now adjusting band %i scale is currently: %f\n", band_power[bandtweak].f_start, band_power[bandtweak].scale);
 	}
+	// APF (Audio Peak Filter) commands
+	else if (!strcmp(cmd, "APF_ENABLED"))
+	{
+		apf_enabled = !strcmp(value, "ON") ? 1 : 0;
+		wdsp_apply_params();
+		strcpy(response, "ok");
+	}
+	else if (!strcmp(cmd, "APF_CENTER"))
+	{
+		apf_center_hz = (float)atof(value);
+		wdsp_apply_params();
+		strcpy(response, "ok");
+	}
+	else if (!strcmp(cmd, "APF_Q"))
+	{
+		apf_q = (float)atof(value);
+		wdsp_apply_params();
+		strcpy(response, "ok");
+	}
+	else if (!strcmp(cmd, "APF_GAIN"))
+	{
+		apf_gain_db = (float)atof(value);
+		wdsp_apply_params();
+		strcpy(response, "ok");
+	}
+	else if (!strcmp(cmd, "APF_TRACK"))
+	{
+		apf_track_peak = !strcmp(value, "ON") ? 1 : 0;
+		wdsp_apply_params();
+		strcpy(response, "ok");
+	}
+	else if (!strcmp(cmd, "APF_BIN_LO"))
+	{
+		apf_bin_lo = atoi(value);
+		wdsp_apply_params();
+		strcpy(response, "ok");
+	}
+	else if (!strcmp(cmd, "APF_BIN_HI"))
+	{
+		apf_bin_hi = atoi(value);
+		wdsp_apply_params();
+		strcpy(response, "ok");
+	}
 
 	/* else
 		  printf("*Error request[%s] not accepted\n", request); */

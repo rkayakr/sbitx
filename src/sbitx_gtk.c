@@ -543,6 +543,7 @@ int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
@@ -858,6 +859,22 @@ struct field main_controls[] = {
 	// ANR Control
 	{"#anr_plugin", do_toggle_option, 1000, -1000, 40, 40, "ANR", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
+
+	// APF Controls (Audio Peak Filter for CW)
+	{"#apf_enabled", do_apf_edit, 1000, -1000, 40, 40, "APF", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	{"#apf_center", do_apf_edit, 1000, -1000, 40, 40, "CTR", 40, "700", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 300, 1500, 25, 0},
+	{"#apf_q", do_apf_edit, 1000, -1000, 40, 40, "Q", 40, "5.0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 1, 20, 0.5, 0},
+	{"#apf_gain", do_apf_edit, 1000, -1000, 40, 40, "GAIN", 40, "6.0", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 0, 20, 0.5, 0},
+	{"#apf_track", do_apf_edit, 1000, -1000, 40, 40, "TRACK", 40, "ON", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	{"#apf_bin_lo", do_apf_edit, 1000, -1000, 40, 40, "BMIN", 40, "5", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 0, 1024, 5, 0},
+	{"#apf_bin_hi", do_apf_edit, 1000, -1000, 40, 40, "BMAX", 40, "150", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 0, 1024, 5, 0},
 
 	// Compressor Control
 	{"#comp_plugin", do_comp_edit, 1000, -1000, 40, 40, "COMP", 40, "0", FIELD_SELECTION, FONT_FIELD_VALUE,
@@ -2874,11 +2891,32 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	}
 
 	// Cast anr_text to char* to avoid the warning
-	int anr_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)anr_text, FONT_SMALL) - 5;
+	int anr_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)anr_text, FONT_SMALL) - 29;
 	int anr_text_y = f_spectrum->y + 7;
 
 	cairo_move_to(gfx, anr_text_x, anr_text_y);
 	cairo_show_text(gfx, anr_text);
+
+	// --- APF plugin indicator (CW Audio Peak Filter)
+	const char *apf_text = "APF";
+	cairo_set_font_size(gfx, FONT_SMALL);
+
+	// Check the apf_enabled variable and set the text color
+	if (apf_enabled)
+	{
+		cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green when enabled
+	}
+	else
+	{
+		cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Gray when disabled
+	}
+
+	// Position APF indicator next to ANR
+	int apf_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)apf_text, FONT_SMALL) - 5;
+	int apf_text_y = f_spectrum->y + 7;
+
+	cairo_move_to(gfx, apf_text_x, apf_text_y);
+	cairo_show_text(gfx, apf_text);
 
 	// --- VFO LOCK indicator W2JON
 	const char *vfolk_text = "VFO LOCK";
@@ -5359,6 +5397,31 @@ int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	return 0;
 }
 
+int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	// Handle APF parameter changes
+	if (!strcmp(f->cmd, "#apf_enabled")) {
+		apf_enabled = !strcmp(f->value, "ON") ? 1 : 0;
+	} else if (!strcmp(f->cmd, "#apf_center")) {
+		apf_center_hz = (float)atof(f->value);
+	} else if (!strcmp(f->cmd, "#apf_q")) {
+		apf_q = (float)atof(f->value);
+	} else if (!strcmp(f->cmd, "#apf_gain")) {
+		apf_gain_db = (float)atof(f->value);
+	} else if (!strcmp(f->cmd, "#apf_track")) {
+		apf_track_peak = !strcmp(f->value, "ON") ? 1 : 0;
+	} else if (!strcmp(f->cmd, "#apf_bin_lo")) {
+		apf_bin_lo = atoi(f->value);
+	} else if (!strcmp(f->cmd, "#apf_bin_hi")) {
+		apf_bin_hi = atoi(f->value);
+	}
+	
+	// Apply changes to WDSP
+	wdsp_apply_params();
+	
+	return 0;
+}
+
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	// Retrieve and parse the BFO offset field
@@ -5570,6 +5633,22 @@ gboolean check_plugin_controls(gpointer data)
 		{
 			anr_enabled = 0;
 		}
+	}
+
+	// Check APF status
+	struct field *apf_stat = get_field("#apf_enabled");
+	if (apf_stat)
+	{
+		apf_enabled = !strcmp(apf_stat->value, "ON") ? 1 : 0;
+		// Update other APF parameters from UI
+		struct field *f;
+		if ((f = get_field("#apf_center"))) apf_center_hz = (float)atof(f->value);
+		if ((f = get_field("#apf_q"))) apf_q = (float)atof(f->value);
+		if ((f = get_field("#apf_gain"))) apf_gain_db = (float)atof(f->value);
+		if ((f = get_field("#apf_track"))) apf_track_peak = !strcmp(f->value, "ON") ? 1 : 0;
+		if ((f = get_field("#apf_bin_lo"))) apf_bin_lo = atoi(f->value);
+		if ((f = get_field("#apf_bin_hi"))) apf_bin_hi = atoi(f->value);
+		wdsp_apply_params();
 	}
 
 	if (eptt_stat)
