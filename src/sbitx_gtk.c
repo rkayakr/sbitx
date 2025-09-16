@@ -278,7 +278,6 @@ int bfo_offset = 0;
 #define MIN_KEY_F7 0xFFC4
 #define MIN_KEY_F8 0xFFC5
 #define MIN_KEY_F9 0xFFC6
-#define MIN_KEY_F9 0xFFC6
 #define MIN_KEY_F10 0xFFC7
 #define MIN_KEY_F11 0xFFC8
 #define MIN_KEY_F12 0xFFC9
@@ -5895,7 +5894,17 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 		}
 		return FALSE;
 	}
-
+  
+  // F1–F12 before text-field early return so macros work in any field
+  if (event->keyval >= MIN_KEY_F1 && event->keyval <= MIN_KEY_F12)
+  {
+    int fn_key = event->keyval - MIN_KEY_F1 + 1;
+    char fname[10];
+    sprintf(fname, "#mf%d", fn_key);
+    do_macro(get_field(fname), NULL, GDK_BUTTON_PRESS, 0, 0, 0);
+    return FALSE;
+  }
+  
 	if (f_focus && f_focus->value_type == FIELD_TEXT)
 	{
 		edit_field(f_focus, event->keyval);
@@ -5948,13 +5957,6 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 			// Otherwise by default, all text goes to the text_input control
 
 			edit_field(get_field("#text_in"), '\n');
-		else if (MIN_KEY_F1 <= event->keyval && event->keyval <= MIN_KEY_F12)
-		{
-			int fn_key = event->keyval - MIN_KEY_F1 + 1;
-			char fname[10];
-			sprintf(fname, "#mf%d", fn_key);
-			do_macro(get_field(fname), NULL, GDK_BUTTON_PRESS, 0, 0, 0);
-		}
 		else
 			edit_field(get_field("#text_in"), event->keyval);
 		// if (f_focus)
