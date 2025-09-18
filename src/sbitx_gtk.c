@@ -448,6 +448,33 @@ struct cmd
 	int (*fn)(char *args[]);
 };
 
+struct apf apf1 = { .ison=0, .gain=0.0, .width=0.0 };
+// gain in db, evaluate function in db
+// then convert back to linear for application
+int init_apf()  // define filter gain coefficients
+{
+	printf( " gain %.2f  width %.2f\n", apf1.gain, apf1.width );	
+	double binw = 96000.0 / MAX_BINS;  // about 46.9
+	double  q = 2*apf1.width*apf1.width;
+
+	apf1.coeff[0]= pow(10,apf1.gain * exp(-(16*binw*binw)/q)/10);
+	apf1.coeff[1]= pow(10,apf1.gain * exp(-(9*binw*binw)/q)/10);
+	apf1.coeff[2]= pow(10,apf1.gain * exp(-(4*binw*binw)/q)/10);
+	apf1.coeff[3]= pow(10,apf1.gain * exp(-(binw*binw)/q)/10);
+	apf1.coeff[4]= pow(10,apf1.gain/10);  // peak
+	apf1.coeff[5]=apf1.coeff[3];  // symmetry
+	apf1.coeff[6]=apf1.coeff[2];
+	apf1.coeff[7]=apf1.coeff[1];
+	apf1.coeff[8]=apf1.coeff[0];
+	
+	for (int i=0; i < 9; i++){
+				printf("%.3f ",apf1.coeff[i]);
+			}
+			printf(" \n");
+	 	
+};
+
+
 static unsigned long focus_since = 0;
 static struct field *f_focus = NULL;
 static struct field *f_hover = NULL;
@@ -4611,11 +4638,13 @@ int do_bandwidth(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		}
 		sprintf(f->value, "%d", v);
 		update_field(f);
-		int mode = mode_id(get_field("r1:mode")->value);
+/*						RLB  fixed do_bandwidth changing rx+pitch
+		int mode = mode_id(get_field("r1:mode")->value);		
 		modem_set_pitch(v, mode);
 		char buff[20], response[20];
 		sprintf(buff, "rx_pitch=%d", v);
 		sdr_request(buff, response);
+*/
 		set_filter_high_low(v);
 		save_bandwidth(v);
 		return 1;
@@ -7979,7 +8008,28 @@ void cmd_exec(char *cmd)
 	{
 		set_radio_mode(args);
 		update_field(get_field("r1:mode"));
-	}
+	}	
+else if (!strcasecmp(exec, "cwreverse"))
+  {
+    extern bool cw_reverse;  // declared in modem_cw.c
+    if (args[0] == '\0') {
+      if (cw_reverse) {
+        write_console(FONT_LOG, "cwreverse: on\n");
+      } else {
+        write_console(FONT_LOG, "cwreverse: off\n");
+      }
+    } else if (!strcasecmp(args, "on")) {
+      cw_reverse = true;
+      write_console(FONT_LOG, "cwreverse: on\n");
+    } else if (!strcasecmp(args, "off")) {
+      cw_reverse = false;
+      write_console(FONT_LOG, "cwreverse: off\n");
+    } else {
+      write_console(FONT_LOG, "Invalid value for cwreverse. Use on or off.\n");
+    }
+}
+    
+  // should we store the setting in user_settings.ini? 	
 	else if (!strcmp(exec, "t"))
 		tx_on(TX_SOFT);
 	else if (!strcmp(exec, "r"))
@@ -8064,6 +8114,30 @@ void cmd_exec(char *cmd)
 			}
 		}
 	}
+
+else if (!strcmp(exec, "apf"))  // read command, load params in struct
+	{
+			char output[50];
+			char *token;
+			token = strtok(args," ,");
+			if (token != NULL) {
+				 apf1.gain = atof(token);			 
+				if (apf1.gain > 0.0) {
+					apf1.ison=1;
+					token = strtok(NULL," ,");
+					if (token != NULL) {				
+					apf1.width = atof(token);	
+					sprintf(output,"apf gain %.2f width %.2f\n", apf1.gain, apf1.width);
+					init_apf();	
+					}					
+				} 
+			} else {
+				apf1.ison=0;
+				sprintf(output,"apf off\n");
+			}			
+			write_console(FONT_LOG, output);						
+	}
+				
 	/*	else if (!strcmp(exec, "PITCH")){
 			struct field *f = get_field_by_label(exec);
 			field_set("PITCH", args);

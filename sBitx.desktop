@@ -2,7 +2,7 @@
 Type=Application
 Name=sBitx
 Icon=/home/pi/sbitx/sbitx_icon.png
-Exec=/home/pi/sbitx/sbitx
-Path=/home/pi/sbitx
+Exec=/home/pi/cw_all/sbitx
+Path=/home/pi/cw_all/sbitx
 Name[en_US]=sBitx
 Terminal=false
