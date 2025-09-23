@@ -188,6 +188,8 @@ static uint8_t cw_last_symbol = CW_IDLE;
 static uint8_t cw_mode = CW_STRAIGHT;
 static int cw_bytes_available = 0;
 
+extern int text_ready;  // flag that TEXT buffer in gui is ready to send
+
 static int cw_envelope_pos = 0; // position within the envelope
 static int cw_envelope_len = 480; // length of the envelope
 
@@ -291,6 +293,7 @@ static const float cw_envelope_data[480] = {
   0.9982110337f, 0.9986083278f, 0.9989560792f, 0.9992542402f, 0.9995027701f,
   0.9997016348f, 0.9998508072f, 0.9999502668f, 1.0f
 };
+
 
 //////////////////////////////////////////
 // CW transmit and keyer functions
@@ -1036,7 +1039,8 @@ void cw_poll(int bytes_available, int tx_is_on){
 
 	// TX ON if bytes are avaiable (from macro/keyboard) or key is pressed
 	// of we are in the middle of symbol (dah/dit) transmission 
-  if (!tx_is_on && (cw_bytes_available || cw_key_state || (symbol_next && *symbol_next))) {
+	if (!tx_is_on && ((cw_bytes_available > 0 && text_ready == 1) || 
+      cw_key_state || (symbol_next && *symbol_next)) > 0) {
 		tx_on(TX_SOFT);
 		millis_now = millis();
 		cw_tx_until = get_cw_delay() + millis_now;
