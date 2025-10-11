@@ -583,6 +583,7 @@ int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 void cleanup_on_exit(void);
 
@@ -646,7 +647,7 @@ struct field main_controls[] = {
 	 "10K/1K/500H/100H/10H", 0, 0, 0, COMMON_CONTROL},
 	{"#span", NULL, 560, 50, 40, 40, "SPAN", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "25K/10K/8K/6K/2.5K", 0, 0, 0, COMMON_CONTROL},
-	{"#rit", NULL, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#rit", do_rit_control, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#vfo", NULL, 640, 50, 40, 40, "VFO", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "A/B", 0, 0, 0, COMMON_CONTROL},
@@ -3025,8 +3026,20 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
   
 	// draw the frequency readout at the bottom
 	cairo_set_source_rgb(gfx, palette[COLOR_TEXT_MUTED][0],
-						 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
-	long f_start = freq - (4 * freq_div);
+					 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
+  
+	// Get RIT status and delta to adjust frequency display when RIT is enabled
+	struct field *rit = get_field("#rit");
+	struct field *rit_delta = get_field("#rit_delta");
+	long display_freq = freq;
+	
+	// When RIT is enabled, we want to show the RX frequency (not TX frequency)
+	if (!strcmp(rit->value, "ON") && !in_tx) {
+		// Adjust the display frequency to show RX frequency (freq + rit_delta)
+		display_freq = freq + atoi(rit_delta->value);
+	}
+	
+	long f_start = display_freq - (4 * freq_div);					 
 	for (i = f->width / 10; i < f->width; i += f->width / 10)
 	{
 		if ((span == 25) || (span == 10))
@@ -3290,6 +3303,91 @@ if (!strcmp(field_str("SMETEROPT"), "ON") &&
 	{
 		int needle_x = (f->width * (MAX_BINS / 2 - r->tuned_bin)) / (MAX_BINS / 2);
 		fill_rect(gfx, f->x + needle_x, f->y, 1, grid_height, SPECTRUM_NEEDLE);
+
+    
+		// Draw TX frequency indicator when RIT is enabled
+		struct field *rit = get_field("#rit");
+		struct field *rit_delta = get_field("#rit_delta");
+		struct field *freq_field = get_field("r1:freq");
+		struct field *mode_f = get_field("r1:mode");
+		
+		if (!strcmp(rit->value, "ON") && !in_tx)
+		{
+			// Get the RIT delta value and current frequency
+			int rit_delta_value = atoi(rit_delta->value);
+			long rx_freq = atol(freq_field->value);
+			long tx_freq = rx_freq - rit_delta_value; // TX freq is RX freq minus RIT delta
+			
+			// Calculate the TX bin position directly
+			// We need to calculate where the TX frequency would be in the spectrum
+			// First, determine the frequency span visible in the spectrum
+			float span_khz = atof(get_field("#span")->value);
+			float span_hz = span_khz * 1000;
+			
+			// Now we calculate the frequency difference between RX and TX in Hz
+			long freq_diff = rx_freq - tx_freq;
+			
+			// Let's calculate the pixel offset based on the frequency difference and span
+			// The center of the spectrum is at f->width/2
+			// The full width represents span_hz
+			float pixels_per_hz = (float)f->width / span_hz;
+			// Invert the offset to match the spectrum panning direction
+			int offset_pixels = (int)(-freq_diff * pixels_per_hz);
+			
+			// Calculate the TX needle position
+			// WE can use the same calculation method as the RX needle (tuned_bin)
+			// but with an offset based on the RIT delta
+			int tx_needle_x;
+			
+			// Calculate the TX needle position directly from the RX needle position
+			// The RX needle is always at the center (f->width/2)
+			// We just need to offset it based on the RIT delta
+			tx_needle_x = (f->width / 2) + offset_pixels;
+			
+			// Ensure the needle stays within the spectrum display this will make it stop at the spectrum edge to indicate that the tx is out of view
+			int is_at_edge = 0;
+			int arrow_direction = 0; // -1 for left, 1 for right
+      
+			if (tx_needle_x < 0) {
+				tx_needle_x = 0;
+        is_at_edge = 1;
+				arrow_direction = -1; // Point left
+			}
+			if (tx_needle_x >= f->width) {
+				tx_needle_x = f->width - 1;
+			  is_at_edge = 1;
+				arrow_direction = 1; // Point right
+			}
+			// Draw red TX frequency indicator
+			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red color
+			cairo_set_line_width(gfx, 1.0);
+			cairo_move_to(gfx, f->x + tx_needle_x, f->y);
+			cairo_line_to(gfx, f->x + tx_needle_x, f->y + grid_height);
+			cairo_stroke(gfx);
+
+      // This part is will draw a small red triangle arrow at the center of the line if at edge of the scope
+			if (is_at_edge) {
+				int center_y = f->y + (grid_height / 2);
+				int arrow_size = 10; // Size of the triangle
+				
+				// Fill a triangle pointing in the direction of the TX frequency
+				cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red color
+				cairo_move_to(gfx, f->x + tx_needle_x, center_y);
+				
+				if (arrow_direction < 0) { // Point left
+					// Triangle pointing left
+					cairo_line_to(gfx, f->x + tx_needle_x + arrow_size, center_y - arrow_size/2);
+					cairo_line_to(gfx, f->x + tx_needle_x + arrow_size, center_y + arrow_size/2);
+				} else { // Point right
+					// Triangle pointing right
+					cairo_line_to(gfx, f->x + tx_needle_x - arrow_size, center_y - arrow_size/2);
+					cairo_line_to(gfx, f->x + tx_needle_x - arrow_size, center_y + arrow_size/2);
+				}
+				
+				cairo_close_path(gfx);
+				cairo_fill(gfx);
+			}
+		}
 	}
 }
 
@@ -4665,44 +4763,44 @@ int do_bandwidth(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	return 0;
 }
 
-// called for RIT as well as the main tuning
+// track tuning rate and adjust tuning rate acceleration
 int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
-  int v = atoi(f->value);
+  const uint64_t IDLE_RESET = 500000; // reset EMA after 500ms idle
 
   if (event == FIELD_EDIT) {
-    // measure time between tuning steps and keep weighted moving average
     static uint64_t last_us = 0;
-    static double ema_rate = 0.0;  // events per second, smoothed
-    const double alpha = 0.10;     // moving average factor; higher = more responsive
+    static double ema_rate = 0.0;      // events per second, smoothed
+    const double alpha = 0.05;         // moving average factor; higher = more responsive
 
-    int base_step = tuning_step;  // keep user step chosen in UI is immutable per event
-    int local_step = base_step;   // computed each event
+    int base_step = tuning_step;       // keep user tuning step chosen in UI unchanged
+    if (base_step <= 0) base_step = 1; // guard against zero/negative (probably not needed?)
+    int local_step = base_step;        // the possibly accelerated step used in tuning
 
-    if (!strcmp(get_field("tuning_acceleration")->value, "ON")) {
-      // get time of this tuning tick arrival
+    struct field *accel_f = get_field("tuning_acceleration");
+    int accel_on = (accel_f && accel_f->value && strcmp(accel_f->value, "ON") == 0);
+
+    if (accel_on) {
       struct timespec ts;
       clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-      uint64_t now_us = (uint64_t)ts.tv_sec * 1000000ull + ts.tv_nsec / 1000ull;
+      uint64_t now_us = (uint64_t)ts.tv_sec * 1000000ull + (uint64_t)(ts.tv_nsec / 1000ull);
 
       if (last_us != 0) {
         uint64_t dt = now_us - last_us;
+        if (IDLE_RESET > 0 && dt > IDLE_RESET) {
+          ema_rate = 0.0; // reset EMA after breaks in tuning to make next ramp responsive
+        }
         if (dt > 0) {
-          double inst_rate = 1e6 / (double)dt;  // events per second
-          // compute weighted moving average
+          double inst_rate = 1e6 / (double)dt; // events per second
           ema_rate = (alpha * inst_rate) + (1.0 - alpha) * ema_rate;
 
-          // set tuning rate multiplier based on weighted moving average rate
           int mult;
-          if (ema_rate < 25.0)
-            mult = 1;    // 10 Hz steps stay at 10 Hz with slow turns
-          else if (ema_rate < 35.0)
-            mult = 10;    // 10 Hz steps become 100 Hz steps
-          else   // ema_rate > 35.0
-            mult = 100;   // 10 Hz steps become 1000 Hz steps
-         
-          // set a max tuning rate
-          // consider user selecting 10Khz tuning step size we wouldn't want to exceed 50K steps
-          long cap = 50000;
+          if (ema_rate < 35.0)      mult = 1;   // 10 Hz steps stay 10 Hz
+          else if (ema_rate < 40.0) mult = 2;   // 10 Hz steps become 20 Hz steps
+          else if (ema_rate < 45.0) mult = 5;   // 10 Hz steps become 50 Hz steps
+          else if (ema_rate < 50.0) mult = 10;  // 10 Hz steps become 100 Hz steps
+          else                      mult = 20;  // 10 Hz steps become 200 Hz steps
+
+          const long cap = 50000;               // largest accelerated tuning step we accept
           long proposed = (long)base_step * mult;
           if (proposed > cap) proposed = cap;
           local_step = (int)proposed;
@@ -4710,58 +4808,67 @@ int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
       }
       last_us = now_us;
     } else {
-      // no acceleration
-      local_step = base_step;
+      local_step = base_step; // no acceleration
     }
 
-    // Movement application
-    // VFO LOCK? If so, skip.
-    // RIT uses additive deltas; VFO uses integral multiples of base step to keep aligned.
-    if (vfo_lock_enabled == 0) {
-      if (!strcmp(field_str("RIT"), "ON")) {
-        struct field *fr = get_field("#rit_delta");
-        int rit_delta = atoi(fr->value);
-        if (a == MIN_KEY_UP && rit_delta < MAX_RIT) {
-          rit_delta += local_step;
-          if (rit_delta > MAX_RIT) rit_delta = MAX_RIT;
-        } else if (a == MIN_KEY_DOWN && rit_delta > -MAX_RIT) {
-          rit_delta -= local_step;
-          if (rit_delta < -MAX_RIT) rit_delta = -MAX_RIT;
-        } else {
-          return 1;
-        }
-        char tempstr[32];
-        sprintf(tempstr, "%d", rit_delta);
-        set_field("#rit_delta", tempstr);
-        // leave v unchanged for RIT path
-        return 1;
+    // RIT path, disable acceleration (use base_step only)
+    if (field_str && field_str("RIT") && strcmp(field_str("RIT"), "ON") == 0) {
+      struct field *fr = get_field("#rit_delta");
+      if (!fr || !fr->value) return 1;
+
+      int rit_delta = atoi(fr->value);
+      const int rit_step = base_step; // no acceleration for RIT
+
+      if (a == MIN_KEY_UP && rit_delta < MAX_RIT) {
+        rit_delta += rit_step;
+        if (rit_delta > MAX_RIT) rit_delta = MAX_RIT;
+      } else if (a == MIN_KEY_DOWN && rit_delta > -MAX_RIT) {
+        rit_delta -= rit_step;
+        if (rit_delta < -MAX_RIT) rit_delta = -MAX_RIT;
       } else {
-        // Keep alignment to base_step, but move by multiple of base_step derived from
-        // local_step. example: local_step/base_step = 1, 5, 10, 100...
-        int k = local_step / base_step;
-        if (k < 1) k = 1;
-
-        long vv = v;
-        if (a == MIN_KEY_UP && v + base_step <= f->max) {
-          // snap to base grid, then add k steps
-          vv = (v / base_step) * base_step + k * base_step;
-        } else if (a == MIN_KEY_DOWN && v - base_step >= f->min) {
-          vv = (v / base_step) * base_step - k * base_step;
-        } else {
-          return 1;
-        }
-        v = (int)vv;
+        return 1;
       }
+      char tempstr[32];
+      snprintf(tempstr, sizeof(tempstr), "%d", rit_delta);
+      set_field("#rit_delta", tempstr);
+      return 1;
     }
+
+    // normal VFO tuning with possible acceleration
+    if (vfo_lock_enabled != 0) {
+      return 1; // avoid unnecessary updates when locked
+    }
+
+    int v = atoi(f->value);
+    int k = local_step / base_step;
+    if (k < 1) k = 1;
+
+    long vv = v;
+    if (a == MIN_KEY_UP) {
+      long aligned = (v / base_step) * base_step; // note: truncates toward zero for negatives
+      vv = aligned + (long)k * base_step;
+    } else if (a == MIN_KEY_DOWN) {
+      long aligned = (v / base_step) * base_step;
+      vv = aligned - (long)k * base_step;
+    } else {
+      return 1;
+    }
+
+    // Clamp to bounds to avoid overshoot when k > 1
+    if (vv > f->max) vv = f->max;
+    if (vv < f->min) vv = f->min;
+
+    v = (int)vv;
 
     // From here on, keep existing send/refresh
-    sprintf(f->value, "%d", v);
-    char buff[100];
-    sprintf(buff, "%s %s", f->label, f->value);
+    snprintf(f->value, 32, "%d", v);
+    char buff[128];
+    snprintf(buff, sizeof(buff), "%s %s", f->label ? f->label : "", f->value);
     do_control_action(buff);
     update_field(f);
     settings_updated++;
     return 1;
+
   } else if (event == FIELD_DRAW) {
     draw_dial(f, gfx);
     return 1;
@@ -4830,6 +4937,34 @@ int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	if (event == GDK_BUTTON_PRESS)
 	{
 		set_field("#menu", "OFF");
+		focus_field(f_last_text);
+		return 1;
+	}
+	return 0;
+}
+int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	if (event == GDK_BUTTON_PRESS)
+	{
+		if (!strcmp(field_str("RIT"), "OFF"))
+		{ 
+			// When RIT is turned off it doesn't properly tune the RX back to the original frequency
+			// To remediate this we do a small adjustment to the VFO frequency to force a proper tuning
+			// Get the current VFO frequency
+			struct field *freq = get_field("r1:freq");
+			int current_freq = atoi(freq->value);
+			char response[128];
+			
+			// Adjust VFO up by 10Hz
+			set_operating_freq(current_freq + 10, response);
+			
+			// Small 5ms delay 
+			usleep(5000); 
+			
+			// Adjust VFO back down by 10Hz to original frequency
+			set_operating_freq(current_freq, response);
+		}
+		set_field("#rit_delta", "000000"); // zero the RIT delta
 		focus_field(f_last_text);
 		return 1;
 	}
@@ -7594,9 +7729,15 @@ void do_control_action(char *cmd)
 		tx_off();
 	}
 	else if (!strncmp(request, "RIT", 3))
-	{
-		update_field(get_field("r1:freq"));
-	}
+  {
+    // Keep SDR tuned to RX when RIT toggles or delta changes
+    struct field *freq = get_field("r1:freq");
+    if (freq && freq->value) {
+      char resp2[128];
+      set_operating_freq(atoi(freq->value), resp2);
+    }
+    update_field(get_field("r1:freq"));
+  }
 	else if (!strncmp(request, "SPLIT", 5))
 	{
 		update_field(get_field("r1:freq"));
@@ -8061,7 +8202,45 @@ void cmd_exec(char *cmd)
 			set_field("r1:freq", freq_s);
 		}
 	}
-	else if (!strcmp(exec, "exit"))
+	else if (!strcmp(exec, "rit"))
+	{
+		struct field *rit_field = get_field("#rit");
+		if (!rit_field) {
+			write_console(FONT_LOG, "Error: RIT field not found\n");
+			return;
+		}
+		
+		if (!strcasecmp(args, "on"))
+		{
+			// Turn RIT on
+			set_field("#rit", "ON");
+			set_field("#rit_delta", "000000"); // zero the RIT delta
+		}
+		else if (!strcasecmp(args, "off"))
+		{
+			// Turn RIT off
+			set_field("#rit", "OFF");
+			// When RIT is turned off it doesn't properly tune the RX back to the original frequency
+			// To remediate this we do a small adjustment to the VFO frequency to force a proper tuning
+			// Get the current VFO frequency
+			struct field *freq = get_field("r1:freq");
+			if (freq && freq->value) {
+				int current_freq = atoi(freq->value);
+				char response[128];
+				
+				// Adjust VFO up by 10Hz
+				set_operating_freq(current_freq + 10, response);
+				
+				// Small 5ms delay 
+				usleep(5000); 
+				
+				// Adjust VFO back down by 10Hz to original frequency
+				set_operating_freq(current_freq, response);
+			}
+		}
+		focus_field(f_last_text);
+	}
+  else if (!strcmp(exec, "exit"))
 	{
 		tx_off();
 		set_field("#record", "OFF");
@@ -8439,6 +8618,7 @@ int main(int argc, char *argv[])
 	field_set("TUNE", "OFF");
 	field_set("NOTCH", "OFF");
 	field_set("VFOLK", "OFF");
+  field_set("RIT", "OFF");
 
 	// field_set("COMP", "OFF");
 	// field_set("WTRFL" , "OFF");
