@@ -113,6 +113,21 @@ double notch_freq = 0;		   // Notch frequency in Hz W2JON
 double notch_bandwidth = 0;	   // Notch bandwidth in Hz W2JON
 int compression_control_level; // Audio Compression level W2JON
 int txmon_control_level;	   // TX Monitor level W2JON
+struct apf apf1 = { .ison=0, .gain=0.0, .width=0.0 }; // APF for CW
+
+int init_apf(void)
+{
+	// Initialize APF filter coefficients based on gain and width
+	// This is a placeholder implementation that computes simple coefficients
+	// In a real implementation, this would compute proper filter coefficients
+	// based on the gain (in dB) and width parameters
+	int i;
+	for (i = 0; i < 10; i++) {
+		apf1.coeff[i] = apf1.gain * apf1.width * 0.01; // Simplified computation
+	}
+	return 0;
+}
+
 int get_rx_gain(void)
 {
 	// printf("rx_gain %d\n", rx_gain);

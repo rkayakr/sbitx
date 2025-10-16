@@ -70,6 +70,7 @@ int vfo_lock_enabled = 0;
 int has_ina260 = 0;
 int zero_beat_enabled = 0;
 int tx_panafall_enabled = 0;
+int apf_enabled = 0;
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
@@ -543,6 +544,7 @@ int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
@@ -858,6 +860,14 @@ struct field main_controls[] = {
 	// ANR Control
 	{"#anr_plugin", do_toggle_option, 1000, -1000, 40, 40, "ANR", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
+
+	// APF Controls
+	{"#apf_plugin", do_toggle_option, 1000, -1000, 40, 40, "APF", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	{"#apf_gain", do_apf_edit, 1000, -1000, 40, 40, "APFGAIN", 40, "6", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", -20, 20, 1, 0},
+	{"#apf_width", do_apf_edit, 1000, -1000, 40, 40, "APFWID", 40, "3", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 1, 10, 1, 0},
 
 	// Compressor Control
 	{"#comp_plugin", do_comp_edit, 1000, -1000, 40, 40, "COMP", 40, "0", FIELD_SELECTION, FONT_FIELD_VALUE,
@@ -2880,6 +2890,27 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	cairo_move_to(gfx, anr_text_x, anr_text_y);
 	cairo_show_text(gfx, anr_text);
 
+	// --- APF plugin indicator
+	const char *apf_text = "APF";
+	cairo_set_font_size(gfx, FONT_SMALL);
+
+	// Check the apf1.ison variable and set the text color
+	if (apf1.ison)
+	{
+		cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0); // Green when enabled
+	}
+	else
+	{
+		cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Gray when disabled
+	}
+
+	// Cast apf_text to char* to avoid the warning
+	int apf_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)apf_text, FONT_SMALL) - 205;
+	int apf_text_y = f_spectrum->y + 7;
+
+	cairo_move_to(gfx, apf_text_x, apf_text_y);
+	cairo_show_text(gfx, apf_text);
+
 	// --- VFO LOCK indicator W2JON
 	const char *vfolk_text = "VFO LOCK";
 	cairo_set_font_size(gfx, FONT_LARGE_VALUE);
@@ -3477,10 +3508,11 @@ void menu_display(int show)
 				field_move("TXEQ", 70, screen_height - 100, 45, 45);
 				field_move("RXEQ", 120, screen_height - 100, 45, 45);
 				field_move("NOTCH", 185, screen_height - 100, 95, 45);
-				field_move("ANR", 285, screen_height - 100, 45, 45);
-				field_move("COMP", 350, screen_height - 100, 45, 45);
-				field_move("TXMON", 400, screen_height - 100, 45, 45);
-				field_move("TNDUR", 500, screen_height - 100, 45, 45);
+				field_move("APF", 285, screen_height - 100, 45, 45);
+				field_move("ANR", 335, screen_height - 100, 45, 45);
+				field_move("COMP", 385, screen_height - 100, 45, 45);
+				field_move("TXMON", 435, screen_height - 100, 45, 45);
+				field_move("TNDUR", 535, screen_height - 100, 45, 45);
 				if (!strcmp(field_str("EPTTOPT"), "ON"))
 				{
 					field_move("ePTT", screen_width - 94, screen_height - 100, 92, 45);
@@ -3491,10 +3523,12 @@ void menu_display(int show)
 				field_move("EQSET", 70, screen_height - 50, 95, 45);
 				field_move("NFREQ", 185, screen_height - 50, 45, 45);
 				field_move("BNDWTH", 235, screen_height - 50, 45, 45);
-				field_move("DSP", 285, screen_height - 50, 45, 45);
-				field_move("BFO", 350, screen_height - 50, 45, 45);
-				field_move("VFOLK", 400, screen_height - 50, 45, 45);
-				field_move("TNPWR", 500, screen_height - 50, 45, 45);
+				field_move("APFGAIN", 285, screen_height - 50, 45, 45);
+				field_move("APFWID", 335, screen_height - 50, 45, 45);
+				field_move("DSP", 385, screen_height - 50, 45, 45);
+				field_move("BFO", 435, screen_height - 50, 45, 45);
+				field_move("VFOLK", 485, screen_height - 50, 45, 45);
+				field_move("TNPWR", 535, screen_height - 50, 45, 45);
 			}
 
 			else
@@ -5359,6 +5393,25 @@ int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	return 0;
 }
 
+int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	if (event != FIELD_EDIT)
+		return 0;
+	
+	const char *g = field_str("APFGAIN");
+	const char *w = field_str("APFWID");
+	if (g) apf1.gain = atof(g);
+	if (w) apf1.width = atof(w);
+	
+	// Check if APF is enabled or being turned on
+	if (apf_enabled || (field_str("APF") && !strcmp(field_str("APF"), "ON"))) {
+		apf1.ison = 1;
+		init_apf();
+	}
+	
+	return 1;
+}
+
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	// Retrieve and parse the BFO offset field
@@ -5469,6 +5522,7 @@ gboolean check_plugin_controls(gpointer data)
 	struct field *notch_stat = get_field("#notch_plugin");
 	struct field *dsp_stat = get_field("#dsp_plugin");
 	struct field *anr_stat = get_field("#anr_plugin");
+	struct field *apf_stat = get_field("#apf_plugin");
 	struct field *eptt_stat = get_field("#eptt");
 	struct field *vfo_stat = get_field("#vfo_lock");
 	struct field *comp_stat = get_field("#comp_plugin");
@@ -5569,6 +5623,25 @@ gboolean check_plugin_controls(gpointer data)
 		else if (!strcmp(anr_stat->value, "OFF"))
 		{
 			anr_enabled = 0;
+		}
+	}
+
+	if (apf_stat)
+	{
+		if (!strcmp(apf_stat->value, "ON"))
+		{
+			apf_enabled = 1;
+			apf1.ison = 1;
+			const char *g = field_str("APFGAIN");
+			const char *w = field_str("APFWID");
+			if (g) apf1.gain = atof(g);
+			if (w) apf1.width = atof(w);
+			init_apf();
+		}
+		else
+		{
+			apf_enabled = 0;
+			apf1.ison = 0;
 		}
 	}
 

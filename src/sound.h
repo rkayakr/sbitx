@@ -55,3 +55,13 @@ void apply_fixed_compression(float *input, int num_samples, int compression_cont
 
 // TX Monitor tool
 extern int txmon_control_level;
+
+// APF (Audio Peaking Filter) for CW
+struct apf {
+	int ison;
+	double gain;
+	double width;
+	double coeff[10];  // Placeholder for filter coefficients
+};
+extern struct apf apf1;
+int init_apf(void);
