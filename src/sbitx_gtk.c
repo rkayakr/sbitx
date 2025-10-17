@@ -577,6 +577,7 @@ int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
@@ -897,6 +898,14 @@ struct field main_controls[] = {
 	// ANR Control
 	{"#anr_plugin", do_toggle_option, 1000, -1000, 40, 40, "ANR", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
+
+	// APF Controls
+	{"#apf_plugin", do_toggle_option, 1000, -1000, 40, 40, "APF", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	{"#apf_gain", do_apf_edit, 1000, -1000, 40, 40, "APF_GAIN", 80, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 0, 100, 1, 0},
+	{"#apf_width", do_apf_edit, 1000, -1000, 40, 40, "APF_WIDTH", 80, "1000", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 0, 5000, 10, 0},
 
 	// Compressor Control
 	{"#comp_plugin", do_comp_edit, 1000, -1000, 40, 40, "COMP", 40, "0", FIELD_SELECTION, FONT_FIELD_VALUE,
@@ -5423,6 +5432,29 @@ int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		struct field *notch_bandwidth_field = get_field("#notch_bandwidth");
 		int notch_bandwidth_value = atoi(notch_bandwidth_field->value);
 		notch_bandwidth = notch_bandwidth_value;
+	}
+
+	return 0;
+}
+
+int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	if (!strcmp(field_str("APF"), "ON"))
+	{
+		struct field *apf_gain_field = get_field("#apf_gain");
+		int apf_gain_value = atoi(apf_gain_field->value);
+		apf1.gain = (float)apf_gain_value;
+		
+		struct field *apf_width_field = get_field("#apf_width");
+		int apf_width_value = atoi(apf_width_field->value);
+		apf1.width = (float)apf_width_value;
+		
+		apf1.ison = 1;
+		init_apf();
+	}
+	else
+	{
+		apf1.ison = 0;
 	}
 
 	return 0;
