@@ -42,6 +42,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "hamlib.h"
 #include "remote.h"
 #include "modem_ft8.h"
+#include "modem_cw.h"
 #include "i2cbb.h"
 #include "webserver.h"
 #include "logbook.h"
@@ -55,7 +56,7 @@ extern int calculate_s_meter(struct rx *r, double rx_gain);
 extern struct rx *rx_list;
 #define FT8_START_QSO 1
 #define FT8_CONTINUE_QSO 0
-void ft8_process(char *received, int operation);
+int ft8_process(char *received, int operation);
 void change_band(char *request);
 void highlight_band_field(int new_band);
 /* command  buffer for commands received from the remote */
@@ -105,12 +106,14 @@ char pins[15] = {0, 2, 3, 6, 7,
 #define ENC2_B (2)
 #define ENC2_SW (3)
 
+#define ENCODER_DEBOUNCE_US 150  // ignore edges that arrive before this many microseconds
+
 #define SW5 (22)
 #define PTT (7)
 #define DASH (21)
 
-#define ENC_FAST 1
-#define ENC_SLOW 5
+#define ENC_FAST 4
+#define ENC_SLOW 5    // not used anywhere?
 
 #define DS3231_I2C_ADD 0x68
 // time sync, when the NTP time is not synced, this tracks the number of seconds
@@ -133,6 +136,12 @@ static int mouse_down = 0;
 static int last_mouse_x = -1;
 static int last_mouse_y = -1;
 
+// MFK timeout state
+static int mfk_locked_to_volume = 0;
+static unsigned long mfk_last_ms = 0;
+static const unsigned long MFK_TIMEOUT_MS = 15000UL;
+static int enc1_sw_prev = 1; // active-low; idle high due to pull-up
+
 // encoder state
 struct encoder
 {
@@ -140,6 +149,7 @@ struct encoder
 	int speed;
 	int prev_state;
 	int history;
+  unsigned int last_us;  // last accepted transition time (microseconds)
 };
 void tuning_isr(void);
 
@@ -278,11 +288,12 @@ int bfo_offset = 0;
 #define MIN_KEY_F7 0xFFC4
 #define MIN_KEY_F8 0xFFC5
 #define MIN_KEY_F9 0xFFC6
-#define MIN_KEY_F9 0xFFC6
 #define MIN_KEY_F10 0xFFC7
 #define MIN_KEY_F11 0xFFC8
 #define MIN_KEY_F12 0xFFC9
 #define COMMAND_ESCAPE '\\'
+
+int text_ready = 0; // send TEXT buffer when ENTER key pressed
 
 void set_ui(int id);
 void set_bandwidth(int hz);
@@ -447,6 +458,33 @@ struct cmd
 	int (*fn)(char *args[]);
 };
 
+struct apf apf1 = { .ison=0, .gain=0.0, .width=0.0 };
+// gain in db, evaluate function in db
+// then convert back to linear for application
+int init_apf()  // define filter gain coefficients
+{
+	printf( " gain %.2f  width %.2f\n", apf1.gain, apf1.width );	
+	double binw = 96000.0 / MAX_BINS;  // about 46.9
+	double  q = 2*apf1.width*apf1.width;
+
+	apf1.coeff[0]= pow(10,apf1.gain * exp(-(16*binw*binw)/q)/10);
+	apf1.coeff[1]= pow(10,apf1.gain * exp(-(9*binw*binw)/q)/10);
+	apf1.coeff[2]= pow(10,apf1.gain * exp(-(4*binw*binw)/q)/10);
+	apf1.coeff[3]= pow(10,apf1.gain * exp(-(binw*binw)/q)/10);
+	apf1.coeff[4]= pow(10,apf1.gain/10);  // peak
+	apf1.coeff[5]=apf1.coeff[3];  // symmetry
+	apf1.coeff[6]=apf1.coeff[2];
+	apf1.coeff[7]=apf1.coeff[1];
+	apf1.coeff[8]=apf1.coeff[0];
+	
+	for (int i=0; i < 9; i++){
+				printf("%.3f ",apf1.coeff[i]);
+			}
+			printf(" \n");
+	 	
+};
+
+
 static unsigned long focus_since = 0;
 static struct field *f_focus = NULL;
 static struct field *f_hover = NULL;
@@ -539,12 +577,14 @@ int do_eqg(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eqb(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_eq_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_comp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_txmon_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_wf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_dsp_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_vfo_keypad(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_bfo_offset(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
+int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 int do_zero_beat_sense_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c);
 void cleanup_on_exit(void);
 
@@ -608,7 +648,7 @@ struct field main_controls[] = {
 	 "10K/1K/500H/100H/10H", 0, 0, 0, COMMON_CONTROL},
 	{"#span", NULL, 560, 50, 40, 40, "SPAN", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "25K/10K/8K/6K/2.5K", 0, 0, 0, COMMON_CONTROL},
-	{"#rit", NULL, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#rit", do_rit_control, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#vfo", NULL, 640, 50, 40, 40, "VFO", 1, "A", FIELD_SELECTION, FONT_FIELD_VALUE,
 	 "A/B", 0, 0, 0, COMMON_CONTROL},
@@ -858,6 +898,14 @@ struct field main_controls[] = {
 	// ANR Control
 	{"#anr_plugin", do_toggle_option, 1000, -1000, 40, 40, "ANR", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
+
+	// APF Controls
+	{"#apf_plugin", do_toggle_option, 1000, -1000, 40, 40, "APF", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	{"#apf_gain", do_apf_edit, 1000, -1000, 40, 40, "APF_GAIN", 80, "50", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 0, 100, 1, 0},
+	{"#apf_width", do_apf_edit, 1000, -1000, 40, 40, "APF_WIDTH", 80, "1000", FIELD_NUMBER, FONT_FIELD_VALUE,
+	 "", 0, 5000, 10, 0},
 
 	// Compressor Control
 	{"#comp_plugin", do_comp_edit, 1000, -1000, 40, 40, "COMP", 40, "0", FIELD_SELECTION, FONT_FIELD_VALUE,
@@ -2903,90 +2951,104 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	cairo_stroke(gfx);
 
-	if (zero_beat_enabled)
-	{
-		// --- Zero Beat indicator
-		const char *zerobeat_text = "ZBEAT";
-		cairo_set_font_size(gfx, FONT_SMALL);
-	
-		
-		// Only show zero beat indicator in CW/CWR modes
-		if (!strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "CWR")) {
-			// Get zero beat value from calculate_zero_beat
-			int zerobeat_value = calculate_zero_beat(rx_list, 96000.0);
-	
-	
-			// Position and draw the text in gray
-			int zerobeat_text_x = f_spectrum->x + f_spectrum->width - measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) - 183 ;
-			int zerobeat_text_y = f_spectrum->y + 30;
-	
-			// Draw text in gray always
-			cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Gray text
-			cairo_move_to(gfx, zerobeat_text_x, zerobeat_text_y);
-			cairo_show_text(gfx, zerobeat_text);
-	
-			// Draw LED indicators
-			int box_width = 15;
-			int box_height = 5;
-			int spacing = 2;
-			int led_y = zerobeat_text_y - 5;
-			int led_x = zerobeat_text_x + measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) + 5;
-	
-			// Draw LED background
-			cairo_save(gfx);
-			cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.5);
-			cairo_rectangle(gfx, led_x - 2, led_y - 2, 
-						   (box_width + spacing) * 5 + 4, box_height + 4);
-			cairo_fill(gfx);
-	
-			// Draw 5 LEDs
-	
-			
-			for(int i = 0; i < 5; i++) {
-				cairo_rectangle(gfx, led_x + i * (box_width + spacing), led_y, box_width, box_height);
-				
-				// Set LED color based on zero beat value and position
-				if (i == 0 && zerobeat_value == 1) { // Far below
-		
-		
-					cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
-				}
-				else if (i == 1 && zerobeat_value == 2) { // Slightly below
-		
-		
-					cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);
-				}
-				else if (i == 2 && zerobeat_value == 3) { // Centered
-		
-		
-					cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0);
-				}
-				else if (i == 3 && zerobeat_value == 4) { // Slightly above
-		
-		
-					cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);
-				}
-				else if (i == 4 && zerobeat_value == 5) { // Far above
-		
-		
-					cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
-				}
-				else {
-		
-		
-					cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2); // Inactive LED
-				}
-	
-				cairo_fill(gfx);
-			}
-			cairo_restore(gfx);
-		}
-	}
-
+	if (zero_beat_enabled) {
+    // --- Zero Beat indicator
+    const char *zerobeat_text = "ZBEAT";
+    cairo_set_font_size(gfx, FONT_SMALL);
+  
+    // Only show zero beat indicator in CW/CWR modes
+    if (!strcmp(mode_f->value, "CW") || !strcmp(mode_f->value, "CWR")) {
+      // Get zero beat value from calculate_zero_beat
+      int zerobeat_value = calculate_zero_beat(rx_list, 96000.0);
+  
+      // Position and draw the text in gray
+      int zerobeat_text_x = f_spectrum->x + f_spectrum->width -
+                            measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) -
+                            183;
+      int zerobeat_text_y = f_spectrum->y + 30;
+  
+      // Draw text in gray always
+      cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2);  // Gray text
+      cairo_move_to(gfx, zerobeat_text_x, zerobeat_text_y);
+      cairo_show_text(gfx, zerobeat_text);
+  
+      // Draw LED indicators
+      int box_width = 15;
+      int box_height = 5;
+      int spacing = 2;
+      int led_y = zerobeat_text_y - 5;
+      int led_x = zerobeat_text_x +
+                  measure_text(gfx, (char *)zerobeat_text, FONT_SMALL) + 5;
+  
+      // Draw LED background
+      cairo_save(gfx);
+      cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.5);
+      cairo_rectangle(gfx, led_x - 2, led_y - 2, (box_width + spacing) * 5 + 4,
+                      box_height + 4);
+      cairo_fill(gfx);
+  
+      // Draw 5 LEDs
+      for (int i = 0; i < 5; i++) {
+        cairo_rectangle(gfx, led_x + i * (box_width + spacing), led_y, box_width,
+                        box_height);
+  
+        // Set LED color based on zero beat value and position
+        if (i == 0 && zerobeat_value == 1) {  // Far below
+          cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
+        } else if (i == 1 && zerobeat_value == 2) {  // Slightly below
+          cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);
+        } else if (i == 2 && zerobeat_value == 3) {  // Centered
+          cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0);
+        } else if (i == 3 && zerobeat_value == 4) {  // Slightly above
+          cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);
+        } else if (i == 4 && zerobeat_value == 5) {  // Far above
+          cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
+        } else {
+          // Inactive background color
+          cairo_set_source_rgb(gfx, 0.13, 0.13, 0.13);
+        }
+  
+        cairo_fill(gfx);
+      }
+  
+      // Draw a highlight frame around the LED corresponding to the CW decoder's
+      // strongest bin Mapping is left-to-right: 0:-80 Hz, 1:-35 Hz, 2:0 Hz, 3:+35
+      // Hz, 4:+80 Hz
+      int hi = cw_get_max_bin_highlight_index();
+      if (hi >= 0 && hi < 5) {
+        const double pad = 2.0;     // frame padding around the LED box
+        const double line_w = 2.0;  // frame thickness
+        const double fx = led_x + hi * (box_width + spacing) - pad;
+        const double fy = led_y - pad;
+        const double fw = box_width + 2 * pad;
+        const double fh = box_height + 2 * pad;
+  
+        // use cyan color for the frame (cyan is r=0.0, g=1.0, b=1.0)
+        cairo_set_source_rgba(gfx, 0.0, 1.0, 1.0, 0.4);  // make frame 40% opaque
+        cairo_set_line_width(gfx, line_w);
+        cairo_rectangle(gfx, fx, fy, fw, fh);
+        cairo_stroke(gfx);
+      }
+      cairo_restore(gfx);
+    }
+  }  
+  
 	// draw the frequency readout at the bottom
 	cairo_set_source_rgb(gfx, palette[COLOR_TEXT_MUTED][0],
-						 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
-	long f_start = freq - (4 * freq_div);
+					 palette[COLOR_TEXT_MUTED][1], palette[COLOR_TEXT_MUTED][2]);
+  
+	// Get RIT status and delta to adjust frequency display when RIT is enabled
+	struct field *rit = get_field("#rit");
+	struct field *rit_delta = get_field("#rit_delta");
+	long display_freq = freq;
+	
+	// When RIT is enabled, we want to show the RX frequency (not TX frequency)
+	if (!strcmp(rit->value, "ON") && !in_tx) {
+		// Adjust the display frequency to show RX frequency (freq + rit_delta)
+		display_freq = freq + atoi(rit_delta->value);
+	}
+	
+	long f_start = display_freq - (4 * freq_div);					 
 	for (i = f->width / 10; i < f->width; i += f->width / 10)
 	{
 		if ((span == 25) || (span == 10))
@@ -3250,6 +3312,91 @@ if (!strcmp(field_str("SMETEROPT"), "ON") &&
 	{
 		int needle_x = (f->width * (MAX_BINS / 2 - r->tuned_bin)) / (MAX_BINS / 2);
 		fill_rect(gfx, f->x + needle_x, f->y, 1, grid_height, SPECTRUM_NEEDLE);
+
+    
+		// Draw TX frequency indicator when RIT is enabled
+		struct field *rit = get_field("#rit");
+		struct field *rit_delta = get_field("#rit_delta");
+		struct field *freq_field = get_field("r1:freq");
+		struct field *mode_f = get_field("r1:mode");
+		
+		if (!strcmp(rit->value, "ON") && !in_tx)
+		{
+			// Get the RIT delta value and current frequency
+			int rit_delta_value = atoi(rit_delta->value);
+			long rx_freq = atol(freq_field->value);
+			long tx_freq = rx_freq - rit_delta_value; // TX freq is RX freq minus RIT delta
+			
+			// Calculate the TX bin position directly
+			// We need to calculate where the TX frequency would be in the spectrum
+			// First, determine the frequency span visible in the spectrum
+			float span_khz = atof(get_field("#span")->value);
+			float span_hz = span_khz * 1000;
+			
+			// Now we calculate the frequency difference between RX and TX in Hz
+			long freq_diff = rx_freq - tx_freq;
+			
+			// Let's calculate the pixel offset based on the frequency difference and span
+			// The center of the spectrum is at f->width/2
+			// The full width represents span_hz
+			float pixels_per_hz = (float)f->width / span_hz;
+			// Invert the offset to match the spectrum panning direction
+			int offset_pixels = (int)(-freq_diff * pixels_per_hz);
+			
+			// Calculate the TX needle position
+			// WE can use the same calculation method as the RX needle (tuned_bin)
+			// but with an offset based on the RIT delta
+			int tx_needle_x;
+			
+			// Calculate the TX needle position directly from the RX needle position
+			// The RX needle is always at the center (f->width/2)
+			// We just need to offset it based on the RIT delta
+			tx_needle_x = (f->width / 2) + offset_pixels;
+			
+			// Ensure the needle stays within the spectrum display this will make it stop at the spectrum edge to indicate that the tx is out of view
+			int is_at_edge = 0;
+			int arrow_direction = 0; // -1 for left, 1 for right
+      
+			if (tx_needle_x < 0) {
+				tx_needle_x = 0;
+        is_at_edge = 1;
+				arrow_direction = -1; // Point left
+			}
+			if (tx_needle_x >= f->width) {
+				tx_needle_x = f->width - 1;
+			  is_at_edge = 1;
+				arrow_direction = 1; // Point right
+			}
+			// Draw red TX frequency indicator
+			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red color
+			cairo_set_line_width(gfx, 1.0);
+			cairo_move_to(gfx, f->x + tx_needle_x, f->y);
+			cairo_line_to(gfx, f->x + tx_needle_x, f->y + grid_height);
+			cairo_stroke(gfx);
+
+      // This part is will draw a small red triangle arrow at the center of the line if at edge of the scope
+			if (is_at_edge) {
+				int center_y = f->y + (grid_height / 2);
+				int arrow_size = 10; // Size of the triangle
+				
+				// Fill a triangle pointing in the direction of the TX frequency
+				cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0); // Red color
+				cairo_move_to(gfx, f->x + tx_needle_x, center_y);
+				
+				if (arrow_direction < 0) { // Point left
+					// Triangle pointing left
+					cairo_line_to(gfx, f->x + tx_needle_x + arrow_size, center_y - arrow_size/2);
+					cairo_line_to(gfx, f->x + tx_needle_x + arrow_size, center_y + arrow_size/2);
+				} else { // Point right
+					// Triangle pointing right
+					cairo_line_to(gfx, f->x + tx_needle_x - arrow_size, center_y - arrow_size/2);
+					cairo_line_to(gfx, f->x + tx_needle_x - arrow_size, center_y + arrow_size/2);
+				}
+				
+				cairo_close_path(gfx);
+				cairo_fill(gfx);
+			}
+		}
 	}
 }
 
@@ -4498,6 +4645,12 @@ int do_text(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 			f->value[l++] = a;
 			f->value[l] = 0;
 		}
+    // in CW mode we want to wait for ENTER key before sending buffer contents
+    else if ((a == '\n' || a == MIN_KEY_ENTER) &&
+            (mode_id(get_field("r1:mode")->value) == MODE_CW) ||
+            (mode_id(get_field("r1:mode")->value) == MODE_CWR)) {
+      text_ready = 1;  // ok to send buffer text contents
+    }
 		// handle ascii delete 8 or gtk
 		else if ((a == MIN_KEY_BACKSPACE || a == 8) && strlen(f->value) > 0)
 		{
@@ -4604,11 +4757,13 @@ int do_bandwidth(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		}
 		sprintf(f->value, "%d", v);
 		update_field(f);
+/*					RLB  fixed do_bandwidth changing rx+pitch
 		int mode = mode_id(get_field("r1:mode")->value);
 		modem_set_pitch(v, mode);
 		char buff[20], response[20];
 		sprintf(buff, "rx_pitch=%d", v);
 		sdr_request(buff, response);
+*/
 		set_filter_high_low(v);
 		save_bandwidth(v);
 		return 1;
@@ -4616,118 +4771,118 @@ int do_bandwidth(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 
 	return 0;
 }
-// called for RIT as well as the main tuning
-int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
-{
 
-	static struct timespec last_change_time, this_change_time;
-	int v = atoi(f->value);
-	int temp_tuning_step = tuning_step;
+// track tuning rate and adjust tuning rate acceleration
+int do_tuning(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+  const uint64_t IDLE_RESET = 500000; // reset EMA after 500ms idle
 
-	if (event == FIELD_EDIT)
-	{
+  if (event == FIELD_EDIT) {
+    static uint64_t last_us = 0;
+    static double ema_rate = 0.0;      // events per second, smoothed
+    const double alpha = 0.05;         // moving average factor; higher = more responsive
 
-		if (!strcmp(get_field("tuning_acceleration")->value, "ON"))
-		{
-			clock_gettime(CLOCK_MONOTONIC_RAW, &this_change_time);
-			uint64_t delta_us = (this_change_time.tv_sec - last_change_time.tv_sec) * 1000000 + (this_change_time.tv_nsec - last_change_time.tv_nsec) / 1000;
-			char temp_char[100];
-			// sprintf(temp_char, "delta: %d", delta_us);
-			// strcat(temp_char,"\r\n");
-			// write_console(FONT_LOG, temp_char);
-			clock_gettime(CLOCK_MONOTONIC_RAW, &last_change_time);
-			if (delta_us < atof(get_field("tuning_accel_thresh2")->value))
-			{
-				if (tuning_step < 10000)
-				{
-					tuning_step = tuning_step * 100;
-					// sprintf(temp_char, "x100 activated\r\n");
-					// write_console(FONT_LOG, temp_char);
-				}
-			}
-			else if (delta_us < atof(get_field("tuning_accel_thresh1")->value))
-			{
-				if (tuning_step < 1000)
-				{
-					tuning_step = tuning_step * 10;
-					// printf(temp_char, "x10 activated\r\n");
-					// write_console(FONT_LOG, temp_char);
-				}
-			}
-		}
+    int base_step = tuning_step;       // keep user tuning step chosen in UI unchanged
+    if (base_step <= 0) base_step = 1; // guard against zero/negative (probably not needed?)
+    int local_step = base_step;        // the possibly accelerated step used in tuning
 
-		if (vfo_lock_enabled == 0)
-		{
+    struct field *accel_f = get_field("tuning_acceleration");
+    int accel_on = (accel_f && accel_f->value && strcmp(accel_f->value, "ON") == 0);
 
-			if (a == MIN_KEY_UP && v + f->step <= f->max)
-			{
-				// this is tuning the radio
-				// Fix a compiler warning - n1qm
-				// orig: if (!strcmp(get_field("#rit")->value, "ON")){
-				if (!strcmp(field_str("RIT"), "ON"))
-				{
-					struct field *f = get_field("#rit_delta");
-					int rit_delta = atoi(f->value);
-					if (rit_delta < MAX_RIT)
-					{
-						rit_delta += tuning_step;
-						char tempstr[100];
-						sprintf(tempstr, "%d", rit_delta);
-						set_field("#rit_delta", tempstr);
-						printf("moved rit to %s\n", f->value);
-					}
-					else
-						return 1;
-				}
-				else
-					v = (v / tuning_step + 1) * tuning_step;
-			}
-			else if (a == MIN_KEY_DOWN && v - f->step >= f->min)
-			{
-				// Fix a compiler warning - n1qm
-				// orig: if (!strcmp(get_field("#rit")->value, "ON")){
-				if (!strcmp(field_str("RIT"), "ON"))
-				{
-					struct field *f = get_field("#rit_delta");
-					int rit_delta = atoi(f->value);
-					if (rit_delta > -MAX_RIT)
-					{
-						rit_delta -= tuning_step;
-						char tempstr[100];
-						sprintf(tempstr, "%d", rit_delta);
-						set_field("#rit_delta", tempstr);
-						printf("moved rit to %s\n", f->value);
-					}
-					else
-						return 1;
-				}
-				else
-					v = (v / tuning_step - 1) * tuning_step;
-				abort_tx();
-			}
-		}
+    if (accel_on) {
+      struct timespec ts;
+      clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+      uint64_t now_us = (uint64_t)ts.tv_sec * 1000000ull + (uint64_t)(ts.tv_nsec / 1000ull);
 
-		sprintf(f->value, "%d", v);
-		tuning_step = temp_tuning_step;
-		// send the new frequency to the sbitx core
-		char buff[100];
-		// sprintf(buff, "%s=%s", f->cmd, f->value);
-		sprintf(buff, "%s %s", f->label, f->value);
-		do_control_action(buff);
-		// update the GUI
-		update_field(f);
-		settings_updated++;
-		// leave it to us, we have handled it
+      if (last_us != 0) {
+        uint64_t dt = now_us - last_us;
+        if (IDLE_RESET > 0 && dt > IDLE_RESET) {
+          ema_rate = 0.0; // reset EMA after breaks in tuning to make next ramp responsive
+        }
+        if (dt > 0) {
+          double inst_rate = 1e6 / (double)dt; // events per second
+          ema_rate = (alpha * inst_rate) + (1.0 - alpha) * ema_rate;
 
-		return 1;
-	}
-	else if (event == FIELD_DRAW)
-	{
-		draw_dial(f, gfx);
+          int mult;
+          if (ema_rate < 35.0)      mult = 1;   // 10 Hz steps stay 10 Hz
+          else if (ema_rate < 40.0) mult = 2;   // 10 Hz steps become 20 Hz steps
+          else if (ema_rate < 45.0) mult = 5;   // 10 Hz steps become 50 Hz steps
+          else if (ema_rate < 50.0) mult = 10;  // 10 Hz steps become 100 Hz steps
+          else                      mult = 20;  // 10 Hz steps become 200 Hz steps
 
-		return 1;
-	}
-	return 0;
+          const long cap = 50000;               // largest accelerated tuning step we accept
+          long proposed = (long)base_step * mult;
+          if (proposed > cap) proposed = cap;
+          local_step = (int)proposed;
+        }
+      }
+      last_us = now_us;
+    } else {
+      local_step = base_step; // no acceleration
+    }
+
+    // RIT path, disable acceleration (use base_step only)
+    if (field_str && field_str("RIT") && strcmp(field_str("RIT"), "ON") == 0) {
+      struct field *fr = get_field("#rit_delta");
+      if (!fr || !fr->value) return 1;
+
+      int rit_delta = atoi(fr->value);
+      const int rit_step = base_step; // no acceleration for RIT
+
+      if (a == MIN_KEY_UP && rit_delta < MAX_RIT) {
+        rit_delta += rit_step;
+        if (rit_delta > MAX_RIT) rit_delta = MAX_RIT;
+      } else if (a == MIN_KEY_DOWN && rit_delta > -MAX_RIT) {
+        rit_delta -= rit_step;
+        if (rit_delta < -MAX_RIT) rit_delta = -MAX_RIT;
+      } else {
+        return 1;
+      }
+      char tempstr[32];
+      snprintf(tempstr, sizeof(tempstr), "%d", rit_delta);
+      set_field("#rit_delta", tempstr);
+      return 1;
+    }
+
+    // normal VFO tuning with possible acceleration
+    if (vfo_lock_enabled != 0) {
+      return 1; // avoid unnecessary updates when locked
+    }
+
+    int v = atoi(f->value);
+    int k = local_step / base_step;
+    if (k < 1) k = 1;
+
+    long vv = v;
+    if (a == MIN_KEY_UP) {
+      long aligned = (v / base_step) * base_step; // note: truncates toward zero for negatives
+      vv = aligned + (long)k * base_step;
+    } else if (a == MIN_KEY_DOWN) {
+      long aligned = (v / base_step) * base_step;
+      vv = aligned - (long)k * base_step;
+    } else {
+      return 1;
+    }
+
+    // Clamp to bounds to avoid overshoot when k > 1
+    if (vv > f->max) vv = f->max;
+    if (vv < f->min) vv = f->min;
+
+    v = (int)vv;
+
+    // From here on, keep existing send/refresh
+    snprintf(f->value, 32, "%d", v);
+    char buff[128];
+    snprintf(buff, sizeof(buff), "%s %s", f->label ? f->label : "", f->value);
+    do_control_action(buff);
+    update_field(f);
+    settings_updated++;
+    return 1;
+
+  } else if (event == FIELD_DRAW) {
+    draw_dial(f, gfx);
+    return 1;
+  }
+  return 0;
 }
 
 int do_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
@@ -4791,6 +4946,34 @@ int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	if (event == GDK_BUTTON_PRESS)
 	{
 		set_field("#menu", "OFF");
+		focus_field(f_last_text);
+		return 1;
+	}
+	return 0;
+}
+int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	if (event == GDK_BUTTON_PRESS)
+	{
+		if (!strcmp(field_str("RIT"), "OFF"))
+		{ 
+			// When RIT is turned off it doesn't properly tune the RX back to the original frequency
+			// To remediate this we do a small adjustment to the VFO frequency to force a proper tuning
+			// Get the current VFO frequency
+			struct field *freq = get_field("r1:freq");
+			int current_freq = atoi(freq->value);
+			char response[128];
+			
+			// Adjust VFO up by 10Hz
+			set_operating_freq(current_freq + 10, response);
+			
+			// Small 5ms delay 
+			usleep(5000); 
+			
+			// Adjust VFO back down by 10Hz to original frequency
+			set_operating_freq(current_freq, response);
+		}
+		set_field("#rit_delta", "000000"); // zero the RIT delta
 		focus_field(f_last_text);
 		return 1;
 	}
@@ -4876,78 +5059,64 @@ void qrz(const char *callsign)
 	open_url(url);
 }
 
-int do_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
-{
-	char buff[256], *mode;
-	char contact_callsign[100];
+int do_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c) {
+  char buff[256], *mode;
+  char contact_callsign[100];
+  struct field *f_text = get_field("#text_in");
 
-	strcpy(contact_callsign, get_field("#contact_callsign")->value);
+  strcpy(contact_callsign, get_field("#contact_callsign")->value);
 
-	if (event == GDK_BUTTON_PRESS)
-	{
-		int fn_key = atoi(f->cmd + 3); // skip past the '#mf' and read the function key number
+  if (event == GDK_BUTTON_PRESS) {
+    // skip past the '#mf' and read the function key number
+    int fn_key = atoi(f->cmd + 3);
+    macro_exec(fn_key, buff);
+    mode = get_field("r1:mode")->value;
 
-		/*		if (!strcmp(f->cmd, "#mfkbd")){
-					set_ui(LAYOUT_KBD);
-					return 1;
-				}
-				else if (!strcmp(f->cmd, "#mfqrz") && strlen(contact_callsign) > 0){
-					qrz(contact_callsign);
-					return 1;
-				}
-				else
-		*/
-		macro_exec(fn_key, buff);
+    // add the end of transmission to the expanded buffer for the fldigi modes
+    if (!strcmp(mode, "RTTY") || !strcmp(mode, "PSK31")) {
+      strcat(buff, "^r");
+      tx_on(TX_SOFT);
+    }
+    if (!strcmp(mode, "FT8") && strlen(buff)) {
+      ft8_tx(buff, atoi(get_field("#tx_pitch")->value));
+      set_field("#text_in", "");
+    } else if (strlen(buff)) {
+      if ((mode_id(mode) == MODE_CW) || (mode_id(mode) == MODE_CWR)) {
+        // Append macro text in CW/CWR modes only
+        size_t space = MAX_FIELD_LENGTH - strlen(f_text->value) - 1;
+        if (space > 0) {
+          strncat(f_text->value, buff, space);
+          update_field(f_text);
+        }
+        text_ready = 1;  // send macros immediately in CW
+      } else {
+        // For all other modes, replace
+        set_field("#text_in", buff);
+      }
+    }
+    return 1;
 
-		mode = get_field("r1:mode")->value;
+  } else if (event == FIELD_DRAW) {
+    int width, offset, text_length, line_start, y;
+    char this_line[MAX_FIELD_LENGTH];
+    int text_line_width = 0;
+    fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
+    rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
 
-		// add the end of transmission to the expanded buffer for the fldigi modes
-		if (!strcmp(mode, "RTTY") || !strcmp(mode, "PSK31"))
-		{
-			strcat(buff, "^r");
-			tx_on(TX_SOFT);
-		}
-
-		if (!strcmp(mode, "FT8") && strlen(buff))
-		{
-			ft8_tx(buff, atoi(get_field("#tx_pitch")->value));
-			set_field("#text_in", "");
-			// write_console(FONT_LOG_TX, buff);
-		}
-		else if (strlen(buff))
-		{
-			set_field("#text_in", buff);
-			// put it in the text buffer and hope it gets transmitted!
-		}
-		return 1;
-	}
-	else if (event == FIELD_DRAW)
-	{
-		int width, offset, text_length, line_start, y;
-		char this_line[MAX_FIELD_LENGTH];
-		int text_line_width = 0;
-
-		fill_rect(gfx, f->x, f->y, f->width, f->height, COLOR_BACKGROUND);
-		rect(gfx, f->x, f->y, f->width, f->height, COLOR_CONTROL_BOX, 1);
-
-		width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
-		offset = f->width / 2 - width / 2;
-		if (strlen(f->value) == 0)
-			draw_text(gfx, f->x + 5, f->y + 13, f->label, FONT_FIELD_LABEL);
-		else
-		{
-			if (strlen(f->label))
-			{
-				draw_text(gfx, f->x + 5, f->y + 5, f->label, FONT_FIELD_LABEL);
-				draw_text(gfx, f->x + 5, f->y + f->height - 20, f->value, f->font_index);
-			}
-			else
-				draw_text(gfx, f->x + offset, f->y + 5, f->value, f->font_index);
-		}
-		return 1;
-	}
-
-	return 0;
+    width = measure_text(gfx, f->label, FONT_FIELD_LABEL);
+    offset = f->width / 2 - width / 2;
+    if (strlen(f->value) == 0)
+      draw_text(gfx, f->x + 5, f->y + 13, f->label, FONT_FIELD_LABEL);
+    else {
+      if (strlen(f->label)) {
+        draw_text(gfx, f->x + 5, f->y + 5, f->label, FONT_FIELD_LABEL);
+        draw_text(gfx, f->x + 5, f->y + f->height - 20, f->value, f->font_index);
+      } else
+        draw_text(gfx, f->x + offset, f->y + 5, f->value, f->font_index);
+    }
+    return 1;
+  }
+  return 0;
 }
 
 int do_record(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
@@ -5263,6 +5432,29 @@ int do_notch_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		struct field *notch_bandwidth_field = get_field("#notch_bandwidth");
 		int notch_bandwidth_value = atoi(notch_bandwidth_field->value);
 		notch_bandwidth = notch_bandwidth_value;
+	}
+
+	return 0;
+}
+
+int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
+{
+	if (!strcmp(field_str("APF"), "ON"))
+	{
+		struct field *apf_gain_field = get_field("#apf_gain");
+		int apf_gain_value = atoi(apf_gain_field->value);
+		apf1.gain = (float)apf_gain_value;
+		
+		struct field *apf_width_field = get_field("#apf_width");
+		int apf_width_value = atoi(apf_width_field->value);
+		apf1.width = (float)apf_width_value;
+		
+		apf1.ison = 1;
+		init_apf();
+	}
+	else
+	{
+		apf1.ison = 0;
 	}
 
 	return 0;
@@ -5629,6 +5821,30 @@ void check_r1_volume()
 	}
 }
 
+// Helper function to adjust MFK volume in locked mode
+static void mfk_adjust_volume(int steps)
+{
+	struct field *vol_field = get_field("r1:volume");
+	if (!vol_field) return;
+	
+	int current_vol = atoi(vol_field->value);
+	int new_vol = current_vol + steps;
+	
+	// Clamp to range [0, 100]
+	if (new_vol < 0) new_vol = 0;
+	if (new_vol > 100) new_vol = 100;
+	
+	char buff[20];
+	sprintf(buff, "%d", new_vol);
+	set_field("r1:volume", buff);
+	update_field(vol_field);
+	
+	// Send to SDR backend
+	char request[50], response[50];
+	sprintf(request, "r1:volume=%d", new_vol);
+	sdr_request(request, response);
+}
+
 void tx_off()
 {
 	char response[100];
@@ -5752,6 +5968,9 @@ static gboolean on_key_release(GtkWidget *widget, GdkEventKey *event, gpointer u
 
 static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
 {
+	// Unlock MFK on keyboard activity
+	mfk_locked_to_volume = 0;
+	mfk_last_ms = sbitx_millis();
 
 	// Process tabs and arrow keys seperately, as the native tab indexing doesn't seem to work; dunno why.  -n1qm
 	if (f_focus)
@@ -5899,7 +6118,17 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 		}
 		return FALSE;
 	}
-
+ 
+  // F1–F12 before text-field early return so macros work in any field
+  if (event->keyval >= MIN_KEY_F1 && event->keyval <= MIN_KEY_F12)
+  {
+    int fn_key = event->keyval - MIN_KEY_F1 + 1;
+    char fname[10];
+    sprintf(fname, "#mf%d", fn_key);
+    do_macro(get_field(fname), NULL, GDK_BUTTON_PRESS, 0, 0, 0);
+    return FALSE;
+  }
+  
 	if (f_focus && f_focus->value_type == FIELD_TEXT)
 	{
 		edit_field(f_focus, event->keyval);
@@ -5950,15 +6179,7 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 		}
 		else if (event->keyval == MIN_KEY_ENTER)
 			// Otherwise by default, all text goes to the text_input control
-
 			edit_field(get_field("#text_in"), '\n');
-		else if (MIN_KEY_F1 <= event->keyval && event->keyval <= MIN_KEY_F12)
-		{
-			int fn_key = event->keyval - MIN_KEY_F1 + 1;
-			char fname[10];
-			sprintf(fname, "#mf%d", fn_key);
-			do_macro(get_field(fname), NULL, GDK_BUTTON_PRESS, 0, 0, 0);
-		}
 		else
 			edit_field(get_field("#text_in"), event->keyval);
 		// if (f_focus)
@@ -6081,6 +6302,10 @@ static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event, gpointe
 		last_mouse_x = (int)event->x;
 		last_mouse_y = (int)event->y;
 		mouse_down = 1;
+		
+		// Unlock MFK on mouse activity
+		mfk_locked_to_volume = 0;
+		mfk_last_ms = sbitx_millis();
 	}
 	/* We've handled the event, stop processing */
 	return FALSE;
@@ -6347,74 +6572,75 @@ int key_poll() {
     }
   return key;
 }
+        
+// read the two output pins on the encoder
+int enc_state(struct encoder *e)
+{
+	return (digitalRead(e->pin_a) ? 1 : 0) + (digitalRead(e->pin_b) ? 2 : 0);
+}
 
 void enc_init(struct encoder *e, int speed, int pin_a, int pin_b)
 {
 	e->pin_a = pin_a;
 	e->pin_b = pin_b;
 	e->speed = speed;
-	e->history = 5;
+	e->history = 0;
+  e->prev_state = enc_state(e) & 0x3;  // capture current encoder state
+  e->last_us = micros();               // and time
 }
 
-int enc_state(struct encoder *e)
-{
-	return (digitalRead(e->pin_a) ? 1 : 0) + (digitalRead(e->pin_b) ? 2 : 0);
+// read encoder output and determine rotation direction
+int enc_read(struct encoder *e) {
+  // 4x4 transition table, index = (prev<<2) | curr
+  // entries: -1 = CCW, +1 = CW, 0 = no movement/invalid
+  static const int8_t qdec[16] = {
+    /* prev=00 */  0, +1, -1,  0,
+    /* prev=01 */ -1,  0,  0, +1,
+    /* prev=10 */ +1,  0,  0, -1,
+    /* prev=11 */  0, -1, +1,  0 };
+
+  // debounce just ignores transitions that arrive too quickly
+  unsigned int now = micros();
+  if ((unsigned int)(now - e->last_us) < ENCODER_DEBOUNCE_US) {
+    return 0;
+  }
+
+  // determine direction of knob rotation
+  int curr = enc_state(e) & 0x3;  // current A/B state (00..11)
+  int idx = ((e->prev_state & 0x3) << 2) | curr;  // idx is 4 bits
+  int step = qdec[idx];  // use transition table to determine direction (-1, 0, +1)
+
+  // if no logical movement, keep time loose (don’t update last_us)
+  if (step == 0) {
+    e->prev_state = curr;
+    return 0;
+  }
+  // accept this movement, update timestamp and previous state
+  e->last_us = now;
+  e->prev_state = curr;
+
+  // accumulate steps into history to implement 'speed' threshold
+  e->history += step;
+
+  // report a tick once accumulated movement passes threshold
+  // 'speed' is number of steps required to make a movement
+  if (e->history >= e->speed) {
+    e->history = 0;
+    return +1;  // CW tick
+  } else if (e->history <= -e->speed) {
+    e->history = 0;
+    return -1;  // CCW tick
+  }
+  return 0;  // not enough accumulated movement yet
 }
 
-int enc_read(struct encoder *e)
-{
-	int result = 0;
-	int newState;
-
-	newState = enc_state(e); // Get current state
-
-	if (newState != e->prev_state)
-		delay(1);
-
-	if (enc_state(e) != newState || newState == e->prev_state)
-		return 0;
-
-	// these transitions point to the encoder being rotated anti-clockwise
-	if ((e->prev_state == 0 && newState == 2) ||
-		(e->prev_state == 2 && newState == 3) ||
-		(e->prev_state == 3 && newState == 1) ||
-		(e->prev_state == 1 && newState == 0))
-	{
-		e->history--;
-		// result = -1;
-	}
-	// these transitions point to the enccoder being rotated clockwise
-	if ((e->prev_state == 0 && newState == 1) ||
-		(e->prev_state == 1 && newState == 3) ||
-		(e->prev_state == 3 && newState == 2) ||
-		(e->prev_state == 2 && newState == 0))
-	{
-		e->history++;
-	}
-	e->prev_state = newState; // Record state for next pulse interpretation
-	if (e->history > e->speed)
-	{
-		result = 1;
-		e->history = 0;
-	}
-	if (e->history < -e->speed)
-	{
-		result = -1;
-		e->history = 0;
-	}
-	return result;
+static volatile int tuning_ticks = 0;
+void tuning_isr(void) {
+  int tuning = enc_read(&enc_b);
+  if (tuning < 0) tuning_ticks++;
+  if (tuning > 0) tuning_ticks--;
 }
-
-static int tuning_ticks = 0;
-void tuning_isr(void)
-{
-	int tuning = enc_read(&enc_b);
-	if (tuning < 0)
-		tuning_ticks++;
-	if (tuning > 0)
-		tuning_ticks--;
-}
-
+        
 void query_swr()
 {
 	uint8_t response[4];
@@ -6463,6 +6689,11 @@ void hw_init()
 
 	enc_init(&enc_a, ENC_FAST, ENC1_B, ENC1_A);
 	enc_init(&enc_b, ENC_FAST, ENC2_A, ENC2_B);
+	
+	// Initialize MFK state
+	mfk_locked_to_volume = 0;
+	mfk_last_ms = sbitx_millis();
+	enc1_sw_prev = 1; // ENC1_SW is active-low, starts high
 
 	int e = g_timeout_add(1, ui_tick, NULL);
 
@@ -7035,13 +7266,48 @@ gboolean ui_tick(gpointer gook)
 	}
 
 	int scroll = enc_read(&enc_a);
-	if (scroll && f_focus)
+	if (scroll)
 	{
-		if (scroll < 0)
-			edit_field(f_focus, MIN_KEY_DOWN);
-		else
-			edit_field(f_focus, MIN_KEY_UP);
+		// Update the last activity timestamp
+		mfk_last_ms = sbitx_millis();
+		
+		if (mfk_locked_to_volume)
+		{
+			// MFK is locked to volume control
+			mfk_adjust_volume(scroll);
+		}
+		else if (f_focus)
+		{
+			// Normal MFK behavior - control focused field
+			if (scroll < 0)
+				edit_field(f_focus, MIN_KEY_DOWN);
+			else
+				edit_field(f_focus, MIN_KEY_UP);
+		}
 	}
+	else
+	{
+		// Check if we should lock to volume due to timeout
+    if (!mfk_locked_to_volume && (sbitx_millis() - mfk_last_ms) > MFK_TIMEOUT_MS) {
+      // lock MFK to volume after inactivity AND move UI focus to the volume control
+      mfk_locked_to_volume = 1;
+      struct field *vol_field = get_field("r1:volume");
+      // now simulate the “knob press” focus change so the green highlight updates
+      if (vol_field) {
+        focus_field(vol_field);
+      }
+    }
+	}
+	
+	// Check ENC1_SW for unlock (edge detection)
+	int enc1_sw_now = digitalRead(ENC1_SW);
+	if (enc1_sw_now == 0 && enc1_sw_prev != 0)
+	{
+		// Falling edge detected - unlock MFK
+		mfk_locked_to_volume = 0;
+		mfk_last_ms = sbitx_millis();
+	}
+	enc1_sw_prev = enc1_sw_now;
 	
 	return TRUE;
 }
@@ -7101,6 +7367,9 @@ void ui_init(int argc, char *argv[])
 
 int get_tx_data_byte(char *c)
 {
+  if ((tx_mode == MODE_CW || tx_mode == MODE_CWR) && text_ready == 0)
+  return 0;
+      
 	// If we are in a voice mode, don't clear the text textbox
 	switch (tx_mode)
 	{
@@ -7127,7 +7396,10 @@ int get_tx_data_byte(char *c)
 	}
 	f->is_dirty = 1;
 	f->update_remote = 1;
-	// update_field(f);
+	// reset flag after text buffer emptied
+  if (strlen(f->value) == 0) {
+    text_ready = 0; 
+  }
 	return length;
 }
 
@@ -7489,9 +7761,15 @@ void do_control_action(char *cmd)
 		tx_off();
 	}
 	else if (!strncmp(request, "RIT", 3))
-	{
-		update_field(get_field("r1:freq"));
-	}
+  {
+    // Keep SDR tuned to RX when RIT toggles or delta changes
+    struct field *freq = get_field("r1:freq");
+    if (freq && freq->value) {
+      char resp2[128];
+      set_operating_freq(atoi(freq->value), resp2);
+    }
+    update_field(get_field("r1:freq"));
+  }
 	else if (!strncmp(request, "SPLIT", 5))
 	{
 		update_field(get_field("r1:freq"));
@@ -7956,7 +8234,45 @@ void cmd_exec(char *cmd)
 			set_field("r1:freq", freq_s);
 		}
 	}
-	else if (!strcmp(exec, "exit"))
+	else if (!strcmp(exec, "rit"))
+	{
+		struct field *rit_field = get_field("#rit");
+		if (!rit_field) {
+			write_console(FONT_LOG, "Error: RIT field not found\n");
+			return;
+		}
+		
+		if (!strcasecmp(args, "on"))
+		{
+			// Turn RIT on
+			set_field("#rit", "ON");
+			set_field("#rit_delta", "000000"); // zero the RIT delta
+		}
+		else if (!strcasecmp(args, "off"))
+		{
+			// Turn RIT off
+			set_field("#rit", "OFF");
+			// When RIT is turned off it doesn't properly tune the RX back to the original frequency
+			// To remediate this we do a small adjustment to the VFO frequency to force a proper tuning
+			// Get the current VFO frequency
+			struct field *freq = get_field("r1:freq");
+			if (freq && freq->value) {
+				int current_freq = atoi(freq->value);
+				char response[128];
+				
+				// Adjust VFO up by 10Hz
+				set_operating_freq(current_freq + 10, response);
+				
+				// Small 5ms delay 
+				usleep(5000); 
+				
+				// Adjust VFO back down by 10Hz to original frequency
+				set_operating_freq(current_freq, response);
+			}
+		}
+		focus_field(f_last_text);
+	}
+  else if (!strcmp(exec, "exit"))
 	{
 		tx_off();
 		set_field("#record", "OFF");
@@ -7975,6 +8291,26 @@ void cmd_exec(char *cmd)
 		set_radio_mode(args);
 		update_field(get_field("r1:mode"));
 	}
+  else if (!strcasecmp(exec, "cwreverse"))
+  {
+    extern bool cw_reverse;  // declared in modem_cw.c
+    if (args[0] == '\0') {
+      if (cw_reverse) {
+        write_console(FONT_LOG, "cwreverse: on\n");
+      } else {
+        write_console(FONT_LOG, "cwreverse: off\n");
+      }
+    } else if (!strcasecmp(args, "on")) {
+      cw_reverse = true;
+      write_console(FONT_LOG, "cwreverse: on\n");
+    } else if (!strcasecmp(args, "off")) {
+      cw_reverse = false;
+      write_console(FONT_LOG, "cwreverse: off\n");
+    } else {
+      write_console(FONT_LOG, "Invalid value for cwreverse. Use on or off.\n");
+    }
+  // should we store the setting in user_settings.ini? 
+  }
 	else if (!strcmp(exec, "t"))
 		tx_on(TX_SOFT);
 	else if (!strcmp(exec, "r"))
@@ -8058,6 +8394,32 @@ void cmd_exec(char *cmd)
 				sdr_request(sdrrequest, responsejnk);
 			}
 		}
+	}
+
+else if (!strcmp(exec, "apf"))  // read command, load params in struct
+	{
+			char output[50];
+			char *token;
+		float temp;
+		token = strtok(args," ,");
+		if (token == NULL) {   // apf alone turns off
+			apf1.ison=0;
+			sprintf(output,"apf off\n");				
+		} else {              // token != NULL
+			 if ( (temp = atof(token)) > 0.0) {
+				 apf1.gain = temp;
+				 token = strtok(NULL," ,");
+				 if ((token != NULL) && ((temp = atof(token)) > 0.0)) {
+					apf1.width = temp;
+					apf1.ison=1;
+					sprintf(output,"apf gain %.2f width %.2f\n", apf1.gain, apf1.width);
+					init_apf();
+					} else 
+						sprintf(output,"usage: apf (gain dB) (width parameter)\n");								
+				} else  
+					sprintf(output,"usage: apf (gain dB) (width parameter)\n");			
+		}			
+		write_console(FONT_LOG, output);						
 	}
 	/*	else if (!strcmp(exec, "PITCH")){
 			struct field *f = get_field_by_label(exec);
@@ -8288,6 +8650,7 @@ int main(int argc, char *argv[])
 	field_set("TUNE", "OFF");
 	field_set("NOTCH", "OFF");
 	field_set("VFOLK", "OFF");
+  field_set("RIT", "OFF");
 
 	// field_set("COMP", "OFF");
 	// field_set("WTRFL" , "OFF");
