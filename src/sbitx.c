@@ -307,9 +307,8 @@ void spectrum_update()
 	struct rx *r = rx_list;
 	for (int i = 1269; i < 1803; i++)
 	{
-		// Shift bins by 1 (or -1) to correct off-by-one error
-		int bin = i - 1; // or i - 1, depending on direction of error
-		if (bin >= 1803) bin -= (1803 - 1269); // wrap around if needed
+		// Shift bins by 1 to correct off-by-one error
+		int bin = i - 1;
 		fft_bins[i] = ((1.0 - spectrum_speed) * fft_bins[i]) +
 					  (spectrum_speed * cabs(fft_spectrum[bin]));
 
@@ -1430,15 +1429,18 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 				center = MAX_BINS - (int)(rx_pitch/ (96000.0 / MAX_BINS));
 			}
 
-			r->fft_freq[center-4] *= apf1.coeff[0]; 
-			r->fft_freq[center-3] *= apf1.coeff[1]; 			
-			r->fft_freq[center-2] *= apf1.coeff[2]; 
-			r->fft_freq[center-1] *= apf1.coeff[3]; 		
-			r->fft_freq[center] *= apf1.coeff[4]; // peak
-			r->fft_freq[center+1] *= apf1.coeff[5];
-			r->fft_freq[center+2] *= apf1.coeff[6];
-			r->fft_freq[center+3] *= apf1.coeff[7];
-			r->fft_freq[center+4] *= apf1.coeff[8];
+			// Ensure center is within safe bounds for APF coefficient application
+			if (center >= 4 && center < MAX_BINS - 4) {
+				r->fft_freq[center-4] *= apf1.coeff[0]; 
+				r->fft_freq[center-3] *= apf1.coeff[1]; 			
+				r->fft_freq[center-2] *= apf1.coeff[2]; 
+				r->fft_freq[center-1] *= apf1.coeff[3]; 		
+				r->fft_freq[center] *= apf1.coeff[4]; // peak
+				r->fft_freq[center+1] *= apf1.coeff[5];
+				r->fft_freq[center+2] *= apf1.coeff[6];
+				r->fft_freq[center+3] *= apf1.coeff[7];
+				r->fft_freq[center+4] *= apf1.coeff[8];
+			}
 		}
 	}
 

@@ -4647,8 +4647,8 @@ int do_text(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		}
     // in CW mode we want to wait for ENTER key before sending buffer contents
     else if ((a == '\n' || a == MIN_KEY_ENTER) &&
-            (mode_id(get_field("r1:mode")->value) == MODE_CW) ||
-            (mode_id(get_field("r1:mode")->value) == MODE_CWR)) {
+            ((mode_id(get_field("r1:mode")->value) == MODE_CW) ||
+             (mode_id(get_field("r1:mode")->value) == MODE_CWR))) {
       text_ready = 1;  // ok to send buffer text contents
     }
 		// handle ascii delete 8 or gtk
@@ -4757,13 +4757,7 @@ int do_bandwidth(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		}
 		sprintf(f->value, "%d", v);
 		update_field(f);
-/*					RLB  fixed do_bandwidth changing rx+pitch
-		int mode = mode_id(get_field("r1:mode")->value);
-		modem_set_pitch(v, mode);
-		char buff[20], response[20];
-		sprintf(buff, "rx_pitch=%d", v);
-		sdr_request(buff, response);
-*/
+		// Note: removed code that incorrectly changed rx_pitch when changing bandwidth (RLB fix)
 		set_filter_high_low(v);
 		save_bandwidth(v);
 		return 1;

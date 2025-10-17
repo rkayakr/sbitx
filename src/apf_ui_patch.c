@@ -21,11 +21,11 @@ int do_apf_edit(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
         if (width_field && width_field->value)
             apf1.width = atoi(width_field->value);
 
-        apf1.enabled = 1;
+        apf1.ison = 1;
     }
     else
     {
-        apf1.enabled = 0;
+        apf1.ison = 0;
     }
 
     return 0;
