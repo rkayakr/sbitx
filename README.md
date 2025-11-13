@@ -1,5 +1,5 @@
 # sBitx - 64-Bit Version
-![sBitx image](sbv50.png)
+![sBitx image](sb52.jpg)
 
 
 An improved version of the sBitx application designed for the sBitx hardware. This version is only for the 64-bit Raspberry Pi image, which can be downloaded [here](https://github.com/drexjj/sbitx/releases).
@@ -15,6 +15,10 @@ We have an incredible development team collaborating on improvements for the sBi
 - **Lars - OZ7BX**
 
 A huge thank you to everyone who contributes their time and expertise to this project!
+
+## Release Notes
+[Available Here](https://github.com/drexjj/sbitx/blob/prerelease/release_notes.txt)
+
 
 ## 📂 File Compatibility
 
@@ -71,15 +75,27 @@ A huge thank you to the contributors who have played a vital role in this projec
 - **Lars - OZ7BX**
 - **Jeff - KF7DYU**
 - **Mike - KB2ML**
+- **Shawn - K7IHZ**
+- **Jared - KJ5DTK**
 - **Chris - W0ANM**
 - **Gyula - HA3HZ**
 - **Pete - VK3PYE**
 - **Mike - WD0OM**
-- **Farhan - VU2ESE**
 - **Paul - G0KAO**
 - **Don - KK7OIM**
 - **Fabrizio - F4VUK**
 - **Bob - KD8CGH**
+- **Farhan - VU2ESE**
+- **Bob - W7PUA**
+- **Phil - KA9Q**
+- **Gerald - K5SDR**
+- **Evan - AC9TU**
+- **Steve - N3SB**
+
+## Background
+
+To learn more about the sBitx and how it came to be; visit https://www.vu2ese.com/index.php/2022/07/20/the-sbitx-the-sdr-for-the-homebrewer/
+
 
 ## 🌟 Support the Project
 
