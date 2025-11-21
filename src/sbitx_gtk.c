@@ -8559,6 +8559,30 @@ void cmd_exec(char *cmd)
 	{
 		console_init();
 	}
+	else if (!strcasecmp(exec, "max_vswr"))
+	{
+		if (strlen(args) > 0)
+		{
+			float new_max_vswr = atof(args);
+			if (new_max_vswr >= 1.0f && new_max_vswr <= 10.0f)
+			{
+				max_vswr = new_max_vswr;
+				char msg[128];
+				snprintf(msg, sizeof(msg), "max_vswr changed to %.1f\n", max_vswr);
+				write_console(STYLE_LOG, msg);
+			}
+			else
+			{
+				write_console(STYLE_LOG, "max_vswr must be between 1.0 and 10.0\n");
+			}
+		}
+		else
+		{
+			char msg[128];
+			snprintf(msg, sizeof(msg), "max_vswr = %.1f\n", max_vswr);
+			write_console(STYLE_LOG, msg);
+		}
+	}
 	else if (!strcasecmp(exec, "macro"))
 	{
 		if (!strcmp(args, "list"))
