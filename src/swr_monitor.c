@@ -70,6 +70,11 @@ void check_and_handle_vswr(int vswr)
 			snprintf(tx_power_cmd, sizeof(tx_power_cmd), "tx_power=%d", tunepower);
 			sdr_request(tx_power_cmd, response);
 			
+			// Update DRIVE field in GUI to reflect reduced power
+			char drive_buff[32];
+			snprintf(drive_buff, sizeof(drive_buff), "%d", tunepower);
+			field_set("DRIVE", drive_buff);
+			
 			// Update UI fields
 			set_field("#vswr_alert", "1");
 			set_field("#spectrum_left_msg", "HIGH SWR");
@@ -103,6 +108,26 @@ void check_and_handle_vswr(int vswr)
 		// Clear saved drive value to avoid accidental restore
 		saved_drive_value = 0;
 	}
+}
+
+/**
+ * init_vswr_monitor - Initialize VSWR monitor at startup
+ *
+ * Ensures all UI fields are cleared and monitor is in a known state.
+ * Should be called during application initialization.
+ */
+void init_vswr_monitor(void)
+{
+	// Ensure tripped flag is off
+	vswr_tripped = 0;
+	
+	// Clear saved drive value
+	saved_drive_value = 0;
+	
+	// Clear UI fields to ensure clean startup
+	set_field("#vswr_alert", "0");
+	set_field("#spectrum_left_msg", "");
+	set_field("#spectrum_left_color", "");
 }
 
 /**

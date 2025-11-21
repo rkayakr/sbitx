@@ -5,6 +5,9 @@
 extern float max_vswr;
 extern int vswr_tripped;
 
+// Initialize VSWR monitor at startup
+void init_vswr_monitor(void);
+
 // Main VSWR monitoring function
 // vswr parameter uses project convention: vswr = SWR * 10 (e.g., 30 == 3.0)
 void check_and_handle_vswr(int vswr);
