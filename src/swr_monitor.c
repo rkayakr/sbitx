@@ -6,8 +6,6 @@
 float max_vswr = 3.0f;
 int vswr_tripped = 0;
 
-static char saved_drive_value[32] = {0};
-
 /* prototypes for external helpers used from the codebase */
 struct field;
 extern struct field *get_field(const char *id);
@@ -37,9 +35,6 @@ void check_and_handle_vswr(int vswr)
         if (!vswr_tripped) {
             vswr_tripped = 1;
 
-            memset(saved_drive_value, 0, sizeof(saved_drive_value));
-            get_field_value_by_label("DRIVE", saved_drive_value);
-
             int tnpwr = 10;
             struct field *f_tnp = get_field("#tune_power");
             if (f_tnp && f_tnp->value && strlen(f_tnp->value)) {
@@ -64,8 +59,6 @@ void check_and_handle_vswr(int vswr)
             set_field("#spectrum_left_color", "");
 
             write_console(STYLE_LOG, "INFO: VSWR normalized - HIGH SWR message cleared (drive NOT restored)\n");
-
-            memset(saved_drive_value, 0, sizeof(saved_drive_value));
         }
     }
 }
@@ -76,5 +69,4 @@ void reset_vswr_tripped(void)
     set_field("#vswr_alert", "0");
     set_field("#spectrum_left_msg", "");
     set_field("#spectrum_left_color", "");
-    memset(saved_drive_value, 0, sizeof(saved_drive_value));
 }
