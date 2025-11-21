@@ -1136,11 +1136,11 @@ struct field main_controls[] = {
 
 	// VSWR monitoring fields (internal state, not visible controls)
 	// Position coordinates (1000, -1000) are used to hide these fields from display
-	{"#vswr_alert", NULL, 1000, -1000, 0, 0, "VSWR_ALERT", 10, "0", FIELD_TEXT, STYLE_FIELD_VALUE,
+	{"#vswr_alert", NULL, 1000, -1000, 10, 10, "VSWR_ALERT", 70, "0", FIELD_TEXT, STYLE_FIELD_VALUE,
 	 "", 0, 10, 1, COMMON_CONTROL},
-	{"#spectrum_left_msg", NULL, 1000, -1000, 0, 0, "SPECTRUM_LEFT_MSG", 100, "", FIELD_TEXT, STYLE_FIELD_VALUE,
+	{"#spectrum_left_msg", NULL, 1000, -1000, 100, 10, "SPECTRUM_LEFT_MSG", 70, "", FIELD_TEXT, STYLE_FIELD_VALUE,
 	 "", 0, 100, 1, COMMON_CONTROL},
-	{"#spectrum_left_color", NULL, 1000, -1000, 0, 0, "SPECTRUM_LEFT_COLOR", 20, "", FIELD_TEXT, STYLE_FIELD_VALUE,
+	{"#spectrum_left_color", NULL, 1000, -1000, 20, 10, "SPECTRUM_LEFT_COLOR", 70, "", FIELD_TEXT, STYLE_FIELD_VALUE,
 	 "", 0, 20, 1, COMMON_CONTROL},
 
 	// the last control has empty cmd field
