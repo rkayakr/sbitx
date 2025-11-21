@@ -3084,9 +3084,9 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			cairo_set_source_rgb(gfx, 1.0, 1.0, 1.0);  // White default
 		}
 		
-		// Position on left side of spectrum
+		// Position on left side of spectrum, below S-meter display
 		int swr_text_x = f_spectrum->x + 9;
-		int swr_text_y = f_spectrum->y + 30;
+		int swr_text_y = f_spectrum->y + 50;  // Moved down from y+30 to y+50 to be below S-meter
 		
 		cairo_move_to(gfx, swr_text_x, swr_text_y);
 		cairo_show_text(gfx, swr_msg);
