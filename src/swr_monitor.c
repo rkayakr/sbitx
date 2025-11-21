@@ -22,7 +22,7 @@ static int saved_drive_value = 0;
  * - If SWR > max_vswr and not already tripped:
  *   - Set vswr_tripped flag
  *   - Save current DRIVE value
- *   - Read TNPWR from #tune_power field
+ *   - Read TNPWR from TNPWR field
  *   - Set tx_power to TNPWR
  *   - Update UI: set #vswr_alert, #spectrum_left_msg, #spectrum_left_color
  *   - Write console warning
@@ -53,8 +53,8 @@ void check_and_handle_vswr(int vswr)
 			saved_drive_value = atoi(drive_value);
 		}
 		
-		// Read TNPWR from #tune_power field
-		if (get_field_value("#tune_power", tnpwr_value) == 0) {
+		// Read TNPWR from TNPWR field
+		if (get_field_value_by_label("TNPWR", tnpwr_value) == 0) {
 			int tunepower = atoi(tnpwr_value);
 			
 			// Set tx_power to TNPWR via sdr_request
