@@ -39,7 +39,7 @@ void check_and_handle_vswr(int vswr)
 	float swr = vswr / 10.0f;
 	
 	// Check if VSWR exceeds threshold and not already tripped
-	if (swr > max_vswr && vswr_tripped == 0) {
+	if (swr > max_vswr && !vswr_tripped) {
 		char drive_value[32];
 		char tnpwr_value[32];
 		char tx_power_cmd[64];
@@ -75,7 +75,7 @@ void check_and_handle_vswr(int vswr)
 		}
 	}
 	// Check if VSWR has returned to acceptable level
-	else if (swr <= max_vswr && vswr_tripped == 1) {
+	else if (swr <= max_vswr && vswr_tripped) {
 		char console_msg[128];
 		
 		// Clear tripped flag

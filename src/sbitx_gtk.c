@@ -1135,6 +1135,7 @@ struct field main_controls[] = {
 	//{"#kbd_kbd",    do_kbd_close,750, 450, 50, 37, "",  1, "KBD",   FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
 	// VSWR monitoring fields (internal state, not visible controls)
+	// Position coordinates (1000, -1000) are used to hide these fields from display
 	{"#vswr_alert", NULL, 1000, -1000, 0, 0, "VSWR_ALERT", 10, "0", FIELD_TEXT, STYLE_FIELD_VALUE,
 	 "", 0, 10, 1, COMMON_CONTROL},
 	{"#spectrum_left_msg", NULL, 1000, -1000, 0, 0, "SPECTRUM_LEFT_MSG", 100, "", FIELD_TEXT, STYLE_FIELD_VALUE,
