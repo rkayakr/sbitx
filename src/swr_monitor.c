@@ -44,7 +44,7 @@ void check_and_handle_vswr(int vswr)
             struct field *f_tnp = get_field("#tune_power");
             if (f_tnp && f_tnp->value && strlen(f_tnp->value)) {
                 tnpwr = atoi(f_tnp->value);
-                if (tnpwr < 0) tnpwr = 0;
+                if (tnpwr < 1) tnpwr = 1;  // Minimum 1 watt to avoid zero power
             }
 
             set_tx_power_and_ui(tnpwr);
