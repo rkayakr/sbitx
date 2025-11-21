@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fftw3.h>
 #include "swr_monitor.h"
 #include "sdr_ui.h"
 #include "sdr.h"
