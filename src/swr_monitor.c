@@ -1,8 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <complex.h>
-#include <fftw3.h>
 #include "swr_monitor.h"
 #include "sdr_ui.h"
 #include "sdr.h"
@@ -13,12 +11,9 @@ float max_vswr = 3.0f;
 // Flag indicating if VSWR has been tripped (0 = normal, 1 = tripped)
 int vswr_tripped = 0;
 
-// Saved DRIVE value before reduction
-static int saved_drive_value = 0;
-
 /**
  * Check VSWR and handle reduction/recovery
- * vswr parameter: SWR * 10 (e.g., 30 means 3.0)
+ * vswr parameter: SWR * 10 (e.g., 30 means 3.0) - project convention
  */
 void check_and_handle_vswr(int vswr)
 {
@@ -35,13 +30,7 @@ void check_and_handle_vswr(int vswr)
 		// Set tripped flag
 		vswr_tripped = 1;
 		
-		// Save current DRIVE value
-		if (get_field_value_by_label("DRIVE", drive_str) == 0) {
-			saved_drive_value = atoi(drive_str);
-			write_console(STYLE_LOG, "*VSWR: Saved current drive value\n");
-		}
-		
-		// Get TNPWR value from #tune_power field
+		// Get TNPWR value from #tune_power field ID
 		if (get_field_value("#tune_power", tnpwr_str) == 0) {
 			int tnpwr = atoi(tnpwr_str);
 			
@@ -81,9 +70,7 @@ void check_and_handle_vswr(int vswr)
 		         swr, max_vswr);
 		write_console(STYLE_LOG, info_msg);
 		
-		// Do NOT restore the saved drive value - leave it reduced
-		// Clear saved value to prevent accidental restore
-		saved_drive_value = 0;
+		// Do NOT restore the drive value - leave it reduced for safety
 	}
 }
 
@@ -92,9 +79,8 @@ void check_and_handle_vswr(int vswr)
  */
 void reset_vswr_tripped(void)
 {
-	// Clear flags
+	// Clear flag
 	vswr_tripped = 0;
-	saved_drive_value = 0;
 	
 	// Clear UI
 	set_field("#vswr_alert", "0");

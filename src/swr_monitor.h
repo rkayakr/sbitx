@@ -8,7 +8,7 @@ extern float max_vswr;
 extern int vswr_tripped;
 
 // Check VSWR and handle reduction/recovery
-// vswr parameter: SWR * 10 (e.g., 30 means 3.0)
+// vswr parameter: SWR * 10 (e.g., 30 means 3.0) - project convention
 void check_and_handle_vswr(int vswr);
 
 // Reset VSWR tripped state and clear UI
