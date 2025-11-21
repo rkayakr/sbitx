@@ -39,6 +39,13 @@ void check_and_handle_vswr(int vswr)
 	// Convert from project convention (vswr = SWR * 10) to float
 	float swr = vswr / 10.0f;
 	
+	// Debug logging to help diagnose issues
+	char debug_msg[128];
+	snprintf(debug_msg, sizeof(debug_msg), 
+	         "DEBUG: check_and_handle_vswr called with vswr=%d (SWR=%.1f), max_vswr=%.1f, tripped=%d\n",
+	         vswr, swr, max_vswr, vswr_tripped);
+	write_console(STYLE_LOG, debug_msg);
+	
 	// Check if VSWR exceeds threshold and not already tripped
 	if (swr > max_vswr && !vswr_tripped) {
 		char drive_value[32];
