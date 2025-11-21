@@ -1134,6 +1134,14 @@ struct field main_controls[] = {
 	{"#kbd_space2", do_kbd,      650, 450, 102,37, "",  1, "SPACE", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 	//{"#kbd_kbd",    do_kbd_close,750, 450, 50, 37, "",  1, "KBD",   FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 
+	// VSWR monitoring fields (internal state, not visible controls)
+	{"#vswr_alert", NULL, 1000, -1000, 0, 0, "VSWR_ALERT", 10, "0", FIELD_TEXT, STYLE_FIELD_VALUE,
+	 "", 0, 10, 1, COMMON_CONTROL},
+	{"#spectrum_left_msg", NULL, 1000, -1000, 0, 0, "SPECTRUM_LEFT_MSG", 100, "", FIELD_TEXT, STYLE_FIELD_VALUE,
+	 "", 0, 100, 1, COMMON_CONTROL},
+	{"#spectrum_left_color", NULL, 1000, -1000, 0, 0, "SPECTRUM_LEFT_COLOR", 20, "", FIELD_TEXT, STYLE_FIELD_VALUE,
+	 "", 0, 20, 1, COMMON_CONTROL},
+
 	// the last control has empty cmd field
 	{"", NULL, 0, 0, 0, 0, "#", 1, "Q", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 };
@@ -3060,6 +3068,28 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 	cairo_move_to(gfx, vfolk_text_x, vfolk_text_y);
 	cairo_show_text(gfx, vfolk_text);
+
+	// --- HIGH SWR indicator (left side, red message)
+	const char *swr_msg = field_str("SPECTRUM_LEFT_MSG");
+	const char *swr_color = field_str("SPECTRUM_LEFT_COLOR");
+	
+	if (swr_msg && strlen(swr_msg) > 0) {
+		cairo_set_font_size(gfx, STYLE_LARGE_VALUE);
+		
+		// Set color based on spectrum_left_color field
+		if (swr_color && strcmp(swr_color, "red") == 0) {
+			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);  // Red
+		} else {
+			cairo_set_source_rgb(gfx, 1.0, 1.0, 1.0);  // White default
+		}
+		
+		// Position on left side of spectrum
+		int swr_text_x = f_spectrum->x + 9;
+		int swr_text_y = f_spectrum->y + 30;
+		
+		cairo_move_to(gfx, swr_text_x, swr_text_y);
+		cairo_show_text(gfx, swr_msg);
+	}
 
 	cairo_stroke(gfx);
 	bool is_s_meter_on = strcmp(field_str("SMETEROPT"), "ON") == 0;
