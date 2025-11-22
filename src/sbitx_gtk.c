@@ -274,6 +274,9 @@ struct console_line
 static struct console_line console_stream[MAX_CONSOLE_LINES];
 int console_current_line = 0;
 int console_selected_line = -1;
+char console_selected_callsign[12];
+int console_selected_time = -1;
+time_t console_current_time = 0;
 
 struct Queue q_web;
 int noise_threshold = 0;		// DSP
@@ -1602,6 +1605,41 @@ void draw_console(cairo_t *gfx, struct field *f)
 	}
 }
 
+/*!
+	From the console line at the given \a line number, see if the semantic \a sem
+	can be found.  If so, copy the substring to \a out (which has a max length \a len),
+	and return the start position where it was found.
+
+	Returns -1 if it was not found.
+*/
+int console_extract_semantic(char *out, int outlen, int line, sbitx_style sem) {
+	int _start = -1, _len = -1;
+	for (int i = 0; i < MAX_CONSOLE_LINE_STYLES; ++i)
+		if (console_stream[line].spans[i].semantic == sem) {
+			_start = console_stream[line].spans[i].start_column;
+			_len = console_stream[line].spans[i].length;
+			--_len; // point to the last char
+			if (console_stream[line].text[_start + _len] == ' ')
+				--_len;
+			// remote brackets from hashed callsigns
+			if (sem == STYLE_CALLER || sem == STYLE_CALLEE || sem == STYLE_MYCALL) {
+				if (console_stream[line].text[_start + _len] == '>')
+					--_len;
+				if (console_stream[line].text[_start ] == '<') {
+					++_start;
+					--_len;
+				}
+			}
+			++_len; // point to the null terminator
+			break;
+		}
+	if (_start < 0 || _len < 0)
+		return -1;
+	char *end = stpncpy(out, console_stream[line].text + _start, MIN(_len, outlen - 1));
+	*end = 0;
+	return _start;
+}
+
 int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	char buff[100], *p, *q;
@@ -1626,17 +1664,49 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		f->is_dirty = 1;
 		return 1;
 		break;
-	case GDK_BUTTON_RELEASE:
-		if (!strcmp(get_field("r1:mode")->value, "FT8"))
-		{
-			char ft8_message[300];
-			// strcpy(ft8_message, console_stream[console_selected_line].text);
-			hd_strip_decoration(ft8_message, console_stream[console_selected_line].text);
-			ft8_process(ft8_message, FT8_START_QSO);
+	case GDK_BUTTON_RELEASE: {
+		char console_line[64];
+		hd_strip_decoration(console_line, console_stream[console_selected_line].text);
+		// copy console line to X11 selection
+		GtkClipboard* clipboard = gtk_clipboard_get(GDK_SELECTION_PRIMARY);
+		gtk_clipboard_set_text(clipboard, console_line, -1);
+
+		// FT8-specific functionality
+		if (!strcmp(get_field("r1:mode")->value, "FT8")) {
+			struct field *console = get_field("#console");
+			const int line_height = font_table[console->font_index].height;
+			int call_start = console_extract_semantic(console_selected_callsign,
+				sizeof(console_selected_callsign), console_selected_line, STYLE_CALLER);
+			if (call_start >= 0 && !strstr(console_selected_callsign, get_field("#mycallsign")->value)) {
+				field_set("CALL", console_selected_callsign);
+				int call_len = strlen(console_selected_callsign);
+
+				char grid[7];
+				if (console_extract_semantic(grid, sizeof(grid), console_selected_line, STYLE_GRID) >= 0)
+					field_set("EXCH", grid);
+
+				char rst[7];
+				if (console_extract_semantic(rst, sizeof(rst), console_selected_line, STYLE_SNR) >= 0)
+					field_set("SENT", rst);
+
+				char time[10];
+				if (console_extract_semantic(time, sizeof(time), console_selected_line, STYLE_TIME) >= 0)
+					console_selected_time = atoi(time);
+
+				char pitch[7];
+				if (console_extract_semantic(pitch, sizeof(pitch), console_selected_line, STYLE_FREQ) >= 0)
+					field_set("PITCH", pitch);
+
+				printf("console press: sel %d cur %d %d '%s' from '%s'\n",
+					console_selected_line, console_current_line, console_selected_time, console_selected_callsign, console_line);
+
+				ft8_call(console_selected_time);
+			}
 		}
 		f->is_dirty = 1;
 		return 1;
 		break;
+	}
 	case FIELD_EDIT:
 		if (a == MIN_KEY_UP && console_selected_line > start_line)
 			console_selected_line--;
@@ -1737,7 +1807,7 @@ void draw_field(GtkWidget *widget, cairo_t *gfx, struct field *f)
 			draw_text(gfx, offset_x, label_y, f->label, STYLE_FIELD_LABEL);
 		}
 		else
-		{ 
+		{
 			int font_ix = f->font_index;
 			value_height = font_table[font_ix].height;
 			label_y = f->y + ((f->height - label_height - value_height) / 2);
@@ -1790,7 +1860,7 @@ static int mode_id(const char *mode_str)
 void save_user_settings(int forced)
 {
 	static int last_save_at = 0;
-	char file_path[200]; // dangerous, find the MAX_PATH and replace 200 with it
+	char file_path[PATH_MAX];
 
 	// attempt to save settings only if it has been 30 seconds since the
 	// last time the settings were saved
@@ -1841,9 +1911,14 @@ void save_user_settings(int forced)
 
 void enter_qso()
 {
-	const char *callsign = field_str("CALL");
-	const char *rst_sent = field_str("SENT");
-	const char *rst_received = field_str("RECV");
+	const char *callsign = get_field("#contact_callsign")->value;
+	const char *rst_sent = get_field("#rst_sent")->value;
+	const char *rst_received = get_field("#rst_received")->value;
+	const char *exch_sent = get_field("#exchange_sent")->value;
+	const char *exch_received = get_field("#exchange_received")->value;
+	const char *comment = get_field("#text_in")->value;
+	const int power = field_int("POWER");
+	const int swr = field_int("REF");
 
 	// skip empty or half filled log entry
 	if (strlen(callsign) < 3 || strlen(rst_sent) < 1 || strlen(rst_received) < 1)
@@ -1857,18 +1932,17 @@ void enter_qso()
 		printf("Duplicate log entry not accepted for %s within two minutes of last entry of %s.\n", callsign, callsign);
 		return;
 	}
-	logbook_add(get_field("#contact_callsign")->value,
-				get_field("#rst_sent")->value,
-				get_field("#exchange_sent")->value,
-				get_field("#rst_received")->value,
-				get_field("#exchange_received")->value,
-				get_field("#text_in")->value);
+
+	logbook_add(callsign, rst_sent, exch_sent, rst_received, exch_received, power, swr,
+				"", "", // xota: TODO
+				comment);
 
 	char buff[100];
-	sprintf(buff, "Logged: %s %s-%s %s-%s\n",
-			field_str("CALL"), field_str("SENT"), field_str("NR"),
-			field_str("RECV"), field_str("EXCH"));
+	snprintf(buff, sizeof(buff), "Logged: %s %s s %s r %s pwr %d.%d swr %d.%d\n",
+			callsign, exch_received, rst_sent, rst_received,
+			power / 10, power % 10, swr / 10, swr % 10);
 	write_console(STYLE_LOG, buff);
+	printf(buff);
 }
 
 static int get_band_stack_index(const char *p_value)
@@ -2447,10 +2521,10 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 	if (power < 30)
 		vswr = 10;
 
-	sprintf(meter_str, "Power: %d Watts", field_int("POWER") / 10);
-	draw_text(gfx, f->x + 5, f->y + 5, meter_str, STYLE_FIELD_LABEL);
+	sprintf(meter_str, "Power: %d.%d Watts", power / 10, power % 10);
+	draw_text(gfx, f->x + 20, f->y + 5, meter_str, STYLE_FIELD_LABEL);
 	sprintf(meter_str, "VSWR: %d.%d", vswr / 10, vswr % 10);
-	draw_text(gfx, f->x + 135, f->y + 5, meter_str, STYLE_FIELD_LABEL);
+	draw_text(gfx, f->x + 200, f->y + 5, meter_str, STYLE_FIELD_LABEL);
 }
 
 void draw_waterfall(struct field *f, cairo_t *gfx)
@@ -3775,7 +3849,7 @@ void menu_display(int show) {
 				field_move("RXEQ", 120, screen_height - 80, 45, 37);
 				field_move("NOTCH", 185, screen_height - 80, 95, 37);
 				field_move("ANR", 295, screen_height - 80, 45, 37);
-				field_move("APF", 355, screen_height - 80, 95, 37);				
+				field_move("APF", 355, screen_height - 80, 95, 37);
 				field_move("COMP", 470, screen_height - 80, 45, 37);
 				field_move("TXMON", 535, screen_height - 80, 45, 37);
 				field_move("TNDUR", 600, screen_height - 80, 45, 37);
@@ -3792,7 +3866,7 @@ void menu_display(int show) {
 				field_move("BNDWTH", 235, screen_height - 40, 45, 37);
 				field_move("DSP", 295, screen_height - 40, 45, 37);
 				field_move("GAIN", 355, screen_height - 40, 45, 37);
-				field_move("WIDTH", 405, screen_height - 40, 45, 37);								
+				field_move("WIDTH", 405, screen_height - 40, 45, 37);
 				field_move("BFO", 470, screen_height - 40, 45, 37);
 				field_move("VFOLK", 535, screen_height - 40, 45, 37);
 				field_move("TNPWR", 600, screen_height - 40, 45, 37);
@@ -7676,7 +7750,7 @@ void ui_init(int argc, char *argv[])
 	gtk_window_set_default_size(GTK_WINDOW(window), screen_width, screen_height);
 	gtk_window_set_title(GTK_WINDOW(window), "sBITX");
 	gtk_window_set_icon_from_file(GTK_WINDOW(window), "/home/pi/sbitx/sbitx_icon.png", NULL);
-	
+
 	display_area = gtk_drawing_area_new();
 	gtk_widget_set_size_request(display_area, 500, 400);
 
@@ -8236,7 +8310,7 @@ void do_control_action(char *cmd)
 	}
 	else if (!strcmp(request, "REC ON"))
 	{
-		char fullpath[200];
+		char fullpath[PATH_MAX];
 		char *path = getenv("HOME");
 		time(&record_start);
 		struct tm *tmp = localtime(&record_start);
@@ -8513,7 +8587,7 @@ void cmd_exec(char *cmd)
 	}
 	else if (!strcasecmp(exec, "logbook"))
 	{
-		char fullpath[200]; // dangerous, find the MAX_PATH and replace 200 with it
+		char fullpath[PATH_MAX];
 		char *path = getenv("HOME");
 		sprintf(fullpath, "mousepad %s/sbitx/data/logbook.txt", path);
 		execute_app(fullpath);
@@ -8952,7 +9026,7 @@ int main(int argc, char *argv[])
 	set_field("r1:gain", "41");
 	set_field("r1:volume", "85");
 
-	char directory[200]; // dangerous, find the MAX_PATH and replace 200 with it
+	char directory[PATH_MAX];
 	char *path = getenv("HOME");
 	strcpy(directory, path);
 	strcat(directory, "/sbitx/data/user_settings.ini");
