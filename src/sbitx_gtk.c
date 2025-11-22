@@ -1957,6 +1957,61 @@ static int user_settings_handler(void *user, const char *section,
 		return 1;
 	}
 
+	// band stacks
+	int band = -1;
+	if (!strcmp(section, "80M"))
+		band = BAND80M;
+	else if (!strcmp(section, "60M"))
+		band = BAND60M;
+	else if (!strcmp(section, "40M"))
+		band = BAND40M;
+	else if (!strcmp(section, "30M"))
+		band = BAND30M;
+	else if (!strcmp(section, "20M"))
+		band = BAND20M;
+	else if (!strcmp(section, "17M"))
+		band = BAND17M;
+	else if (!strcmp(section, "15M"))
+		band = BAND15M;
+	else if (!strcmp(section, "12M"))
+		band = BAND12M;
+	else if (!strcmp(section, "10M"))
+		band = BAND10M;
+
+	if (band != -1)
+	{
+		if (strstr(name, "freq"))
+		{
+			int freq = atoi(value);
+			if (freq < band_stack[band].start || band_stack[band].stop < freq)
+				return 1;
+		}
+		if (!strcmp(name, "freq0"))
+			band_stack[band].freq[0] = atoi(value);
+		else if (!strcmp(name, "freq1"))
+			band_stack[band].freq[1] = atoi(value);
+		else if (!strcmp(name, "freq2"))
+			band_stack[band].freq[2] = atoi(value);
+		else if (!strcmp(name, "freq3"))
+			band_stack[band].freq[3] = atoi(value);
+		else if (!strcmp(name, "mode0"))
+			band_stack[band].mode[0] = atoi(value);
+		else if (!strcmp(name, "mode1"))
+			band_stack[band].mode[1] = atoi(value);
+		else if (!strcmp(name, "mode2"))
+			band_stack[band].mode[2] = atoi(value);
+		else if (!strcmp(name, "mode3"))
+			band_stack[band].mode[3] = atoi(value);
+		else if (!strcmp(name, "gain"))
+			band_stack[band].if_gain = atoi(value);
+		else if (!strcmp(name, "drive"))
+			band_stack[band].drive = atoi(value);
+		else if (!strcmp(name, "tnpwr"))
+			band_stack[band].tnpwr = atoi(value);
+	}
+	return 1;
+}
+
 // Function to shut down with PWR-DWN button on Menu 2
 static void on_power_down_button_click(GtkWidget *widget, gpointer data)
 {
