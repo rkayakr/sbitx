@@ -1884,76 +1884,78 @@ static int get_band_stack_index(const char *p_value)
 }
 
 static int user_settings_handler(void *user, const char *section,
- const char *name, const char *value)
+								 const char *name, const char *value)
 {
-char cmd[1000];
-char new_value[200];
-strcpy(new_value, value);
-if (!strcmp(section, "r1"))
-{
-sprintf(cmd, "%s:%s", section, name);
-set_field(cmd, new_value);
-}
-else if (!strcmp(section, "tx"))
-{
-strcpy(cmd, name);
-set_field(cmd, new_value);
-}
-else if (!strncmp(section, "#kbd", 4))
-{
-return 1; // skip the keyboard values
-}
-// if it is an empty section
-else if (strlen(section) == 0)
-{
-// allow "audiofocus" (seconds) in user_settings.ini
-// if present, convert to milliseconds and store in mfk_timeout_ms
-// if invalid or <=0 default to 10 seconds
-if (!strcmp(name, "audiofocus"))
-{
-int secs = atoi(value);
-if (secs <= 0) secs = 10;
-mfk_timeout_ms = (unsigned long)secs * 1000UL;
-return 1;
-}
-sprintf(cmd, "%s", name);
-// skip the button actions
-struct field *f = get_field(cmd);
-if (f)
-{
-if (f->value_type != FIELD_BUTTON)
-{
-set_field(cmd, new_value);
-}
-char *bands = "#80m#60m#40m#30m#20m#17m#15m#12m#10m";
-char *ptr = strstr(bands, cmd);
-if (ptr != NULL)
-{
-// Set the selected band stack index
-int band = (ptr - bands) / 4;
-int ix = get_band_stack_index(new_value);
-if (ix < 0)
-{
-// printf("Band stack index for %c%cm set to 0!\n", *(ptr+1), *(ptr+2));
-ix = 0;
-}
-band_stack[band].index = ix;
-if (!strcmp(field_str("BSTACKPOSOPT"), "ON"))
-{
-strcpy(new_value, stack_place[ix]);
-strcpy(f->value, new_value);
-// printf("user_settings_handler: Band stack index for %c%cm set to %d\n", *(ptr+1), *(ptr+2), ix);
-}
-settings_updated++;
-}
-if (!strcmp(cmd, "#selband"))
-{
-int new_band = atoi(value);
-highlight_band_field(new_band);
-}
-}
-return 1;
-}
+	char cmd[1000];
+	char new_value[200];
+
+	strcpy(new_value, value);
+
+	if (!strcmp(section, "r1"))
+	{
+		sprintf(cmd, "%s:%s", section, name);
+		set_field(cmd, new_value);
+	}
+	else if (!strcmp(section, "tx"))
+	{
+		strcpy(cmd, name);
+		set_field(cmd, new_value);
+	}
+	else if (!strncmp(section, "#kbd", 4))
+	{
+		return 1; // skip the keyboard values
+	}
+	// if it is an empty section
+	else if (strlen(section) == 0)
+	{
+		// allow "audiofocus" (seconds) in user_settings.ini
+		// if present, convert to milliseconds and store in mfk_timeout_ms
+		// if invalid or <=0 default to 10 seconds
+		if (!strcmp(name, "audiofocus"))
+		{
+			int secs = atoi(value);
+			if (secs <= 0) secs = 10;
+			mfk_timeout_ms = (unsigned long)secs * 1000UL;
+			return 1;
+		}
+		sprintf(cmd, "%s", name);
+		// skip the button actions
+		struct field *f = get_field(cmd);
+		if (f)
+		{
+			if (f->value_type != FIELD_BUTTON)
+			{
+				set_field(cmd, new_value);
+			}
+			char *bands = "#80m#60m#40m#30m#20m#17m#15m#12m#10m";
+			char *ptr = strstr(bands, cmd);
+			if (ptr != NULL)
+			{
+				// Set the selected band stack index
+				int band = (ptr - bands) / 4;
+				int ix = get_band_stack_index(new_value);
+				if (ix < 0)
+				{
+					// printf("Band stack index for %c%cm set to 0!\n", *(ptr+1), *(ptr+2));
+					ix = 0;
+				}
+				band_stack[band].index = ix;
+				if (!strcmp(field_str("BSTACKPOSOPT"), "ON"))
+				{
+					strcpy(new_value, stack_place[ix]);
+					strcpy(f->value, new_value);
+					// printf("user_settings_handler: Band stack index for %c%cm set to %d\n", *(ptr+1), *(ptr+2), ix);
+				}
+				settings_updated++;
+			}
+			if (!strcmp(cmd, "#selband"))
+			{
+				int new_band = atoi(value);
+				highlight_band_field(new_band);
+			}
+		}
+		return 1;
+	}
 
 // Function to shut down with PWR-DWN button on Menu 2
 static void on_power_down_button_click(GtkWidget *widget, gpointer data)
