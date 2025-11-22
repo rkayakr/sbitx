@@ -1911,7 +1911,7 @@ static int user_settings_handler(void *user, const char *section,
 		// allow "audiofocus" (seconds) in user_settings.ini
 		// if present, convert to milliseconds and store in mfk_timeout_ms
 		// if invalid or <=0 default to 10 seconds
-		else if (!strcmp(name, "audiofocus"))
+		if (!strcmp(name, "audiofocus"))
 		{
 			int secs = atoi(value);
 			if (secs <= 0) secs = 10;
@@ -1921,7 +1921,7 @@ static int user_settings_handler(void *user, const char *section,
 		sprintf(cmd, "%s", name);
 		// skip the button actions
 		struct field *f = get_field(cmd);
-		else if (f)
+		if (f)
 		{
 			if (f->value_type != FIELD_BUTTON)
 			{
