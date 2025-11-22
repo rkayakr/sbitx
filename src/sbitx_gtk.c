@@ -1906,7 +1906,8 @@ static int user_settings_handler(void *user, const char *section,
 		return 1; // skip the keyboard values
 	}
 	// if it is an empty section
-	else if (strlen(section) == 0)
+	// else if (strlen(section) == 0)  this is broken. replaced below
+	else if (section == NULL || section[0] == '\0')
 	{
 		// allow "audiofocus" (seconds) in user_settings.ini
 		// if present, convert to milliseconds and store in mfk_timeout_ms
