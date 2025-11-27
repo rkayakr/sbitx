@@ -114,4 +114,4 @@ fi
 
 echo "Brought to you by the sBitx 64 bit project team"
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
-echo Build completed at $(date)
+echo $F Build version $VERSION completed at $(date)
