@@ -1039,6 +1039,10 @@ struct field main_controls[] = {
 	 "", 0, 20, 1, 0},
 	{"#critical_voltage", NULL, 1000, -1000, 400, 149, "CRITVOLT", 70, "10.0", FIELD_TEXT, STYLE_SMALL,
 	 "", 0, 20, 1, 0},
+	{"#xota_loc", NULL, 1000, -1000, 400, 149, "LOCATION", 70, "PEAK/PARK/ISLE", FIELD_TEXT, STYLE_SMALL,
+	 "", 0, 32, 1, 0},
+	{"#xota", NULL, 1000, -1000, 400, 149, "xOTA", 40, "", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "NONE/IOTA/SOTA/POTA", 0, 0, 0, COMMON_CONTROL},
 
 	// moving global variables into fields
 	{"#vfo_a_freq", NULL, 1000, -1000, 50, 50, "VFOA", 40, "14000000", FIELD_NUMBER, STYLE_FIELD_VALUE,
@@ -1085,11 +1089,11 @@ struct field main_controls[] = {
 	{"#bw_am", NULL, 1000, -1000, 50, 50, "BW_AM", 40, "5000", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 300, 6000, 50, 0},
 
-	// FT8 controls
-	{"#ft8_auto", NULL, 1000, -1000, 50, 50, "FT8_AUTO", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
-	 "ON/OFF", 0, 0, 0, FT8_CONTROL},
-	{"#ft8_tx1st", NULL, 1000, -1000, 50, 50, "FT8_TX1ST", 40, "ON", FIELD_TOGGLE, STYLE_FIELD_VALUE,
-	 "ON/OFF", 0, 0, 0, FT8_CONTROL},
+	// FTx controls
+	{"#ftx_auto", NULL, 1000, -1000, 50, 50, "FTX_AUTO", 40, "ANS", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "OFF/ANS/CQRESP", 0, 0, 0, FT8_CONTROL},
+	{"#ftx_cq", NULL, 1000, -1000, 50, 50, "FTX_CQ", 40, "ON", FIELD_SELECTION, STYLE_FIELD_VALUE,
+	 "EVEN/ODD/ALT_EVEN/XOTA", 0, 0, 0, FT8_CONTROL},
 	{"#ft8_repeat", NULL, 1000, -1000, 50, 50, "FT8_REPEAT", 40, "5", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 1, 10, 1, FT8_CONTROL},
 
@@ -1292,7 +1296,7 @@ int set_field(const char *id, const char *value)
 			strcpy(f->value, value);
 	}
 
-	if (!strcmp(id, "#rit") || !strcmp(id, "#ft8_auto"))
+	if (!strcmp(id, "#rit") || !strcmp(id, "#ftx_auto"))
 		debug = 1;
 
 	// send a command to the radio
@@ -1302,6 +1306,13 @@ int set_field(const char *id, const char *value)
 
 	update_field(f);
 	return 0;
+}
+
+int set_field_int(const char *id, int value)
+{
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%d", value);
+        return set_field(id, buf);
 }
 
 struct field *get_field_by_label(const char *label)
@@ -1978,7 +1989,9 @@ void enter_qso()
 	const char *rst_received = get_field("#rst_received")->value;
 	const char *exch_sent = get_field("#exchange_sent")->value;
 	const char *exch_received = get_field("#exchange_received")->value;
+	const char *xota = get_field("#xota")->value;
 	const char *comment = get_field("#text_in")->value;
+	const bool has_xota = xota[0] && strncmp(xota, "NONE", 4);
 
 	// skip empty or half filled log entry
 	if (strlen(callsign) < 3 || strlen(rst_sent) < 1 || strlen(rst_received) < 1)
@@ -1995,7 +2008,7 @@ void enter_qso()
 
 	logbook_add(callsign, rst_sent, exch_sent, rst_received, exch_received,
 				last_fwdpower, last_vswr,
-				"", "", // xota: TODO
+				has_xota ? xota : "", has_xota ? get_field("#xota_loc")->value : "",
 				comment);
 
 	char buff[100];
@@ -4117,8 +4130,8 @@ static void layout_ui()
       field_move("WATERFALL", 360, y1 + default_spectrum_height - WATERFALL_Y_OFFSET, x2 - 365, wf_h);
 
       // Top row: FTx mode controls
-      field_move("FT8_TX1ST", 375, y_top, 75, row_h);
-      field_move("FT8_AUTO", 450, y_top, 75, row_h);
+      field_move("FTX_CQ", 375, y_top, 75, row_h);
+      field_move("FTX_AUTO", 450, y_top, 75, row_h);
       field_move("FT8_REPEAT", 525, y_top, 75, row_h);
       field_move("MACRO", 600, y_top, 75, row_h);
       field_move("TX_PITCH", 675, y_top, 75, row_h);
@@ -5374,6 +5387,7 @@ int do_toggle_kbd(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	}
 	return 0;
 }
+
 int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
 	if (event == GDK_BUTTON_PRESS)
@@ -5402,21 +5416,25 @@ int do_rit_control(struct field *f, cairo_t *gfx, int event, int a, int b, int c
 	}
 	return 0;
 }
+
 int do_toggle_macro(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
-	if (event == GDK_BUTTON_PRESS)
-	{
+	switch (event) {
+	case GDK_BUTTON_PRESS:
 		set_field("#toggle_kbd", "OFF");
 		focus_field(f_last_text); // this will prevent the controls from bouncing
-		if (strlen(get_field("#current_macro")->value))
+		if (strlen(f->value))
 		{
 			write_console(STYLE_LOG, "current macro is ");
-			write_console(STYLE_LOG, get_field("#current_macro")->value);
+			write_console(STYLE_LOG, f->value);
 			write_console(STYLE_LOG, "\n");
 		}
-		macro_load(get_field("#current_macro")->value, NULL);
+		macro_load(f->value, NULL);
 		layout_needs_refresh = true;
-
+		return 1;
+	case GDK_SCROLL:
+		macro_load(f->value, NULL);
+		layout_needs_refresh = true;
 		return 1;
 	}
 	return 0;
@@ -6703,6 +6721,8 @@ static gboolean on_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer dat
 			else
 				edit_field(hoverField, MIN_KEY_DOWN);
 		}
+		if (!strcmp(hoverField->cmd, "#current_macro"))
+			do_toggle_macro(hoverField, NULL, GDK_SCROLL, 0, 0, 0);
 	}
 }
 
@@ -9112,6 +9132,9 @@ int main(int argc, char *argv[])
 	set_field("r1:gain", "41");
 	set_field("r1:volume", "85");
 
+	// read available macros before reading user_settings.ini: #current_macro is one of the settings
+	initialize_macro_selection();
+
 	char directory[PATH_MAX];
 	char *path = getenv("HOME");
 	strcpy(directory, path);
@@ -9128,8 +9151,7 @@ int main(int argc, char *argv[])
 	// the logger fields may have an unfinished qso details
 	call_wipe();
 
-	if (strlen(get_field("#current_macro")->value))
-		macro_load(get_field("#current_macro")->value, NULL);
+	macro_load(get_field("#current_macro")->value, NULL);
 
 	char buff[1000];
 
@@ -9179,8 +9201,6 @@ int main(int argc, char *argv[])
 
 	// Configure the INA260
 	configure_ina260();
-
-	initialize_macro_selection();
 
 	// Read voltage and current
 	// read_voltage_current(&voltage, &current);
