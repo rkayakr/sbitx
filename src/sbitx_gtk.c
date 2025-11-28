@@ -348,13 +348,13 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event,
 static void tab_focus_advance(int forward);
 static gboolean on_mouse_press(GtkWidget *widget, GdkEventButton *event,
 							   gpointer data);
-static gboolean on_mouse_move(GtkWidget *widget, GdkEventButton *event,
+static gboolean on_mouse_move(GtkWidget *widget, GdkEventMotion *event,
 							  gpointer data);
 static gboolean on_mouse_release(GtkWidget *widget, GdkEventButton *event,
 								 gpointer data);
 static gboolean on_scroll(GtkWidget *widget, GdkEventScroll *event,
 						  gpointer data);
-static gboolean on_window_state(GtkWidget *widget, GdkEventKey *event,
+static gboolean on_window_state(GtkWidget *widget, GdkEventWindowState *event,
 								gpointer user_data);
 static gboolean on_resize(GtkWidget *widget, GdkEventConfigure *event,
 						  gpointer user_data);
@@ -1990,8 +1990,10 @@ void enter_qso()
 	const char *exch_sent = get_field("#exchange_sent")->value;
 	const char *exch_received = get_field("#exchange_received")->value;
 	const char *xota = get_field("#xota")->value;
+	const char *xota_loc = get_field("#xota_loc")->value;
 	const char *comment = get_field("#text_in")->value;
-	const bool has_xota = xota[0] && strncmp(xota, "NONE", 4);
+	const bool has_xota = xota[0] && strncmp(xota, "NONE", 4) &&
+			xota_loc[0] && strncmp(xota_loc, "PEAK/PARK/ISLE", 14);
 
 	// skip empty or half filled log entry
 	if (strlen(callsign) < 3 || strlen(rst_sent) < 1 || strlen(rst_received) < 1)
@@ -2008,7 +2010,7 @@ void enter_qso()
 
 	logbook_add(callsign, rst_sent, exch_sent, rst_received, exch_received,
 				last_fwdpower, last_vswr,
-				has_xota ? xota : "", has_xota ? get_field("#xota_loc")->value : "",
+				has_xota ? xota : "", has_xota ? xota_loc : "",
 				comment);
 
 	char buff[100];
@@ -2081,6 +2083,8 @@ static int user_settings_handler(void *user, const char *section,
 		{
 			if (f->value_type != FIELD_BUTTON)
 			{
+				if (!new_value[0] && !strncmp(cmd, "#xota", 5))
+					strncpy(new_value, "NONE", 4);
 				set_field(cmd, new_value);
 			}
 			char *bands = "#80m#60m#40m#30m#20m#17m#15m#12m#10m";
@@ -6726,9 +6730,8 @@ static gboolean on_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer dat
 	}
 }
 
-static gboolean on_window_state(GtkWidget *widget, GdkEventKey *event, gpointer user_data)
+static gboolean on_window_state(GtkWidget *widget, GdkEventWindowState *event, gpointer user_data)
 {
-	mouse_down = 0;
 }
 
 static gboolean on_mouse_release(GtkWidget *widget, GdkEventButton *event, gpointer data)
@@ -6747,10 +6750,9 @@ static gboolean on_mouse_release(GtkWidget *widget, GdkEventButton *event, gpoin
 	return TRUE;
 }
 // This function is for drag tracking
-static gboolean on_mouse_move(GtkWidget *widget, GdkEventButton *event, gpointer data)
+static gboolean on_mouse_move(GtkWidget *widget, GdkEventMotion *event, gpointer data)
 {
-	char buff[100];
-	// Call the new function to handle mouse movement events
+	mouse_down = event->state & GDK_BUTTON1_MASK;
 	if (!mouse_down)
 		return false;
 
