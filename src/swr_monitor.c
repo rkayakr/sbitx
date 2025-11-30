@@ -45,7 +45,7 @@ void check_and_handle_vswr(int vswr)
 	float swr = vswr / 10.0f;
 	// Check if VSWR exceeds threshold and not already tripped
 	if (swr > max_vswr && vswr_tripped == 0 && vswr_on==1) { // 
-//		printf(" tripped %d\n",vswr_on);  //
+
 		char response[100];
 		char drive_str[32];
 		char tnpwr_str[32];
@@ -53,12 +53,7 @@ void check_and_handle_vswr(int vswr)
 		
 		// Set tripped flag
 		vswr_tripped = 1;
-		
-/*		// Get TNPWR value from #tune_power field ID
-		if (get_field_value("#tune_power", tnpwr_str) == 0) {
-			int tunepower = atoi(tnpwr_str);
-			// Set tx power to TNPWR via sdr_request
-*/			
+//		printf(" tripped %d\n",vswr_tripped);  //				
 
 			snprintf(sdr_cmd, sizeof(sdr_cmd), "tx_power=%d", 1);
 			sdr_request(sdr_cmd, response);
@@ -68,13 +63,6 @@ void check_and_handle_vswr(int vswr)
 			snprintf(drive_buff, sizeof(drive_buff), "%d", 1);
 			field_set("DRIVE", drive_buff);
 						
-			// Update UI: set alert flag
-			set_field("#vswr_alert", "1");
-			
-			// Set message to "HIGH SWR" in red
-			set_field("#high_vswr_msg", "HIGH VSWR");
-			set_field("#high_vswr_color", "red");
-			
 			// Write warning to console
 			char warning_msg[128];
 			snprintf(warning_msg, sizeof(warning_msg), 
@@ -86,11 +74,6 @@ void check_and_handle_vswr(int vswr)
 	else if (swr <= max_vswr && vswr_tripped == 1) {
 		// Clear tripped flag
 		vswr_tripped = 0;
-		
-		// Clear UI alerts
-		set_field("#vswr_alert", "0");
-		set_field("#high_vswr_msg", "");
-		set_field("#high_vswr_color", "");
 		
 		// Write info to console
 		char info_msg[128];
@@ -109,9 +92,4 @@ void init_vswr_monitor(void)
 	// Ensure tripped flag is off, feature activated
 	vswr_tripped = 0;
 	vswr_on=1;
-	
-	// Clear UI fields to ensure clean startup
-	set_field("#vswr_alert", "0");
-	set_field("#high_vswr_msg", "");
-	set_field("#high_vswr_color", "");
 }

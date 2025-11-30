@@ -1198,14 +1198,6 @@ struct field main_controls[] = {
 	// the last control has empty cmd field
 	{"", NULL, 0, 0, 0, 0, "#", 1, "Q", FIELD_BUTTON, STYLE_FIELD_VALUE, "", 0, 0, 0, 0},
 	
-	// VSWR monitoring fields (internal state, not visible controls)
-	// Position coordinates (1000, -1000) are used to hide these fields from display
-	{"#vswr_alert", NULL, 1000, -1000, 10, 10, "VSWR_ALERT", 70, "0", FIELD_TEXT, STYLE_FIELD_VALUE,
-	 "", 0, 10, 1, COMMON_CONTROL},
-	{"#high_vswr_msg", NULL, 1000, -1000, 100, 10, "HIGH_VSWR_MSG", 70, "", FIELD_TEXT, STYLE_FIELD_VALUE,
-	 "", 0, 100, 1, COMMON_CONTROL},
-	{"#high_vswr_color", NULL, 1000, -1000, 20, 10, "HIGH_VSWR_COLOR", 70, "", FIELD_TEXT, STYLE_FIELD_VALUE,
-	 "", 0, 20, 1, COMMON_CONTROL},
 };
 
 struct field *get_field(const char *cmd);
@@ -3235,25 +3227,20 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 	bool is_s_meter_on = strcmp(field_str("SMETEROPT"), "ON") == 0;
 
 	// --- HIGH SWR indicator (left side, red message)
-	const char *swr_msg = field_str("HIGH_VSWR_MSG");
-	const char *swr_color = field_str("HIGH_VSWR_COLOR");
-	
-	if (swr_msg && strlen(swr_msg) > 0 && vswr_tripped ==1) {
+
+//		printf("vswr_tripped %d %d\n", vswr_tripped, strlen(swr_msg));	
+	if ( vswr_tripped ==1) { 
+//		printf("vswr high set\n");
 		cairo_set_font_size(gfx, STYLE_LARGE_VALUE);
-		
-		// Set color based on spectrum_left_color field below smeter
-		if (swr_color && strcmp(swr_color, "red") == 0) {
-			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);  // Red
-		} else {
-			cairo_set_source_rgb(gfx, 1.0, 1.0, 1.0);  // White default
-		}
 		
 		// Position on left side of spectrum
 		int swr_text_x = f_spectrum->x + 120; // 9
 		int swr_text_y = f_spectrum->y + 25; // 50
 		
 		cairo_move_to(gfx, swr_text_x, swr_text_y);
-		cairo_show_text(gfx, swr_msg);
+		char *s = "HIGH VSWR";
+		cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);  // Red
+		cairo_show_text(gfx, s);  //swr_msg
 	}
 
 	if (zero_beat_enabled) {
@@ -7187,7 +7174,7 @@ void tuning_isr(void)
 			tuning_ticks--;
 	}
 }
-
+/*
 void query_swr()
 {
 	uint8_t response[4];
@@ -7217,6 +7204,7 @@ void query_swr()
 	printf("calling handle\n");
 	check_and_handle_vswr(vswr);
 }
+*/
 void oled_toggle_band()
 {
 	unsigned int freq_now = field_int("FREQ");
