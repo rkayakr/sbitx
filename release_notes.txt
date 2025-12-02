@@ -6,7 +6,8 @@ v5.3 - Currently In Test/Dev
 - "Quick Options" menu by holding both encoder buttons for 2 seconds. 
 - \cal command for calibrating the scale per band (external Power/SWR meter required).
 - \snap command to take screen shot of sBitx software
-- Voltage and Current added to UI by VFO.
+- Voltage and Current added to UI by VFO
+- Added High SWR trigger and auto power reduction to 1 which is configurable by the \maxvswr command, default to 3:1
 
 v5.2 - 
 **New Features:**
