@@ -49,6 +49,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "webserver.h"
 #include "logbook.h"
 #include "hist_disp.h"
+#include "quick_options.h"
 #include "ntputil.h"
 #include "para_eq.h"
 #include "eq_ui.h"
@@ -220,8 +221,10 @@ struct font_style font_table[] = {
 	{STYLE_LOG, 0.7, 0.7, 0.7, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_MYCALL, 1, 0, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_CALLER, 0.8, 0.4, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_RECENT_CALLER, 0, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_CALLEE, 0, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_GRID, 1, 0.8, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
+	{STYLE_EXISTING_GRID, 0, 0.6, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_TIME, 0, 0.8, 0.8, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_SNR, 1, 1, 1, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_FREQ, 0, 0.7, 0.5, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
@@ -334,7 +337,7 @@ GtkWidget *window;
 GtkWidget *display_area = NULL;
 GtkWidget *waterfall_gain_slider;
 GtkWidget *text_area = NULL;
-static int is_fullscreen = 0;
+int is_fullscreen = 0;
 
 extern void settings_ui(GtkWidget *p);
 extern void eq_ui(GtkWidget *p);
@@ -833,6 +836,8 @@ struct field main_controls[] = {
 	 "", 100, 99999, 100, 0},
 	{"mouse_pointer", NULL, 1000, -1000, 50, 50, "MP", 40, "LEFT", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "BLANK/LEFT/RIGHT/CROSSHAIR", 0, 0, 0, 0},
+	{"recent_qso_age", NULL, 1000, -1000, 50, 50, "RCT_QSO_AGE", 40, "24", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	 "", 0, 99999, 1, 0}, // age in hours that we consider "recent" enough to avoid calling again
 
 	// parametric 5-band eq controls  ( BX[F|G|B] = Band# Frequency | Gain | Bandwidth W2JON
 	{"#eq_b0f", do_eq_edit, 1000, -1000, 40, 40, "B0F", 40, "80", FIELD_NUMBER, STYLE_FIELD_VALUE,
@@ -1687,8 +1692,19 @@ void draw_console(cairo_t *gfx, struct field *f)
 */
 int console_extract_semantic(char *out, int outlen, int line, sbitx_style sem) {
 	int _start = -1, _len = -1;
-	for (int i = 0; i < MAX_CONSOLE_LINE_STYLES; ++i)
-		if (console_stream[line].spans[i].semantic == sem) {
+	for (int i = 0; i < MAX_CONSOLE_LINE_STYLES; ++i) {
+		// if we are looking for STYLE_CALLER, it could also be STYLE_RECENT_CALLER
+		// if we are looking for STYLE_GRID, it could also be STYLE_EXISTING_GRID
+		sbitx_style sem_alt1 = sem;
+		switch (sem) {
+			case STYLE_CALLER:
+				sem_alt1 = STYLE_RECENT_CALLER;
+				break;
+			case STYLE_GRID:
+				sem_alt1 = STYLE_EXISTING_GRID;
+				break;
+		}
+		if (console_stream[line].spans[i].semantic == sem || console_stream[line].spans[i].semantic == sem_alt1) {
 			_start = console_stream[line].spans[i].start_column;
 			_len = console_stream[line].spans[i].length;
 			--_len; // point to the last char
@@ -1706,6 +1722,7 @@ int console_extract_semantic(char *out, int outlen, int line, sbitx_style sem) {
 			++_len; // point to the null terminator
 			break;
 		}
+	}
 	if (_start < 0 || _len < 0)
 		return -1;
 	char *end = stpncpy(out, console_stream[line].text + _start, MIN(_len, outlen - 1));
@@ -2186,7 +2203,7 @@ static int user_settings_handler(void *user, const char *section,
 }
 
 // Function to shut down with PWR-DWN button on Menu 2
-static void on_power_down_button_click(GtkWidget *widget, gpointer data)
+void on_power_down_button_click(GtkWidget *widget, gpointer data)
 {
 	GtkWidget *parent_window = (GtkWidget *)data;
 
@@ -2243,7 +2260,7 @@ static void on_power_down_button_click(GtkWidget *widget, gpointer data)
 }
 
 // Function to toggle fullscreen mode
-static void on_fullscreen_toggle(const int requested_state)
+void on_fullscreen_toggle(const int requested_state)
 {
 	if( requested_state != is_fullscreen){
 		if (requested_state == 1)
@@ -7490,6 +7507,12 @@ void handleButton1Press()
 	static time_t buttonPressTime = 0;
 	static int buttonPressed = 0;
 
+	// Skip if both buttons are pressed (dual button press handler will deal with it)
+	if (digitalRead(ENC1_SW) == 0 && digitalRead(ENC2_SW) == 0) {
+		buttonPressed = 0;
+		return;
+	}
+
 	if (digitalRead(ENC1_SW) == 0)
 	{
 		if (!buttonPressed)
@@ -7545,6 +7568,12 @@ void handleButton2Press()
 	static int vfoLock = 0;
 	static time_t buttonPressTimeSW2 = 0;
 	static int buttonPressedSW2 = 0;
+
+	// Skip if both buttons are pressed (dual button press handler will deal with it)
+	if (digitalRead(ENC1_SW) == 0 && digitalRead(ENC2_SW) == 0) {
+		buttonPressedSW2 = 0;
+		return;
+	}
 
 	if (digitalRead(ENC2_SW) == 0)
 	{
@@ -7741,6 +7770,7 @@ gboolean ui_tick(gpointer gook)
 				update_field(f);
 		*/
 
+		handleDualButtonPress(); // Check for both buttons first
 		handleButton1Press(); // Call the SW1 handler -W2JON
 		handleButton2Press(); // Call the SW2 handler -W2JON
 		// if (digitalRead(ENC2_SW) == 0)
