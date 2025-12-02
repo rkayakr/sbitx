@@ -1985,6 +1985,9 @@ void save_user_settings(int forced)
 
   // write "audiofocus" so it will be saved to usersettings.ini
   fprintf(f, "audiofocus=%lu\n", (unsigned long)(mfk_timeout_ms / 1000UL));
+  
+  // write "max_vswr" so it will be saved to usersettings.ini
+  fprintf(f, "max_vswr=%g\n", max_vswr);
 
 	// now save the band stack
 	for (int i = 0; i < sizeof(band_stack) / sizeof(struct band); i++)
@@ -2096,6 +2099,14 @@ static int user_settings_handler(void *user, const char *section,
 			return 1;
 		}
 		sprintf(cmd, "%s", name);
+	// Load max_vswr if present 	
+		if (!strcmp(name, "max_vswr"))
+		{
+			/* allow float values; 0 or negative => disabled */
+			max_vswr = atof(value);
+			return 1; 
+		}
+		
 		// skip the button actions
 		struct field *f = get_field(cmd);
 		if (f)
@@ -8766,7 +8777,7 @@ void cmd_exec(char *cmd)
 		if (strlen(args) > 0)
 		{
 			float new_max_vswr = atof(args);			
-			printf(" vswr %.1f \n",new_max_vswr);
+			printf(" maxvswr %.1f \n",new_max_vswr);
 			if (new_max_vswr < .1f) 
 				{
 					vswr_on = 0;  // turn off protection
