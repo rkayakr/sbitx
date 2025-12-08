@@ -839,6 +839,11 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 				//~ printf("final span has len %d sem %d\n", sem[sem_i - 1].length, sem[sem_i - 1].semantic);
 				switch (sem[sem_i - 1].semantic) {
 					case STYLE_GRID: {
+						// If RR73 got tagged as a grid, it's not a grid.
+						if (!strncmp(buf + sem[sem_i - 1].start_column, "RR73", 4)) {
+							sem[sem_i - 1].semantic = STYLE_LOG; // should not stand out
+							break;
+						}
 						// When was the last QSO with someone in this grid?
 						time_t recent_grid_qso = sem[sem_i - 1].length > 0 ? logbook_grid_last_qso(buf + sem[sem_i - 1].start_column, sem[sem_i - 1].length) : 0ll;
 						//~ printf("checking for QSO: grid is at text range %d len %d from '%s'; exists? %d\n",
@@ -1272,7 +1277,7 @@ void ft8_poll(int tx_is_on){
 			ftx_repeat = ftx_repeat_save;
 			if (!ftx_repeat) {
 				call_wipe();
-				ft8_abort();
+				ft8_abort(true);
 				ftx_tx_text[0] = 0;
 			}
 		}
@@ -1447,12 +1452,24 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 				dbg_label = "pitch"; dbg_val = pitch;
 				break;
 			case STYLE_FT8_RX:
-				// "CQ" "73" and maybe "RR73" currently show up here.
+				// "CQ" and "73" currently show up here.
 				// But a plain-text message could show up this way too;
 				// extra is big enough to hold it, but there is not much point in clicking on it.
 				extra_start = extract_single_semantic(line, line_len, spans[s], extra, sizeof(extra));
 				dbg_label = "extra"; dbg_val = extra;
 				break;
+			case STYLE_LOG: {
+				char buf[8];
+				int start = extract_single_semantic(line, line_len, spans[s], buf, sizeof(buf));
+				// "RR73" normally shows up here (we don't want it to stand out in the log).
+				if (!strncmp(buf, "RR73", 4)) {
+					rr73 = true;
+					extra_start = start;
+					strncpy(extra, buf, sizeof(extra));
+					dbg_label = "plain"; dbg_val = extra;
+				}
+				break;
+			}
 			case STYLE_MYCALL:
 			case STYLE_CALLEE:
 				callee_start = extract_single_semantic(line, line_len, spans[s], callee, sizeof(callee));
@@ -1503,7 +1520,7 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 		LOG(LOG_DEBUG, "received 73\n");
 		enter_qso();
 		call_wipe();
-		ft8_abort();
+		ft8_abort(true);
 		ftx_tx_text[0] = 0;
 		return;
 	}
@@ -1542,7 +1559,9 @@ void ft8_init(){
 	memset(ftx_xota_text, 0, sizeof(ftx_xota_text));
 }
 
-void ft8_abort(){
+void ft8_abort(bool terminate_qso){
 	ftx_tx_nsamples = 0;
 	ftx_repeat = 0;
+	if (terminate_qso)
+		ftx_tx_text[0] = 0; // ftx_would_send() will now return false: nothing left to send
 }
