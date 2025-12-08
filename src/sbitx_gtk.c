@@ -1996,6 +1996,10 @@ void save_user_settings(int forced)
 	int i;
 	for (i = 0; active_layout[i].cmd[0] > 0; i++)
 	{
+		// Skip #band and #band_stack_pos - these are computed fields, not saved
+		// The band stack index is saved per-band in the [80M], [40M], etc. sections
+		if (!strcmp(active_layout[i].cmd, "#band") || !strcmp(active_layout[i].cmd, "#band_stack_pos"))
+			continue;
 		fprintf(f, "%s=%s\n", active_layout[i].cmd, active_layout[i].value);
 	}
 
@@ -2008,7 +2012,7 @@ void save_user_settings(int forced)
 	// now save the band stack
 	for (int i = 0; i < sizeof(band_stack) / sizeof(struct band); i++)
 	{
-		fprintf(f, "\n[%s]\ndrive=%i\ngain=%i\ntnpwr=%i\n", band_stack[i].name, band_stack[i].drive, band_stack[i].if_gain, band_stack[i].tnpwr);
+		fprintf(f, "\n[%s]\ndrive=%i\ngain=%i\ntnpwr=%i\nstack_index=%i\n", band_stack[i].name, band_stack[i].drive, band_stack[i].if_gain, band_stack[i].tnpwr, band_stack[i].index);
 
 		// fprintf(f, "power=%d\n", band_stack[i].power);
 		for (int j = 0; j < STACK_DEPTH; j++)
@@ -2151,6 +2155,13 @@ static int user_settings_handler(void *user, const char *section,
 			return 1;
 		}
 
+		// Skip #band and #band_stack_pos - these are computed fields from the old implementation
+		// They should not be loaded from settings
+		if (!strcmp(cmd, "#band") || !strcmp(cmd, "#band_stack_pos"))
+		{
+			return 1;
+		}
+
 		// For other fields, set the value if the field exists and is not a button
 		struct field *f = get_field(cmd);
 		if (f)
@@ -2216,6 +2227,8 @@ static int user_settings_handler(void *user, const char *section,
 			band_stack[band].drive = atoi(value);
 		else if (!strcmp(name, "tnpwr"))
 			band_stack[band].tnpwr = atoi(value);
+		else if (!strcmp(name, "stack_index"))
+			band_stack[band].index = atoi(value);
 	}
 	return 1;
 }
@@ -5915,43 +5928,13 @@ int do_band_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int
 		}
 
 		if (selected_band)
-		{
+		{		
+
 			// Check if the selected band is different from the current band
 			if (strcmp(f->label, selected_band) != 0)
 			{
-				// Find the band in the band_stack
-				struct band *band_found = NULL;
-				for (int i = 0; i < sizeof(band_stack) / sizeof(struct band); i++)
-				{
-					if (!strcmp(band_stack[i].name, selected_band))
-					{
-						band_found = &band_stack[i];
-						break;
-					}
-				}
 
-				if (band_found)
-				{
-					// Get the current stack position for this band
-					int stack_pos = band_found->index;
-					char freq_str[20];
-					sprintf(freq_str, "%d", band_found->freq[stack_pos]);
-
-					// Set the frequency directly
-					set_field("r1:freq", freq_str);
-
-					// Update the band dropdown label and value
-					strcpy(f->label, selected_band);
-
-					// Create stack position indicator (=---, -=--, --=-, ---=)
-					char stack_indicator[5];
-					for (int i = 0; i < 4; i++)
-					{
-						stack_indicator[i] = (i == stack_pos) ? '=' : '-';
-					}
-					stack_indicator[4] = '\0';
-					strcpy(f->value, stack_indicator);
-				}
+				change_band(selected_band);
 
 				// Collapse the dropdown
 				f_dropdown_expanded = NULL;
@@ -9349,16 +9332,18 @@ void change_band(char *request)
 		band_stack[new_band].index = stack;
 	}
 	stack = band_stack[new_band].index;
+	int mode_ix = band_stack[new_band].mode[stack];
+
 	if (stack < 0 || stack > 3)
 	{
 		printf("Illegal stack index %d\n", stack);
 		stack = 0;
+		mode_ix = MODE_USB;
 	}
 	sprintf(buff, "%d", band_stack[new_band].freq[stack]);
 	char resp[100];
 	set_operating_freq(band_stack[new_band].freq[stack], resp);
 	field_set("FREQ", buff);
-	int mode_ix = band_stack[new_band].mode[stack];
 	if (mode_ix < 0 || mode_ix > MAX_MODES)
 	{
 		printf("Illegal MODE id %d\n", mode_ix);
@@ -9366,8 +9351,8 @@ void change_band(char *request)
 	}
 	field_set("MODE", mode_name[mode_ix]);
 	update_field(get_field("r1:mode"));
-
 	highlight_band_field(new_band);
+	update_current_band_stack();
 
 	sprintf(buff, "%d", new_band);
 	set_field("#selband", buff); // signals web app to clear lists
@@ -10626,7 +10611,8 @@ int main(int argc, char *argv[])
 	}
 
 	gtk_main();
-
+	
+	save_user_settings(1);
 	return 0;
 }
 
