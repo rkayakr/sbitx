@@ -623,9 +623,6 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 	bool is_ft8 = !strcmp(field_str("MODE"), "FT8");
 	recent_qso_age = field_int("RCT_QSO_AGE");
 
-    LOG(LOG_DEBUG, "sbitx_ftx_decode: %s sample rate %d Hz, %d samples, %.3f seconds\n",
-		(is_ft8 ? "FT8" : "FT4"), sample_rate, num_samples, (double)num_samples / sample_rate);
-
     // Compute FFT over the whole signal and store it
     monitor_t mon;
     monitor_config_t mon_cfg = {
@@ -642,6 +639,10 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 	const int packet_time_ms = is_ft8 ? 15000 : 7500;
 	const int raw_ms = (wallclock_day_ms / packet_time_ms) * packet_time_ms;
 	time_t now = time(NULL);
+	int time_sec_i = (raw_ms % 60000) / 1000;
+
+	LOG(LOG_DEBUG, "sbitx_ftx_decode: %02d %s sample rate %d Hz, %d samples, %.3f seconds\n",
+		time_sec_i, (is_ft8 ? "FT8" : "FT4"), sample_rate, num_samples, (double)num_samples / sample_rate);
 
 	int i;
 	char mycallsign_upper[20];
@@ -762,6 +763,8 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			int line_len = prefix_len + snprintf(buf + prefix_len, sizeof(buf) - prefix_len, "%s", text);
 
 			const bool is_cq = !strncmp(text, "CQ ", 3);
+			bool my_call_found = false;
+			bool has_grid = false;
 
 			//For troubleshooting you can display the time offset - n1qm
 			//sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
@@ -771,7 +774,6 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			memset(sem, 0, sizeof(sem));
 			char callsign[20];
 			memset(callsign, 0, sizeof(callsign));
-			bool my_call_found = false;
 			int calls_found = 0;
 			int total_calls = message_callsign_count(&spans);
 			int span_i = 0;
@@ -867,6 +869,11 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 						if (!strncmp(buf + sem[sem_i - 1].start_column, "RR73", 4)) {
 							sem[sem_i - 1].semantic = STYLE_LOG; // should not stand out
 							break;
+						} else if (!strncmp(buf + sem[sem_i - 1].start_column - 1, " 73", 3)) {
+							sem[sem_i - 1].semantic = STYLE_FT8_RX; // should stand out
+							break;
+						} else {
+							has_grid = true;
 						}
 						// When was the last QSO with someone in this grid?
 						time_t recent_grid_qso = sem[sem_i - 1].length > 0 ? logbook_grid_last_qso(buf + sem[sem_i - 1].start_column, sem[sem_i - 1].length) : 0ll;
@@ -897,10 +904,12 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 				}
 			}
 
-			// add supplementary information: country, distance, azimuth
+			// If it's a CQ, or is addressed to me _and_ has a grid,
+			// add supplementary information: country, distance, azimuth.
+			// Don't do that otherwise: it can confuse ftx_call_or_continue()
 			if (!cty_inited)
 				cty_inited = !readctydata(cty_location) && !readabbrev(abbrev_location);
-			if (is_cq && cty_inited) {
+			if ((is_cq || (my_call_found && has_grid)) && cty_inited) {
 				dxcc_data info = lookupcountry_by_callsign(callsign);
 				if (info.country) {
 					const char *country_abbrev = NULL;
@@ -915,19 +924,19 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 					int qrbOK = !qrb(mylon, mylat, info.longitude, info.latitude, &distance, &azimuth);
 					//~ printf("%s: %s '%s' @ %5.0lf a %3.0lf qrb ok? %d\n", callsign, country_abbrev, info.countryname, distance, azimuth, qrbOK);
 					if (qrbOK) {
-						// output to the LOG message but not the GTK console (it's too much): don't add to line_len or add spans, for now
-						int dist_len = snprintf(buf + line_len, sizeof(buf) - line_len, " %.0lf km", distance);
-						//~ line_len += dist_len;
-						//~ assert(sem_i < MAX_CONSOLE_LINE_STYLES);
-						//~ sem[sem_i].semantic = STYLE_DISTANCE;
-						//~ sem[sem_i].start_column = line_len;
-						//~ sem[sem_i++].length = dist_len;
-						int az_len = snprintf(buf + line_len + dist_len, sizeof(buf) - line_len - dist_len, " %.0lf°", azimuth); // U+00B0 degree symbol
-						//~ line_len += az_len;
-						//~ assert(sem_i < MAX_CONSOLE_LINE_STYLES);
-						//~ sem[sem_i].semantic = STYLE_AZIMUTH;
-						//~ sem[sem_i].start_column = line_len + dist_len;
-						//~ sem[sem_i++].length = az_len;
+						int dist_len = snprintf(buf + line_len, sizeof(buf) - line_len, " %.0lf", distance);
+						assert(sem_i < MAX_CONSOLE_LINE_STYLES);
+						sem[sem_i].semantic = STYLE_DISTANCE;
+						sem[sem_i].start_column = line_len;
+						sem[sem_i++].length = dist_len;
+						line_len += dist_len;
+
+						int az_len = snprintf(buf + line_len, sizeof(buf) - line_len - dist_len, " %.0lf°", azimuth); // U+00B0 degree symbol
+						assert(sem_i < MAX_CONSOLE_LINE_STYLES);
+						sem[sem_i].semantic = STYLE_AZIMUTH;
+						sem[sem_i].start_column = line_len;
+						sem[sem_i++].length = az_len;
+						line_len += az_len;
 					}
 				}
 			}
@@ -1301,11 +1310,7 @@ void ft8_rx(int32_t *samples, int count) {
 	for (int i = 0; i < count; i += decimation_ratio)
 		ftx_rx_buffer[ftx_rx_buff_index++] = samples[i] / 200000000.0f;
 
-	int time_was = wallclock_day_ms;
 	ftx_update_clock();
-	// we only need to check every half-second
-	if (time_was / 500 == wallclock_day_ms / 500)
-		return;
 
 	int slot_time = wallclock_day_ms % 15000;
 	int min_secs = 12000;
@@ -1315,7 +1320,7 @@ void ft8_rx(int32_t *samples, int count) {
 		min_secs = 6000;
 		slot_time_decode = 13000 / 2;
 	}
-	//~ printf("time %d -> %d; slot %d; ftx_rx_buff_index %d\n", time_was % 60000, wallclock_day_ms % 60000, slot_time, ftx_rx_buff_index);
+	//~ printf("time %d; slot %d; ftx_rx_buff_index %d\n", wallclock_day_ms % 60000, slot_time, ftx_rx_buff_index);
 
 	if (slot_time < 500)
 		ftx_rx_buff_index = 0;
@@ -1337,7 +1342,8 @@ void ft8_poll(int tx_is_on){
 			tx_off();
 			ftx_repeat = ftx_repeat_save;
 			if (!ftx_repeat) {
-				call_wipe();
+				if (strcmp(field_str("FTX_AUTO"), "OFF"))
+					call_wipe();
 				ft8_abort(true);
 				ftx_tx_text[0] = 0;
 			}
@@ -1462,15 +1468,17 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 	int snr_start = 0, pitch_start = 0, grid_start = 0, rst_start = 0, callee_start = 0, extra_start = 0;
 	int time = -1;
 	bool is_rrst = false;
-	const bool is_73 = strstr(line + line_len - 5, " 73");
-	const bool is_rr73 = strstr(line + line_len - 5, "RR73");
+	const bool is_73 = strstr(line, " 73"); // search the whole line in case the message has country, etc.
+	const bool is_rr73 = strstr(line + line_len - 5, "RR73"); // we are careful not to add country to roger messages
 	const bool is_rrr = strstr(line + line_len - 5, "RRR");
 	// expect spans[0] to apply to the whole line; start with spans[1] to look at individual "words"
 	for (int s = 1; s < MAX_CONSOLE_LINE_STYLES; ++s) {
 		char *dbg_label = NULL;
 		char *dbg_val = NULL;
-		if (!spans[s].length)
+		if (!spans[s].length) {
+			LOG(LOG_DEBUG, "   span %d has length 0.  The end.\n", s);
 			break; // a zero-length span marks the end of the spans array
+		}
 		switch (spans[s].semantic) {
 			case STYLE_TIME:
 				extract_single_semantic(line, line_len, spans[s], time_str, sizeof(time_str));
@@ -1545,7 +1553,7 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 				break;
 		}
 		if (dbg_label)
-			LOG(LOG_DEBUG, "   span @ %d len %d: %d %s '%s'\n", spans[s].start_column, spans[s].length, spans[s].semantic, dbg_label, dbg_val);
+			LOG(LOG_DEBUG, "   span %d @ %d len %d: %d %s '%s'\n", s, spans[s].start_column, spans[s].length, spans[s].semantic, dbg_label, dbg_val);
 	}
 
 	if (time < 0) {
@@ -1579,6 +1587,7 @@ void ftx_call_or_continue(const char* line, int line_len, const text_span_semant
 		ftx_repeat = 1;
 		ft8_tx_3f(caller, mycall, "73");
 		enter_qso();
+		// don't call_wipe() yet: wait for the 73 to finish sending
 		return;
 	}
 	if (is_73) {
