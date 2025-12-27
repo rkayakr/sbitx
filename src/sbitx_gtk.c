@@ -5978,7 +5978,32 @@ int do_band_dropdown(struct field *f, cairo_t *gfx, int event, int a, int b, int
 		// If not expanded, expand the dropdown
 		if (f_dropdown_expanded != f)
 		{
-			return do_dropdown(f, gfx, event, a, b, c);
+			// Call the standard dropdown to expand it
+			int result = do_dropdown(f, gfx, event, a, b, c);
+
+			// Now fix the highlighted option to match the current band (in f->label, not f->value)
+			if (f_dropdown_expanded == f)
+			{
+				// Find the current band's index in the selection list
+				char temp[1000];
+				strcpy(temp, f->selection);
+				char *p = strtok(temp, "/");
+				int idx = 0;
+				dropdown_highlighted = 0; // default to first option
+
+				while (p)
+				{
+					if (!strcmp(p, f->label))
+					{
+						dropdown_highlighted = idx;
+						break;
+					}
+					idx++;
+					p = strtok(NULL, "/");
+				}
+			}
+
+			return result;
 		}
 
 		// If expanded, check if click is on an option
@@ -7916,29 +7941,7 @@ static gboolean on_key_press(GtkWidget *widget, GdkEventKey *event, gpointer use
 
 static gboolean on_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer data)
 {
-	// Disable touch/drag scrolling when a dropdown is expanded (allow mouse wheel only)
-	if (f_dropdown_expanded)
-	{
-		// Block smooth scrolling (touch drag/swipe, touchpad)
-		if (event->direction == GDK_SCROLL_SMOOTH)
-		{
-			return TRUE; // Event handled, don't propagate
-		}
-
-		// Block scrolling from touchscreen devices
-		GdkDevice *device = gdk_event_get_source_device((GdkEvent *)event);
-		if (device)
-		{
-			GdkInputSource source = gdk_device_get_source(device);
-			if (source == GDK_SOURCE_TOUCHSCREEN || source == GDK_SOURCE_TOUCHPAD)
-			{
-				// Ignore touch/touchpad scrolling when dropdown is open
-				return TRUE; // Event handled, don't propagate
-			}
-		}
-		// Allow discrete mouse wheel scrolling (direction 0 = UP, 1 = DOWN)
-	}
-
+	// Find the hovered field first
 	struct field *hoverField = NULL;
 	for (int i = 0; active_layout[i].cmd[0] > 0; i++)
 	{
@@ -7946,6 +7949,38 @@ static gboolean on_scroll(GtkWidget *widget, GdkEventScroll *event, gpointer dat
 		if (f->x < event->x && event->x < f->x + f->width && f->y < event->y && event->y < f->y + f->height) {
 			hoverField = f;
 			break;
+		}
+	}
+
+	// Check if we should block touch scrolling
+	int should_block_touch = 0;
+
+	// Block touch scrolling when a dropdown is expanded
+	if (f_dropdown_expanded)
+		should_block_touch = 1;
+
+	// Block touch scrolling for any dropdown field (even when not expanded)
+	if (hoverField && hoverField->value_type == FIELD_DROPDOWN)
+		should_block_touch = 1;
+
+	if (should_block_touch)
+	{
+		// Block smooth scrolling (touch drag/swipe, touchpad)
+		if (event->direction == GDK_SCROLL_SMOOTH)
+			return TRUE;
+
+		// Block scrolling from touchscreen and touchpad devices
+		GdkDevice *device = gdk_event_get_source_device((GdkEvent *)event);
+		if (device)
+		{
+			GdkInputSource source = gdk_device_get_source(device);
+			if (source == GDK_SOURCE_TOUCHSCREEN || source == GDK_SOURCE_TOUCHPAD)
+				return TRUE;
+
+			// Block if device name suggests it's a touchscreen (Pi Display fallback)
+			const char *device_name = gdk_device_get_name(device);
+			if (device_name && (strstr(device_name, "touch") || strstr(device_name, "Touch")))
+				return TRUE;
 		}
 	}
 
@@ -7998,6 +8033,25 @@ static gboolean on_mouse_move(GtkWidget *widget, GdkEventMotion *event, gpointer
 
 	int x = (int)(event->x);
 	int y = (int)(event->y);
+
+	// Block touch drag on dropdown fields
+	if (f_focus && f_focus->value_type == FIELD_DROPDOWN)
+	{
+		GdkDevice *device = gdk_event_get_source_device((GdkEvent *)event);
+		if (device)
+		{
+			GdkInputSource source = gdk_device_get_source(device);
+
+			// Block drag from touchscreen and touchpad devices
+			if (source == GDK_SOURCE_TOUCHSCREEN || source == GDK_SOURCE_TOUCHPAD)
+				return TRUE;
+
+			// Block if device name suggests it's a touchscreen (Pi Display fallback)
+			const char *device_name = gdk_device_get_name(device);
+			if (device_name && (strstr(device_name, "touch") || strstr(device_name, "Touch")))
+				return TRUE;
+		}
+	}
 
 	// if a control is in focus and it handles the mouse drag, then just do that
 	// else treat it as a spin up/down of the control
