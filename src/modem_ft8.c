@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -12,6 +13,7 @@
 #include <fftw3.h>
 #include <pthread.h>
 #include <unistd.h>
+#include "ftx_rules.h"
 #include "sdr.h"
 #include "sdr_ui.h"
 #include "modem_ft8.h"
@@ -56,6 +58,7 @@ static bool ftx_tx1st = true;
 static bool ftx_cq_alt = false;
 static bool ftx_xota = false;
 static bool cty_inited = false;
+static bool rules_inited = false;
 
 // This path happens to be there on the rpiOS image. But
 // TODO ensure that we use the newest available file: it is updated often.
@@ -674,9 +677,6 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
     // Hash table for decoded messages (to check for duplicates)
 	typedef struct
 	{
-		int time_sec; // second within the minute
-		int snr;
-		int pitch;
 		int last_qso_age;
 		int grid_last_qso_age;
 		char text[FTX_MAX_MESSAGE_LENGTH]; // message text as decoded
@@ -685,15 +685,15 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 	} decoded_message_t;
 
 	int num_decoded = 0;
-    decoded_message_t decoded[kMax_decoded_messages];
-    decoded_message_t* decoded_hashtable[kMax_decoded_messages];
-
-    // Initialize hash table pointers
-    for (int i = 0; i < kMax_decoded_messages; ++i)
-        decoded_hashtable[i] = NULL;
-
+	decoded_message_t decoded[kMax_decoded_messages];
+	decoded_message_t* decoded_hashtable[kMax_decoded_messages];
 	int n_decodes = 0;
 	int crc_mismatches = 0;
+	int highest_priority = -999;
+	uint32_t highest_priority_row = 0;
+
+	// Initialize hash table pointers
+	memset(decoded_hashtable, 0, sizeof(decoded_hashtable));
 
     // Go over candidates and attempt to decode messages
     for (int idx = 0; idx < num_candidates; ++idx)
@@ -751,9 +751,6 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
             if (unpack_status != FTX_MESSAGE_RC_OK)
                 LOG(LOG_DEBUG, "Error [%d] while unpacking!", (int)unpack_status);
 			strncpy(decoded[idx_hash].text, text, FTX_MAX_MESSAGE_LENGTH);
-			decoded[idx_hash].time_sec = (raw_ms % 60000) / 1000;
-			decoded[idx_hash].snr = cand->snr;
-			decoded[idx_hash].pitch = freq_hz;
 			decoded[idx_hash].spans = spans;
 			decoded[idx_hash].last_qso_age = -1;
 			decoded[idx_hash].grid_last_qso_age = -1;
@@ -764,6 +761,7 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 
 			const bool is_cq = !strncmp(text, "CQ ", 3);
 			bool my_call_found = false;
+			int priority = -1;
 
 			//For troubleshooting you can display the time offset - n1qm
 			//sprintf(buff, "%s %d %+03d %-4.0f ~  %s\n", time_str, cand->time_offset,
@@ -910,6 +908,9 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 			// Don't do that otherwise: it can confuse ftx_call_or_continue()
 			if (!cty_inited)
 				cty_inited = !readctydata(cty_location) && !readabbrev(abbrev_location);
+			if (!rules_inited)
+				load_ftx_rules();
+			rules_inited = true; // or at least we aren't going to try again
 			if ((is_cq || (my_call_found && grid[0])) && cty_inited) {
 				dxcc_data info = lookupcountry_by_callsign(callsign);
 				if (info.country) {
@@ -944,21 +945,41 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 						line_len += az_len;
 					}
 				}
+				priority = ftx_priority(buf, line_len, sem, sem_i, NULL);
+				// If we already tried to call this station, de-prioritize calling again.
+				// TODO should we use a numeric rule for how soon we can try again?
+				for (int ii = 0; ii < MIN(ftx_already_called_n, FTX_CALLED_SIZE); ii++)
+					if (!strcmp(callsign, ftx_already_called[ii])) {
+						LOG(LOG_DEBUG, "Skipping %s: already tried\n", callsign);
+						priority = -1;
+					}
+				// TODO should this be a numeric rule instead of a setting?
+				if (decoded_hashtable[idx_hash]->last_qso_age >= 0 && decoded_hashtable[idx_hash]->last_qso_age < recent_qso_age) {
+					LOG(LOG_DEBUG, "Skipping %s: age %d hours is too recent\n",
+						callsign, decoded_hashtable[idx_hash]->last_qso_age);
+					priority = -1;
+				}
 			}
 
 			// write the message out
 			const int message_type = ftx_message_get_i3(&message);
 			if (decoded[idx_hash].last_qso_age < 0 && decoded[idx_hash].grid_last_qso_age < 0) {
-				LOG(LOG_INFO, "<< %d.%c       %s\n",
-					message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&message), buf);
+				// never had a QSO with this call before (as far as the sbitx database knows)
+				LOG(LOG_INFO, "<< %d.%c p%+d   %s\n",
+					message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&message), priority, buf);
 			} else {
-				LOG(LOG_INFO, "<< %d.%c       %s; last QSO with %s was %d hours ago, with grid %d hours ago\n",
-					message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&message),
+				LOG(LOG_INFO, "<< %d.%c p%+d   %s; last QSO with %s was %d hours ago, with grid %d hours ago\n",
+					message_type, message_type ? ' ' : '0' + ftx_message_get_n3(&message), priority,
 					buf, callsign, decoded[idx_hash].last_qso_age, decoded[idx_hash].grid_last_qso_age);
 			}
 			buf[line_len++] = '\n';
 			buf[line_len] = 0;
-			write_console_semantic(buf, sem, sem_i);
+			uint32_t console_row = write_console_semantic(buf, sem, sem_i);
+
+			if (priority > highest_priority) {
+				highest_priority = priority;
+				highest_priority_row = console_row;
+			}
 
 			if (my_call_found)
 				ftx_call_or_continue(buf, line_len, sem);
@@ -968,101 +989,28 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 	if (crc_mismatches)
 		LOG(LOG_DEBUG, "Decoded %d messages; %d CRC mismatches\n", num_decoded, crc_mismatches);
 
-    // Here we have a populated hash table with the decoded messages
-    // If we are in autorespond mode and in idle state (i.e. no message planned to transmit),
-    //  we would like to answer to a CQ call
-    // This simple implementation just answers to a random CQ call (if any)
-    //  by scanning sequentially the hash table until one is found that
-    //  has not been answered since the start of the sbitx program,
-    //  with a max number of entries stored into a circular buffer
-    // In the future, this could be made more sophisticated, with blacklists or
-    //  prioritization criteria or querying the log
-    // In theory, we could also start a CQ ourselves,
-    //  however this would not be consistent with the idea of auto responder that
-    // is shown in the GUI. We may consider this option in the future,
-    //  and make it behave more like FT8CN (i.e. a sort of
-    // completely autonomous ft8 bot), according to the preferences of the user
-	// If that gets done, we can add ROBOT to the list of modes for FTX_AUTO (see sbitx_gtk.c:1094)
-	const bool cq_auto_respond = !strcmp(field_str("FTX_AUTO"), "CQRESP");
-	if (cq_auto_respond && ftx_tx_text[0])
-		LOG(LOG_DEBUG, "skipping auto-responder because of queued message '%s'\n", ftx_tx_text);
-	if (cq_auto_respond && !ftx_tx_text[0]) {
-		int cand_time_sec = -1;
-		int cand_snr = -100;
-		int cand_pitch = -1;
-		bool prioritized = false;
-		char *cand_text = NULL;
-		char cand_callsign[12];
-		char cand_exch[12];
-		memset(cand_callsign, 0, sizeof(cand_callsign));
-		memset(cand_exch, 0, sizeof(cand_exch));
+	// If we are in autorespond mode and in idle state (i.e. no message planned to transmit),
+	// try to answer the CQ message on the highest_priority_row in the console, if found.
+	if (highest_priority_row > 0 && highest_priority >= 0 && !strcmp(field_str("FTX_AUTO"), "CQRESP")) {
+		// LOG(LOG_DEBUG, "considering auto-respond @ time %d: highest priority was %d from row %d; existing tx msg? %d\n",
+		// 	time_sec_i, highest_priority, highest_priority_row, ftx_tx_text[0]);
+		if (ftx_tx_text[0]) {
+			LOG(LOG_DEBUG, "skipping auto-responder because of queued message '%s'\n", ftx_tx_text);
+		} else {
+			int cand_time_sec = -1;
+			int cand_snr = -100;
+			int cand_pitch = -1;
+			char *cand_text = NULL;
+			char cand_callsign[12];
+			char cand_exch[12];
+			memset(cand_callsign, 0, sizeof(cand_callsign));
+			memset(cand_exch, 0, sizeof(cand_exch));
 
-		for (int idx = 0; idx < kMax_decoded_messages; idx++) {
-			if (decoded_hashtable[idx] && decoded_hashtable[idx]->text) {
-				int de_offset = message_last_span_offset(&decoded_hashtable[idx]->spans, FTX_FIELD_CALL);
-				if (de_offset < 0)
-					continue;
-				if (strncmp(decoded_hashtable[idx]->text, "CQ ", 3))
-					continue; // ignore it if it's not a CQ
-				char callsign[12];
-				tokncpy(callsign, decoded_hashtable[idx]->text + de_offset, sizeof(callsign));
-				// if our last QSO with this callsign was too recent, don't call again
-				if (decoded_hashtable[idx]->last_qso_age >= 0 && decoded_hashtable[idx]->last_qso_age < recent_qso_age) {
-					LOG(LOG_DEBUG, "Skipping %s: age %d hours is too recent\n",
-						callsign, decoded_hashtable[idx]->last_qso_age);
-					continue;
-				}
+			console_extract_semantic(highest_priority_row, STYLE_CALLER, cand_callsign, sizeof(cand_callsign));
+			console_extract_semantic(highest_priority_row, STYLE_FREQ, cand_exch, sizeof(cand_exch)); // not really: just use the same buffer
+			cand_pitch = atoi(cand_exch);
+			console_extract_semantic(highest_priority_row, STYLE_GRID, cand_exch, sizeof(cand_exch));
 
-				// Prioritize xOTA, /QRP and /P
-				if (!strncmp(decoded_hashtable[idx]->text + 4, "OTA ", 4) ||
-					 strstr(callsign, "/QRP") || strstr(callsign, "/P") ) {
-
-					// We try to avoid calling automatically the same stations again and again, at least in this session
-					bool found = false;
-					for (int ii = 0; ii < MIN(ftx_already_called_n, FTX_CALLED_SIZE); ii++) {
-						if (!strcmp(callsign, ftx_already_called[ii]))
-							found = true;
-					}
-
-					if (!found) {
-						cand_time_sec = decoded_hashtable[idx]->time_sec;
-						cand_snr = decoded_hashtable[idx]->snr;
-						cand_pitch = decoded_hashtable[idx]->pitch;
-						cand_text = decoded_hashtable[idx]->text;
-						strncpy(cand_callsign, callsign, sizeof(cand_callsign));
-						int grid_offset = message_last_span_offset(&decoded_hashtable[idx]->spans, FTX_FIELD_GRID);
-						if (grid_offset > 0)
-							tokncpy(cand_exch, decoded_hashtable[idx]->text + grid_offset, sizeof(cand_exch));
-						prioritized = true;
-					}
-					break;
-				}
-
-				// Otherwise, answer a plain CQ
-				if (!cand_text) {
-					// We try to avoid calling automatically the same stations again and again, at least in this session
-					bool found = false;
-					for (int ii = 0; ii < MIN(ftx_already_called_n, FTX_CALLED_SIZE); ii++) {
-						if (!strcmp(callsign, ftx_already_called[ii]))
-							found = true;
-					}
-
-					if (!found) {
-						cand_time_sec = decoded_hashtable[idx]->time_sec;
-						cand_snr = decoded_hashtable[idx]->snr;
-						cand_pitch = decoded_hashtable[idx]->pitch;
-						cand_text = decoded_hashtable[idx]->text;
-						strncpy(cand_callsign, callsign, sizeof(cand_callsign));
-						int grid_offset = message_last_span_offset(&decoded_hashtable[idx]->spans, FTX_FIELD_GRID);
-						if (grid_offset > 0)
-							tokncpy(cand_exch, decoded_hashtable[idx]->text + grid_offset, sizeof(cand_exch));
-						prioritized = false;
-					}
-				}
-			}
-		}
-
-		if (cand_text) {
 			field_set("CALL", cand_callsign);
 			field_set("EXCH", cand_exch);
 			{
@@ -1072,14 +1020,19 @@ static int sbitx_ft8_decode(float *signal, int num_samples)
 				field_set("SENT", buf);
 			}
 			set_field_int("ftx_rx_pitch", cand_pitch);
-			ft8_call(cand_time_sec); // decide in which slot to transmit, etc.
-			LOG(LOG_INFO, "Auto-responding in %s slot to %s'%s' @ '%s' from t %d snr %d f %d '%s'\n",
-				ftx_tx1st ? "even" : "odd", prioritized ? "prioritized " : "", cand_callsign,
-				cand_exch, cand_time_sec, cand_snr, cand_pitch, cand_text);
+			ft8_call(time_sec_i); // decide in which slot to transmit, etc.
+			LOG(LOG_INFO, "Auto-responding in %s slot to p%+d '%s' @ '%s' from t %d f %d '%s'\n",
+				ftx_tx1st ? "even" : "odd", highest_priority, cand_callsign,
+				cand_exch, time_sec_i, cand_pitch, cand_text);
 			strcpy(ftx_already_called[ftx_already_called_n % FTX_CALLED_SIZE], cand_callsign);
 			ftx_already_called_n++;
 		}
 	}
+
+	// In theory, we could also start a CQ ourselves, whenever we're idle and
+	// no suitable CQ was found: make it behave more like FT8CN (i.e. a sort of
+	// completely autonomous ft8 bot), according to the preferences of the user.
+	// If that gets done, we can add ROBOT to the list of modes for FTX_AUTO (see sbitx_gtk.c:1110)
 
     monitor_free(&mon);
     hashtable_cleanup(10);
@@ -1292,7 +1245,8 @@ void *ftx_thread_function(void *ptr){
 			continue;
 
 		ftx_do_decode = 0;
-		sbitx_ft8_decode(ftx_rx_buffer, ftx_rx_buff_index);
+		if (ftx_rx_buff_index)
+			sbitx_ft8_decode(ftx_rx_buffer, ftx_rx_buff_index);
 		//let the next batch begin
 		ftx_rx_buff_index = 0;
 	}
