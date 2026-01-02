@@ -48,6 +48,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "modem_cw.h"
 #include "i2cbb.h"
 #include "adif_broadcast.h"
+#include "udp_broadcast.h"
 #include "webserver.h"
 #include "logbook.h"
 #include "hist_disp.h"
@@ -1160,10 +1161,13 @@ struct field main_controls[] = {
 
 	{"#adif_broadcast_enable", NULL, 1000, -1000, 50, 50, "ADIF_BROADCAST", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
-	{"#adif_broadcast_ip", NULL, 1000, -1000, 150, 50, "ADIF_IP", 70, "127.0.0.1", FIELD_TEXT, STYLE_SMALL,
-	 "", 0, 20, 1, 0},
-	{"#adif_broadcast_port", NULL, 1000, -1000, 50, 50, "ADIF_PORT", 40, "12060", FIELD_NUMBER, STYLE_FIELD_VALUE,
-	 "", 1024, 65535, 1, 0},
+	{"#adif_destinations", NULL, 1000, -1000, 300, 50, "ADIF_DESTINATIONS", 140, "127.0.0.1:12060", FIELD_TEXT, STYLE_SMALL,
+	 "", 0, 255, 1, 0},
+
+	{"#udp_broadcast_enable", NULL, 1000, -1000, 50, 50, "UDP_BROADCAST", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
+	 "ON/OFF", 0, 0, 0, 0},
+	{"#udp_destinations", NULL, 1000, -1000, 300, 50, "UDP_DESTINATIONS", 140, "127.0.0.1:2237", FIELD_TEXT, STYLE_SMALL,
+	 "", 0, 255, 1, 0},
 
   // macros keyboard
 
@@ -10945,6 +10949,10 @@ int main(int argc, char *argv[])
 		ini_parse(directory, user_settings_handler, NULL);
 	}
 
+	// Initialize WSJT-X UDP broadcast
+	udp_broadcast_init();
+	udp_broadcast_heartbeat();
+
 	// the logger fields may have an unfinished qso details
 	call_wipe();
 
@@ -10954,6 +10962,10 @@ int main(int argc, char *argv[])
 
 	// now set the frequency of operation and more to vfo_a
 	set_field("r1:freq", get_field("#vfo_a_freq")->value);
+
+	// Send initial WSJT-X status after frequency is set
+	// Gridtracker needs Status messages to establish the station context
+	udp_broadcast_status_auto();
 
 	console_init();
 	write_console(STYLE_LOG, VER_STR);
@@ -11049,6 +11061,9 @@ void cleanup_on_exit() {
 
 	// Close ADIF broadcast socket
 	adif_broadcast_close();
+
+	// Close WSJT-X broadcast socket
+	udp_broadcast_close();
 
 	clear_ftx_rules();
 }
