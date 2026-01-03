@@ -117,6 +117,6 @@ else
     echo "hw_settings.ini not found"
 fi
 
-echo "Brought to you by the sBitx 64 bit project team"
+echo "Brought to you by the volunteer development Team for sBitx"
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 echo $F Build version $VERSION completed at $(date)

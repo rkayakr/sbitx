@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <!--
@@ -469,6 +470,23 @@
                 </div>
                 <canvas id="waterfall" width="600" height="80"></canvas>
             </section>
+            <section id="more_keys" class="sbitx-panel">
+                <div class="sbitxv3-MACRO">
+                    <label class="sbitxv3-label" for="MACRO">MACRO</label>
+                    <select class="sbitxv3-selection sbitx-selection" id="MACRO"></select>
+                </div>
+                <button class="sbitxv3-btn" id="esc">ESC</button>
+                <button class="sbitxv3-btn macro-btn" id="F1">F1</button>
+                <button class="sbitxv3-btn macro-btn" id="F2">F2</button>
+                <button class="sbitxv3-btn macro-btn" id="F3">F3</button>
+                <button class="sbitxv3-btn macro-btn" id="F4">F4</button>
+                <button class="sbitxv3-btn macro-btn" id="F5">F5</button>
+                <button class="sbitxv3-btn macro-btn" id="F6">F6</button>
+                <button class="sbitxv3-btn macro-btn" id="F7">F7</button>
+                <button class="sbitxv3-btn macro-btn" id="F8">F8</button>
+                <button class="sbitxv3-btn macro-btn" id="F9">F9</button>
+                <button class="sbitxv3-btn macro-btn" id="F10">F10</button>
+            </section>
             <!-- wsjtx specific controls -->
             <section id="FT8_ui" class="sbitx-panel mode-panel">
                 <div id="wsjtx-activity" class="sbitx-list-container">
@@ -637,25 +655,6 @@
         </main>
     </div>
 
-
-    <div id="more_keys">
-        <div class="sbitxv3-MACRO">
-            <label class="sbitxv3-label" for="MACRO">MACRO</label>
-            <select class="sbitxv3-selection sbitx-selection" id="MACRO"></select>
-        </div>
-        <button class="sbitxv3-btn" id="esc">ESC</button>
-        <button class="sbitxv3-btn macro-btn" id="F1">F1</button>
-        <button class="sbitxv3-btn macro-btn" id="F2">F2</button>
-        <button class="sbitxv3-btn macro-btn" id="F3">F3</button>
-        <button class="sbitxv3-btn macro-btn" id="F4">F4</button>
-        <button class="sbitxv3-btn macro-btn" id="F5">F5</button>
-        <button class="sbitxv3-btn macro-btn" id="F6">F6</button>
-        <button class="sbitxv3-btn macro-btn" id="F7">F7</button>
-        <button class="sbitxv3-btn macro-btn" id="F8">F8</button>
-        <button class="sbitxv3-btn macro-btn" id="F9">F9</button>
-        <button class="sbitxv3-btn macro-btn" id="F10">F10</button>
-    </div>
-
     <!-- menu panel -->
     <section id="menu_panel" class="sbitx-panel">
         <h2 class="sbitx-panel-title">
@@ -723,7 +722,7 @@
     <!-- login panel -->
     <section id="login_panel">
         <div class="help_text">
-            <h1>sbitx v5.0</h1>
+            <h1>sbitx v5.3</h1>
             <p>The sBitx is an open-source, hackable, next generation tranceiver.</p>
             <p>Enter passkey to access your sbitx.</p>
             <div id="login_error"></div>
@@ -733,7 +732,7 @@
             <p>New user? Try 123 as the passkey. Change it when prompted.</p>
             <p>
                 Released under General Public License v3.0.<br>
-                (c) Ashhar Farhan, 2023 forked by the 64Bit Development Group, 2025.
+                by Ashhar Farhan - 2023, enhanced by the volunteer sBitx Development Group, 2024-2025.
             </p>
 
             <canvas id="canvas" width="350" height="120"></canvas>
