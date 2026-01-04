@@ -2700,6 +2700,11 @@ static int *wf = NULL;
 GdkPixbuf *waterfall_pixbuf = NULL;
 guint8 *waterfall_map = NULL;
 
+// Flag to override remote display disabling
+static int override_remote_display = 0;
+static int override_remote_display_timeout = 300; // 5 minutes
+static time_t last_override_time = 0;
+
 void init_waterfall()
 {
 	struct field *f = get_field("waterfall");
@@ -2814,7 +2819,8 @@ void draw_tx_meters(struct field *f, cairo_t *gfx)
 void draw_waterfall(struct field *f, cairo_t *gfx)
 {
 	// Check if remote browser session is active and not from localhost (127.0.0.1)
-	if (is_remote_browser_active() && !is_localhost_connection_only())
+	// Also check if the override flag is set
+	if (is_remote_browser_active() && !is_localhost_connection_only() && !override_remote_display)
 	{
 		// Display message instead of rendering waterfall
 		cairo_set_source_rgb(gfx, 0.0, 0.0, 0.0);
@@ -2829,20 +2835,42 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 		char ip_list[256];
 		get_active_connection_ips(ip_list, sizeof(ip_list));
 
-		// Create the message with IP address
-		char message[512];
-		snprintf(message, sizeof(message), "Waterfall display disabled - Remote session from %s", ip_list);
+		// Now we set the tap instructions to be drawn with a larger font and yellow color
+		cairo_save(gfx);
+		cairo_select_font_face(gfx, "Sans", CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_BOLD);
+		cairo_set_font_size(gfx, 20); 
+		cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0); 
+				
+		const char *first_part = "TAP HERE TO TOGGLE PANAFALL";
+		cairo_text_extents_t extents1;
+		cairo_text_extents(gfx, first_part, &extents1);
+		float x1 = f->x + (f->width - extents1.width) / 2;
+		float y1 = f->y + (f->height / 2) - 40;
 
-		// Calculate text position
-		cairo_text_extents_t extents;
-		cairo_text_extents(gfx, message, &extents);
-
-		// Center the text
-		float x = f->x + (f->width - extents.width) / 2;
-		float y = f->y + (f->height + extents.height) / 2;
-
-		cairo_move_to(gfx, x, y);
-		cairo_show_text(gfx, message);
+		// Draw a semi-transparent background behind the text (can't really see it on the DSI screen but it looked sharp on my monitor)
+		cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.7); // Black with 70% opacity
+		cairo_rectangle(gfx, x1 - 10, y1 - extents1.height - 5, extents1.width + 20, extents1.height + 10);
+		cairo_fill(gfx);
+		
+		// Draw the tap instructions
+		cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0); 
+		cairo_move_to(gfx, x1, y1);
+		cairo_show_text(gfx, first_part);
+		cairo_restore(gfx);
+		
+		// Now set up the remote session info message
+		char second_part[256];
+		snprintf(second_part, sizeof(second_part), "Remote session from %s", ip_list);
+		
+		// Calculate position for remote session info message
+		cairo_text_extents_t extents2;
+		cairo_text_extents(gfx, second_part, &extents2);
+		float x2 = f->x + (f->width - extents2.width) / 2;
+		float y2 = y1 + 80; 
+		
+		// Draw the remote session info message
+		cairo_move_to(gfx, x2, y2);
+		cairo_show_text(gfx, second_part);
 		return;
 	}
 
@@ -3019,7 +3047,8 @@ void compute_time_based_average(int *averaged_spectrum, int n_bins)
 void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 {
 	// Check if remote browser session is active and not from localhost (127.0.0.1)
-	if (is_remote_browser_active() && !is_localhost_connection_only())
+	// Also check if the override flag is set
+	if (is_remote_browser_active() && !is_localhost_connection_only() && !override_remote_display)
 	{
 		// Display message instead of rendering spectrum
 		cairo_set_source_rgb(gfx, 0.0, 0.0, 0.0);
@@ -3036,7 +3065,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 		// Create the message with IP address
 		char message[512];
-		snprintf(message, sizeof(message), "Spectrum display disabled - Remote session from %s", ip_list);
+		snprintf(message, sizeof(message), "Spectrum/Waterfall visualizations disabled");
 
 		// Calculate text position
 		cairo_text_extents_t extents;
@@ -5085,6 +5114,26 @@ int do_spectrum(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	char buff[100];
 	int mode = mode_id(get_field("r1:mode")->value);
 
+	// Check if we need to handle tap to reveal display during remote session
+	if (event == GDK_BUTTON_PRESS && is_remote_browser_active() && !is_localhost_connection_only()) {
+		// Toggle the override flag
+		override_remote_display = !override_remote_display;
+		// If enabled, set the last override time
+		if (override_remote_display) {
+			last_override_time = time(NULL);
+		}
+		// Force redraw of spectrum and waterfall
+		invalidate_rect(0, 0, 800, 480);
+		return 1;
+	}
+
+	// Check if we need to reset the override due to timeout
+	if (override_remote_display && (time(NULL) - last_override_time > override_remote_display_timeout)) {
+		override_remote_display = 0;
+		// Force redraw
+		invalidate_rect(0, 0, 800, 480);
+	}
+
 	switch (event)
 	{
 	case FIELD_DRAW:
@@ -5134,6 +5183,26 @@ int do_spectrum(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 
 int do_waterfall(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 {
+	// Check if we need to handle tap to reveal display during remote session
+	if (event == GDK_BUTTON_PRESS && is_remote_browser_active() && !is_localhost_connection_only()) {
+		// Toggle the override flag
+		override_remote_display = !override_remote_display;
+		// If enabled, set the last override time
+		if (override_remote_display) {
+			last_override_time = time(NULL);
+		}
+		// Force redraw of spectrum and waterfall
+		invalidate_rect(0, 0, 800, 480);
+		return 1;
+	}
+
+	// Check if we need to reset the override due to timeout
+	if (override_remote_display && (time(NULL) - last_override_time > override_remote_display_timeout)) {
+		override_remote_display = 0;
+		// Force redraw
+		invalidate_rect(0, 0, 800, 480);
+	}
+
 	switch (event)
 	{
 	case FIELD_DRAW:
