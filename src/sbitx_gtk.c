@@ -206,7 +206,7 @@ float palette[][3] = {
 	{0.1, 0.1, 0.2}, // SELECTED_LINE
 	{0.1, 0.1, 0.2}, // COLOR_FIELD_SELECTED
 	{1, 0, 0},		 // COLOR_TX_PITCH
-	{0, 0.2,0},	 // COLOR_TOGGLE_ACTIVE
+	{0, 0.2, 0},	 // COLOR_TOGGLE_ACTIVE
 };
 
 char *ui_font = "Sans";
@@ -801,11 +801,11 @@ struct field main_controls[] = {
 	 "10K/1K/500H/100H/10H", 0, 0, 0, COMMON_CONTROL},
 	{"#span", do_dropdown, 560, 50, 40, 40, "SPAN", 1, "25K", FIELD_DROPDOWN, STYLE_FIELD_VALUE,
 	 "25K/10K/8K/6K/2.5K", 0, 0, 0, COMMON_CONTROL},
-	{"#rit", do_toggle_option, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#rit", do_toggle_option, 600, 5, 40, 40, "RIT", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	"ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#vfo", NULL, 640, 50, 40, 40, "VFO", 1, "A", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "A/B", 0, 0, 0, COMMON_CONTROL},
-	{"#split", do_toggle_option, 680, 50, 40, 40, "SPLIT", 40, "OFF", FIELD_TOGGLE, FONT_FIELD_VALUE,
+	{"#split", do_toggle_option, 680, 50, 40, 40, "SPLIT", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, COMMON_CONTROL},
 	{"#bw", do_bandwidth, 495, 5, 40, 40, "BW", 40, "", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 50, 5000, 50, COMMON_CONTROL},
