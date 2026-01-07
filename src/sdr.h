@@ -60,6 +60,8 @@ have continuos waveform.
 
 */
 
+#include <stdbool.h>
+
 struct Queue
 {
   int id;
@@ -207,7 +209,7 @@ int get_tx_data_byte(char *c);
 int	get_tx_data_length();
 void modem_poll(int mode);
 float modem_next_sample(int mode);
-void modem_abort();
+void modem_abort(bool terminate_qso);
 
 int is_in_tx();
 
@@ -281,3 +283,18 @@ typedef struct apf
 	float width;
 	float coeff[10];
 } apf;
+
+
+// Maximum VSWR threshold (default 3.0)
+extern float max_vswr;
+// Flag indicating if VSWR has been tripped
+extern int vswr_tripped;
+// Flag indicating if SWR protection enabled
+extern int vswr_on;
+// Initialize VSWR monitor at startup
+void init_vswr_monitor(void);
+// Check VSWR and handle reduction/recovery
+// vswr parameter: SWR * 10 (e.g., 30 means 3.0) - project convention
+void check_and_handle_vswr(int vswr);
+// Reset VSWR tripped state and clear UI
+void reset_vswr_tripped(void);

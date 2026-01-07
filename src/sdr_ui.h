@@ -3,16 +3,17 @@
 
 #include <stdint.h>
 
-#define VER_STR "sbitx v5.2" // Brought to you by the sBitx 64 Bit Development Team
+#define VER_STR "sbitx v5.3_dev" // Brought to you by the volunteer development Team for sBitx
 
 // maximum sem_count in write_console_semantic()
-#define MAX_CONSOLE_LINE_STYLES 8
+#define MAX_CONSOLE_LINE_STYLES 12
 
 #define EXT_PTT 26 //ADDED BY KF7YDU, solder lead wire to J17, which ties to pin 32.
 
 extern int ext_ptt_enable;
 extern int display_freq;
 extern int spectrum_plot[];
+extern int cw_decode_enabled;
 
 // named styles / semantics used in various places in various UIs.
 typedef enum {
@@ -22,11 +23,17 @@ typedef enum {
 	STYLE_LOG = 0,
 	STYLE_MYCALL,
 	STYLE_CALLER,
+	STYLE_RECENT_CALLER, // callsign that was logged within recent_qso_age hours
 	STYLE_CALLEE,
 	STYLE_GRID,
+	STYLE_EXISTING_GRID, // grid that is found in the logbook already
+	STYLE_RST,
 	STYLE_TIME,
 	STYLE_SNR,
 	STYLE_FREQ,
+	STYLE_COUNTRY,
+	STYLE_DISTANCE,
+	STYLE_AZIMUTH,
 
 	// mode-specific semantics
 	STYLE_FT8_RX,
@@ -72,8 +79,6 @@ typedef struct {
 	uint8_t semantic : 8; // used directly as style in this UI
 } text_span_semantic;
 
-time_t time_sbitx();
-
 void setup();
 void loop();
 void display();
@@ -89,8 +94,11 @@ int field_int(char *label);
 
 void write_console(sbitx_style style, const char *text);
 // write plain text, with semantically-tagged spans that imply styling
-void write_console_semantic(const char *text, const text_span_semantic *sem, int sem_count);
+uint32_t write_console_semantic(const char *text, const text_span_semantic *sem, int sem_count);
 int web_get_console(char *buff, int max);
+int extract_single_semantic(const char* text, int text_len, text_span_semantic span, char *out, int outlen);
+int extract_semantic(const char* text, int text_len, const text_span_semantic* spans, sbitx_style sem, char *out, int outlen);
+int console_extract_semantic(uint32_t row, sbitx_style sem, char *out, int outlen);
 
 int is_in_tx();
 void abort_tx();
@@ -109,5 +117,7 @@ int macro_exec(int key, char *dest);
 void macro_label(int fn_key, char *label);
 void macro_list(char *output);
 void macro_get_keys(char *output);
+
+void download_check();
 
 #endif // SDR_UI_H

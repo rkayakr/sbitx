@@ -26,6 +26,7 @@
 #include "sdr.h"
 #include "sdr_ui.h"
 #include "logbook.h"
+#include "adif_broadcast.h"
 
 #include <sqlite3.h>
 
@@ -191,40 +192,64 @@ int logbook_get_grids(void (*f)(char*, int))
 	return cnt;
 }
 
-bool logbook_caller_exists(char* id)
+static sqlite3_stmt* logbook_last_qso_stmt = NULL;
+
+/*!
+	If the \a callsign is found in the logbook, return the timestamp of the most recent QSO.
+	If not, return \c 0.
+	\note callsign may end with a space character, null, etc.; \a len tells where
+*/
+time_t logbook_last_qso(const char* callsign, int len)
 {
-	sqlite3_stmt* stmt;
-	char* statement = "SELECT EXISTS(SELECT 1 FROM logbook WHERE callsign_recv=?)";
-	int res = sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
-	if (res != SQLITE_OK)
-		return false;
-	bool exists = false;
-	res = sqlite3_bind_text(stmt, 1, id, strlen(id), SQLITE_STATIC);
-	if (res == SQLITE_OK) {
-		res = sqlite3_step(stmt);
-		int i = sqlite3_column_int(stmt, 0);
-		exists = (res == SQLITE_ROW && i != 0);
+	time_t ret = 0;
+	if (!logbook_last_qso_stmt) {
+		const char* statement = "SELECT unixepoch(qso_date ||' ' || substr(qso_time, 1, 2) || ':' || substr(qso_time, 3, 2)) FROM logbook WHERE callsign_recv=?"
+			" ORDER BY unixepoch(qso_date ||' ' || substr(qso_time, 1, 2) || ':' || substr(qso_time, 3, 2)) DESC";
+		int zErrMsg = sqlite3_prepare_v2(db, statement, -1, &logbook_last_qso_stmt, NULL);
+		if (zErrMsg != SQLITE_OK) {
+			fprintf(stderr, "Failed to query logbook for last QSO. SQL error: %d\n", zErrMsg);
+			return ret;
+		}
 	}
-	sqlite3_finalize(stmt);
-	return exists;
+	int zErrMsg = sqlite3_bind_text(logbook_last_qso_stmt, 1, callsign, len, SQLITE_STATIC);
+	if (zErrMsg == SQLITE_OK && sqlite3_step(logbook_last_qso_stmt) == SQLITE_ROW) {
+		ret = sqlite3_column_int64(logbook_last_qso_stmt, 0);
+		//~ printf("last QSO with %s was at timestamp %lld\n", callsign, ret);
+	}
+	// release binding of \a callsign, and be ready to reuse logbook_last_qso_stmt next time
+	sqlite3_reset(logbook_last_qso_stmt);
+	return ret;
 }
 
-bool logbook_grid_exists(char* id)
+static sqlite3_stmt* logbook_grid_last_qso_stmt = NULL;
+
+/*!
+	If the grid \a id is found in the logbook, return the timestamp of the most recent QSO.
+	If not, return \c 0.
+	\note \a id may end with a space character, null, etc.; \a len tells where
+*/
+time_t logbook_grid_last_qso(const char *id, int len)
 {
-	sqlite3_stmt* stmt;
-	char* statement = "SELECT EXISTS(SELECT 1 FROM logbook WHERE exch_recv=?)";
-	int res = sqlite3_prepare_v2(db, statement, -1, &stmt, NULL);
-	if (res != SQLITE_OK)
-		return false;
-	bool exists = false;
-	res = sqlite3_bind_text(stmt, 1, id, strlen(id), SQLITE_STATIC);
-	if (res == SQLITE_OK) {
-		res = sqlite3_step(stmt);
-		int i = sqlite3_column_int(stmt, 0);
-		exists = (res == SQLITE_ROW && i != 0);
+	time_t ret = 0;
+	if (len < 4 || !strncmp(id, "RR73", 4) || !strncmp(id, "R+", 2) || !strncmp(id, "R-", 2) || !(isalpha(id[0]) && isalpha(id[1])))
+		return ret; // that's not a grid
+	if (!logbook_grid_last_qso_stmt) {
+		const char* statement = "SELECT unixepoch(qso_date ||' ' || substr(qso_time, 1, 2) || ':' || substr(qso_time, 3, 2)) FROM logbook WHERE exch_recv=?"
+			" ORDER BY unixepoch(qso_date ||' ' || substr(qso_time, 1, 2) || ':' || substr(qso_time, 3, 2)) DESC";
+		int zErrMsg = sqlite3_prepare_v2(db, statement, -1, &logbook_grid_last_qso_stmt, NULL);
+		if (zErrMsg != SQLITE_OK) {
+			fprintf(stderr, "Failed to query logbook for last QSO. SQL error: %d\n", zErrMsg);
+			return ret;
+		}
 	}
-	sqlite3_finalize(stmt);
-	return exists;
+	int zErrMsg = sqlite3_bind_text(logbook_grid_last_qso_stmt, 1, id, len, SQLITE_STATIC);
+	if (zErrMsg == SQLITE_OK && sqlite3_step(logbook_grid_last_qso_stmt) == SQLITE_ROW) {
+		ret = sqlite3_column_int64(logbook_grid_last_qso_stmt, 0);
+		//~ printf("last QSO with %s was at timestamp %lld\n", id, ret);
+	}
+	// release binding of \a callsign, and be ready to reuse logbook_grid_last_qso_stmt next time
+	sqlite3_reset(logbook_grid_last_qso_stmt);
+	return ret;
 }
 
 // TODO unsafe API: result_len must be given
@@ -344,7 +369,7 @@ void logbook_add(const char* contact_callsign, const char* rst_sent, const char*
 	int freq = field_int("FREQ");
 	// For FT8/FT4 we log dial frequency + audio frequency
 	if (ftx) {
-		const int pitch = field_int("PITCH");
+		const int pitch = field_int("FTX_RX_PITCH");
 		printf("FTx: freq %d + pitch %d\n", freq, pitch);
 		freq += pitch;
 	}
@@ -375,6 +400,9 @@ void logbook_add(const char* contact_callsign, const char* rst_sent, const char*
 		logbook_open();
 
 	sqlite3_exec(db, statement, 0, 0, &err_msg);
+
+	// Broadcast ADIF record via UDP if enabled
+	adif_broadcast_qso();
 
 	logbook_refill(NULL);
 }
@@ -536,7 +564,7 @@ int write_adif_record(void *stmt, char *buf, int len) {
 		//~ printf("col %d of %d type %d: ADIF %s value '%s'\n",
 			//~ i, num_cols, sqlite3_column_type(stmt, i), adif_names[i], field_value);
 
-		const int field_len = strlen(field_value);
+		int field_len = strlen(field_value);
 		bool output_done = false;
 		// Columns are in the order requested in prepare_query_by_date().
 		// First, take care of special cases for certain columns:
@@ -565,6 +593,7 @@ int write_adif_record(void *stmt, char *buf, int len) {
 		} break;
 		case 3: // qso_date
 			strip_chr(field_value, '-');
+			field_len = strlen(field_value);
 			break;
 		case 7: // exch_sent
 			if (is_ftx)
@@ -867,14 +896,17 @@ void export_button_clicked(GtkWidget* window)
 	gtk_widget_destroy(dialog);
 }
 
-// Signal handler to allow only uppercase letters and numbers for Callsign
+/*!
+	Validator (signal handler) for callsigns.
+	Allows only uppercase letters, numbers, slashes and hyphens.
+*/
 static void on_callsign_changed(GtkWidget* widget, gpointer data)
 {
 	const gchar* text = gtk_entry_get_text(GTK_ENTRY(widget));
 	gchar* result = g_strdup(text);
 
 	for (int i = 0; i < strlen(text); ++i) {
-		if (!isalnum(text[i])) {
+		if (!(isalnum(text[i]) || text[i] == '/' || text[i] == '-')) {
 			result[i] = '\0';
 		} else {
 			result[i] = toupper(text[i]);
@@ -1285,35 +1317,63 @@ void on_selection_changed(GtkTreeSelection* selection, gpointer user_data)
 	}
 }
 
-gboolean logbook_close(GtkWidget* widget, GdkEvent* event, gpointer data)
+void logbook_close(GtkWidget* widget, gpointer user_data)
 {
-	logbook_window = NULL;
+	/*
+		At the time this callback occurs, the toplevel is already being destroyed,
+		so do NOT call gtk_widget_destroy().
+
+		 We do need to drop our own reference to the list store so the
+		 model can be finalized once the tree view releases its ref.
+		 Finally, clear module-level pointers to avoid dangling references.
+	*/
+	if (list_store) {
+		g_object_unref(list_store);
+		list_store = NULL;
+	}
 	tree_view = NULL;
+	selection = NULL;
+	logbook_window = NULL;
+}
+
+/*!
+    Handle key presses in the logbook window.
+    Close the logbook when Ctrl-W (or Ctrl-w) is pressed.
+    Return TRUE if the event was handled to stop further processing.
+ */
+gboolean logbook_key_press(GtkWidget* widget, GdkEventKey* event, gpointer user_data)
+{
+	if ((event->state & GDK_CONTROL_MASK) &&
+	    (event->keyval == GDK_KEY_w || event->keyval == GDK_KEY_W)) {
+		if (logbook_window) {
+			gtk_widget_destroy(logbook_window);
+			return TRUE;
+		}
+	}
 	return FALSE;
 }
 
 void logbook_list_open()
 {
-	GtkWidget* window;
-	GtkWidget* scrolled_window;
-	// GtkWidget *tree_view;
-
+	// If the logbook window is already open and the user hits the
+	// main window LOG button again, just raise the logbook window on top.
 	if (logbook_window != NULL) {
 		gtk_window_present(GTK_WINDOW(logbook_window));
 		return;
 	}
 
-	// Create a window
-	window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-	gtk_window_set_title(GTK_WINDOW(window), "Logbook");
-	g_signal_connect(window, "destroy", G_CALLBACK(logbook_close), NULL);
-	gtk_container_set_border_width(GTK_CONTAINER(window), 10);
-	gtk_window_set_default_size(GTK_WINDOW(window), 780, 400); // Set initial window size
+	// Create a logbook_window
+	GtkWidget* scrolled_window;
+	logbook_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+	gtk_window_set_title(GTK_WINDOW(logbook_window), "Logbook");
+	g_signal_connect(logbook_window, "destroy", G_CALLBACK(logbook_close), NULL);
+	g_signal_connect(logbook_window, "key-press-event", G_CALLBACK(logbook_key_press), NULL);
+	gtk_container_set_border_width(GTK_CONTAINER(logbook_window), 10);
+	gtk_window_set_default_size(GTK_WINDOW(logbook_window), 780, 400); // Set initial logbook_window size
 
-	logbook_window = window;
 	// Create a box to hold the elements
 	GtkWidget* vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-	gtk_container_add(GTK_CONTAINER(window), vbox);
+	gtk_container_add(GTK_CONTAINER(logbook_window), vbox);
 
 	// Create a toolbar
 	GtkWidget* toolbar = gtk_toolbar_new();
@@ -1383,12 +1443,13 @@ void logbook_list_open()
 		gtk_tree_view_append_column(GTK_TREE_VIEW(tree_view), column);
 	}
 
-	// connect the edit button the handler, passing the tree_view (afte tree_view is created)
+	// Connect buttons to handlers, passing tree_view as user_data
 	g_signal_connect(edit_button, "clicked", G_CALLBACK(edit_button_clicked), tree_view);
 	g_signal_connect(delete_button, "clicked", G_CALLBACK(delete_button_clicked), tree_view);
-	//	g_signal_connect(import_button, "clicked", G_CALLBACK(import_button_clicked), window);  - W9JES
-	g_signal_connect(export_button, "clicked", G_CALLBACK(export_button_clicked), window); // W9JES
-	g_signal_connect(search_entry, "changed", G_CALLBACK(search_update), tree_view);	   // Connect signal handler
+	g_signal_connect(search_entry, "changed", G_CALLBACK(search_update), tree_view);
+	// These handlers take logbook_window as user_data
+	//	g_signal_connect(import_button, "clicked", G_CALLBACK(import_button_clicked), logbook_window);  - W9JES
+	g_signal_connect(export_button, "clicked", G_CALLBACK(export_button_clicked), logbook_window); // W9JES
 	/*
 		// Apply CSS for tree view
 		GtkCssProvider *cssProvider = gtk_css_provider_new();
@@ -1416,5 +1477,5 @@ void logbook_list_open()
 	//	g_signal_connect(selection, "changed", G_CALLBACK(on_selection_changed), tree_view);
 
 	// Show all widgets
-	gtk_widget_show_all(window);
+	gtk_widget_show_all(logbook_window);
 }
