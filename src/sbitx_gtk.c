@@ -3496,12 +3496,12 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		int zerobeat_text_width = measure_text(gfx, (char *)zerobeat_text, STYLE_SMALL);
 		// Position and draw the text in gray
 		int zerobeat_text_x = is_s_meter_on
-									? f_spectrum->x + zerobeat_text_width + 80
+									? f_spectrum->x + zerobeat_text_width + 85
 									: f_spectrum->x + 5;
 		int zerobeat_text_y = f_spectrum->y + 7;
 
-		// Draw text in gray always
-		cairo_set_source_rgb(gfx, 0.2, 0.2, 0.2);  // Gray text
+		// Draw text
+		cairo_set_source_rgb(gfx, 0.9, 0.9, 0.0);  // Yellow text
 		cairo_move_to(gfx, zerobeat_text_x, zerobeat_text_y);
 		cairo_show_text(gfx, zerobeat_text);
 
@@ -3537,7 +3537,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 
 		// Draw LED background
 		cairo_save(gfx);
-		cairo_set_source_rgba(gfx, 0.0, 0.0, 0.0, 0.5);
+		cairo_set_source_rgba(gfx, 0.3, 0.3, 0.3, 0.9);
 		cairo_rectangle(gfx, led_x - 2, led_y - 2, (box_width + spacing) * 5 + 4,
 						box_height + 4);
 		cairo_fill(gfx);
@@ -3579,7 +3579,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 			const double fh = box_height + 2 * pad;
 
 			// use cyan color for the frame (cyan is r=0.0, g=1.0, b=1.0)
-			cairo_set_source_rgba(gfx, 0.0, 1.0, 1.0, 0.4);  // make frame 40% opaque
+			cairo_set_source_rgba(gfx, 0.0, 1.0, 1.0, 0.8);  // make frame 80% opaque
 			cairo_set_line_width(gfx, line_w);
 			cairo_rectangle(gfx, fx, fy, fw, fh);
 			cairo_stroke(gfx);
