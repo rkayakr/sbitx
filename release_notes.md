@@ -1,7 +1,7 @@
 # v5.3 - Currently In Test/Dev
 **New Features:**
 - Consolodated Band, Mode, Bandstack, and other buttons to comboboxes
-- CW Decoder Toggle "\decode on|off"
+- CW Decoder Toggle
   + cw decoder is "on" by default and sends decoded text to console.  Turning decode OFF runs the decoder in a quiet mode. Console command `\decode on|off`
 - Larger Font Size Option
   + Operator can specify a font size from 10 to 40 points
