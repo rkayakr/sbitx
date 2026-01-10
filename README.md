@@ -17,7 +17,7 @@ We have an incredible development team collaborating on improvements for the sBi
 A huge thank you to everyone who contributes their time and expertise to this project!
 
 ## Release Notes
-[Available Here](https://github.com/drexjj/sbitx/blob/prerelease/release_notes.txt)
+[Available Here](https://github.com/drexjj/sbitx/blob/prerelease/release_notes.md)
 
 
 ## 📂 File Compatibility
