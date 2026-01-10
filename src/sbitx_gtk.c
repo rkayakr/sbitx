@@ -3538,7 +3538,7 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		// Draw LED background
 		cairo_save(gfx);
 		cairo_set_source_rgba(gfx, 0.3, 0.3, 0.3, 0.9);
-		cairo_rectangle(gfx, led_x - 2, led_y - 2, (box_width + spacing) * 5 + 4,
+		cairo_rectangle(gfx, led_x - 2, led_y - 2, (box_width + spacing) * 5 + 2,  // 4
 						box_height + 4);
 		cairo_fill(gfx);
 
