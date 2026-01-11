@@ -97,7 +97,7 @@ A huge thank you to the contributors who have played a vital role in this projec
 
 If you find these enhancements valuable or have benefited from using sBitx, consider supporting our work. Every donation, big or small, helps us keep development going.
 
-💖 [**Support Our Work and Give Thanks**](https://www.patreon.com/cw/RadioElectronicsHub) or make a 1 time donation [**Donate Here**](https://www.paypal.com/donate/?hosted_button_id=SWPB76LVNUHEY) 💖
+💖 [**Support Our Work and Give Thanks**](https://www.patreon.com/cw/RadioElectronicsHub) or make a 1 time donation [**Here**](https://www.paypal.com/donate/?hosted_button_id=SWPB76LVNUHEY) 💖
 
 Can't donate? No worries! Contributing code, documentation, or spreading the word also makes a big impact.
 
