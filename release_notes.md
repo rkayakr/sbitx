@@ -17,14 +17,7 @@
 - Voltage and Current added to UI near VFO
 - Power and SWR shown with a decimal place
 - High SWR trigger and auto power reduction to 1 which is configurable by the `\maxvswr` command, default to 3:1 or 0 to disable it
-- ADIF UDP Logging Support 
-  + Configured via user_settings.ini: 
-    ```
-    #adif_broadcast_enable=OFF
-    #adif_broadcast_ip=127.0.0.1
-    #adif_broadcast_port=2237
-    ```
-  + Can be used to log to a local or remote logbook.  Or to FT8battle.com
+- Added full screen toggle button for GUI 9 (can also start sbitx fullscreen with -f switch such as `./sbitx -f`)
 - ADIF UDP Logging Support  
   + Configured via user_settings.ini (defaults to OFF): 
     ```
