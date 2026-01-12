@@ -117,6 +117,12 @@ else
     echo "hw_settings.ini not found"
 fi
 
+# Set permissions to (755) so all web scripts from x Launcher work properly
+echo "Setting permissions to 755 on web script files"
+for file in "$HOME/sbitx/web/scripts"/*.sh; do
+    [ -f "$file" ] && chmod 755 "$file"
+done
+
 echo "Brought to you by the volunteer development Team for sBitx"
 echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 echo $F Build version $VERSION completed at $(date)
