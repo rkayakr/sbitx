@@ -4447,8 +4447,8 @@ static void layout_ui()
       field_move("ESC", 675, y_bottom, 75, row_h);
     }
 
-    // Keep TUNE hidden
-    field_move("TUNE", 1000, -1000, 40, 40);
+    // TUNE control is on screen in this mode
+	field_move("TUNE", 460, 5, 40, 40);;
     break;
 
   case MODE_CW:
