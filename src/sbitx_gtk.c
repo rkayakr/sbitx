@@ -9933,7 +9933,7 @@ void do_control_action(char *cmd)
 		snprintf(tn_power_command, sizeof(tn_power_command), "tx_power=%d", tunepower); // Create TNPWR string
 		sdr_request(tn_power_command, response);										// Send TX with power level from tune power
 
-		if (mode_id(modestore) == MODE_CW || mode_id(modestore) == MODE_CWR || mode_id(modestore) == MODE_FT8) || mode_id(modestore) == MODE_FT4) {
+		if (mode_id(modestore) == MODE_CW || mode_id(modestore) == MODE_CWR || mode_id(modestore) == MODE_FT8 || mode_id(modestore) == MODE_FT4) {
 			tune_key = 1;  // fake straight key down
 			delay(100);
 		} else {
