@@ -94,6 +94,8 @@ static bool layout_needs_refresh = false;
 static int last_scope_size = -1; // Default to an invalid value initially
 float scope_alpha_plus = 0.0;	 // Default additional scope alpha
 
+int tune_key=0; // CW tuning
+
 #define AVERAGING_FRAMES 15 // Number of frames to average
 // Buffer to hold past spectrum data
 static int spectrum_history[AVERAGING_FRAMES][MAX_BINS] = {0};
@@ -4578,8 +4580,8 @@ static void layout_ui()
     field_move("F9", 600, y_bottom, 75, row_h);
     field_move("F10", 675, y_bottom, 70, row_h);
 
-    // TUNE control is offscreen in this mode
-    field_move("TUNE", 1000, -1000, 40, 40);
+    // TUNE control is on screen in this mode
+	field_move("TUNE", 460, 5, 40, 40);
     break;
 
   case MODE_USB:
@@ -8553,6 +8555,11 @@ int key_poll() {
   int key = CW_IDLE;
   int input_method = get_cw_input_method();
 
+  if (tune_key == 1) {  // fake key down for CW tune
+	   key = CW_DOWN;
+	   return key;
+   }
+   
   // Handle straight key input
   if (input_method == CW_STRAIGHT) {
     if ((digitalRead(PTT) == LOW) || (digitalRead(DASH) == LOW)) {
@@ -8729,6 +8736,9 @@ int get_cw_delay()
 
 int get_cw_input_method()
 {
+	if (tune_key == 1) {  // fake straight key down for CW tune
+		return CW_STRAIGHT;
+	}
 	struct field *f = get_field("#cwinput");
 	if (!strcmp(f->value, "KEYBOARD"))
 		return CW_KBD;
@@ -9914,11 +9924,16 @@ void do_control_action(char *cmd)
 		snprintf(tn_power_command, sizeof(tn_power_command), "tx_power=%d", tunepower); // Create TNPWR string
 		sdr_request(tn_power_command, response);										// Send TX with power level from tune power
 
-		sdr_request("r1:mode=TUNE", response);
+		if (mode_id(modestore) == MODE_CW || mode_id(modestore) == MODE_CWR) {
+			tune_key = 1;  // fake straight key down
+			delay(100);
+		} else {
+		sdr_request("r1:mode=TUNE", response);				
 		delay(100);
-		tx_on(TX_SOFT);
-	}
-	else if (!strcmp(request, "TUNE OFF"))
+		tx_on(TX_SOFT);	
+		}
+	}  // end tune on
+	 if (!strcmp(request, "TUNE OFF"))
 	{
 		if (tune_on_invoked)
 		{
@@ -9926,6 +9941,7 @@ void do_control_action(char *cmd)
 			tune_on_invoked = false; // Ensure this is reset immediately to prevent repeated execution
 			do_control_action("RX");
 			abort_tx(); // added to terminate tune duration - W9JES
+			tune_key=0; // for CW/CWR
 			field_set("MODE", modestore);
 			field_set("DRIVE", powerstore);
 		}
@@ -9942,6 +9958,7 @@ void do_control_action(char *cmd)
 			//  Perform TUNE OFF actions safely
 			do_control_action("RX");
 			field_set("TUNE", "OFF");
+			tune_key=0;  // for CW/CWR
 			// if (modestore != NULL) // Check for null before accessing or modifying
 			field_set("MODE", modestore);
 
