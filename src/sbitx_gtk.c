@@ -2702,8 +2702,8 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 	for (i = 0; i < f->width; i++)
 	{
 		int index = (i * n_env_samples) / f->width;
-		int min = mod_display[index++];
-		int max = mod_display[index++];
+        int min = mod_display[index++ % MOD_MAX];
+        int max = mod_display[index++ % MOD_MAX];
 		cairo_move_to(gfx, f->x + i, min + h_center);
 		cairo_line_to(gfx, f->x + i, max + h_center + 1);
 	}
