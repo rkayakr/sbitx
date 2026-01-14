@@ -4447,8 +4447,8 @@ static void layout_ui()
       field_move("ESC", 675, y_bottom, 75, row_h);
     }
 
-    // TUNE control is on screen in this mode
-	field_move("TUNE", 460, 5, 40, 40);;
+    // TUNE control is offscreen in this mode
+    field_move("TUNE", 1000, -1000, 40, 40);
     break;
 
   case MODE_CW:
@@ -9933,7 +9933,7 @@ void do_control_action(char *cmd)
 		snprintf(tn_power_command, sizeof(tn_power_command), "tx_power=%d", tunepower); // Create TNPWR string
 		sdr_request(tn_power_command, response);										// Send TX with power level from tune power
 
-		if (mode_id(modestore) == MODE_CW || mode_id(modestore) == MODE_CWR || mode_id(modestore) == MODE_FT8 || mode_id(modestore) == MODE_FT4) {
+		if (mode_id(modestore) == MODE_CW || mode_id(modestore) == MODE_CWR) {
 			tune_key = 1;  // fake straight key down
 			delay(100);
 		} else {
