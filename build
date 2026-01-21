@@ -1,0 +1,128 @@
+#!/bin/sh -e
+# Note: the '-e' flag will make the script stop immediately upon error with
+# the error reflected in the environment.  This lets one issue commands like
+# "./build sbitx && ./sbitx" to build then run if it built correctly, and not
+# run if the build failed.
+F=$1
+O=$2
+OPT=0
+FLAGS="-g"
+[ -z "$F" ] && {
+   echo "usage:   $0 program [o|g|u]"
+   echo "example: $0 sbitx"
+   echo "-optional 'o' argument enables compiler optimizations"
+   echo "-optional 'g' argument enables profile generation"
+   echo "-optional 'u' argument enables usage of profile to guide optimizations"
+   exit 1
+}
+if [ ! -z "$O" ] && [ "$O" = "o" ] ; then
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	echo "!! Building optimized binary, most warnings can be safely ignored !!"
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	FLAGS="-march=native -O3 -flto=auto"
+	OPT=1
+	rm -f *.gcda
+fi
+if [ ! -z "$O" ] && [ "$O" = "g" ] ; then
+	rm -f *.gcda
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	echo "!! Building profile generating binary                             !!"
+	echo "!! Run the application in your normal use case, then rerun with   !!"
+	echo "!! the u option to generate a profile guided optimized build      !!"
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	FLAGS="-march=native -O3 -flto=auto -fprofile-generate"
+fi
+if [ ! -z "$O" ] && [ "$O" = "u" ] ; then
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	echo "!! Building profile guided binary                                 !!"
+	echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+	FLAGS="-march=native -O3 -flto=auto -fprofile-use"
+	OPT=1
+fi
+WORKING_DIRECTORY=`pwd`
+echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+date
+mkdir -p "./audio"
+mkdir -p "./data"
+mkdir -p "./web"
+
+git submodule update --init
+
+if test -f "data/sbitx.db"; then
+	HAS_TX_POWER=`sqlite3 data/sbitx.db "SELECT COUNT(*) AS CNTREC FROM pragma_table_info('logbook') WHERE name='tx_power'"`
+	HAS_FTX_RULES=`sqlite3 data/sbitx.db "SELECT COUNT(*) AS CNTREC FROM pragma_table_info('ftx_rules') WHERE name='regex'"`
+	if [ "$HAS_FTX_RULES" -eq 0 ]; then
+		sqlite3 data/sbitx.db < data/add_ftx_rules.sql
+	fi
+	if [ "$HAS_TX_POWER" -eq 0 ]; then
+		echo "new columns will be added to the database"
+		sqlite3 data/sbitx.db < data/add_columns.sql
+	else
+		echo "database is intact"
+	fi
+else
+	echo "database doesn't exist, it will be created"
+	cd data
+	sqlite3 sbitx.db < create_db.sql
+	sqlite3 sbitx.db < add_ftx_rules.sql
+	cd ..
+fi
+
+if [ "$F" != "sbitx" ]; then
+  echo "compiling $F in $WORKING_DIRECTORY"
+else
+  VERSION=`grep VER src/sdr_ui.h | awk 'FNR==1{print $4}' | sed -e 's/"//g'`
+  echo "compiling $F version $VERSION in $WORKING_DIRECTORY"
+fi
+make clean
+make sbitx
+
+if [ $OPT -eq 1 ]; then
+	#Remove debugging stuff for a smaller binary
+	echo Stripping $F
+	strip $F
+fi
+
+# Open the user_settings.ini file, search for #60m=, and add it if missing
+if [ -f "$HOME/sbitx/data/user_settings.ini" ]; then
+    echo "Checking user_settings.ini for 60 meters"
+    if ! grep -q "^#60m=" "$HOME/sbitx/data/user_settings.ini"; then
+        echo "Adding 60 meter band to user_settings.ini"
+        sed -i '/#40m=/a\#60m=' "$HOME/sbitx/data/user_settings.ini"
+    else
+        echo "60 meter band already exists in user_settings.ini"
+    fi
+else
+    echo "user_settings.ini not found"
+fi
+
+# Update hw_settings.ini to add 60m band configuration
+if [ -f "$HOME/sbitx/data/hw_settings.ini" ]; then
+    echo "Checking hw_settings.ini for 60m band"
+    if grep -q "f_start=5250000" "$HOME/sbitx/data/hw_settings.ini"; then
+        echo "60m band already exists in hw_settings.ini"
+    else
+        echo "Adding 60m band to hw_settings.ini"
+        awk '{
+          print $0
+        } /f_start=3500000/ {
+          found=1
+        } found && /scale=/ {
+          print ""
+          print "[tx_band]\nf_start=5250000\nf_stop=5450000\nscale=0.0033"
+          found=0
+        }' $HOME/sbitx/data/hw_settings.ini > temp.ini && mv temp.ini $HOME/sbitx/data/hw_settings.ini
+    fi
+else
+    echo "hw_settings.ini not found"
+fi
+
+# Set permissions to (755) so all web scripts from x Launcher work properly
+echo "Setting permissions to 755 on web script files"
+for file in "$HOME/sbitx/web/scripts"/*.sh; do
+    [ -f "$file" ] && chmod 755 "$file"
+done
+
+echo "Brought to you by the volunteer development Team for sBitx"
+echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+echo $F Build version $VERSION completed at $(date)
