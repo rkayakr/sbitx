@@ -49,6 +49,7 @@
   + **FT4** support: same features as FT8, twice as fast (and less robust)
   + More timestamp precision for both FT4 and FT8
   + FTX_CQ ALT_EVEN setting: CQ every 4th slot (listen more)
+  + Distance in KM is now shown in the decoded list
   + FTX_AUTO modes:
     * OFF is fully manual: click messages only to populate logger fields, then use macro buttons
     * ANS auto-answers and finishes QSOs; click a previous incoming message if you need to repond again to it
