@@ -21,22 +21,22 @@ struct macro {
 static struct macro macro_table[MACRO_MAX];
 static int serial = 1;
 static char macro_v_str[10];
-static char is_running = 0;
+static char is_running = 0; 
 
 void macro_get_keys(char *output){
 	output[0] = 0;
-	for (int i = 0; i < MACRO_MAX; i++){
+	for (int i = 0; i < MACRO_MAX; i++){	
 		if (macro_table[i].label[0] == 0)
 				break;
 		char key_name[10];
 		sprintf(key_name, "|%d ", macro_table[i].fn_key);
 		strcat(output, key_name);
-		strcat(output, macro_table[i].label);
+		strcat(output, macro_table[i].label);	
 	}
 }
 
 void macro_list(char *output){
-	char full_path[PATH_MAX];
+	char full_path[200];	//dangerous, find the MAX_PATH and replace 200 with it
 
 	char *home_path = getenv("HOME");
 	strcpy(full_path, home_path);
@@ -45,12 +45,12 @@ void macro_list(char *output){
   struct dirent *dir;
 
 	if (!d){
-		write_console(STYLE_LOG, "\Error:web subdirectory is missing\n");
+		write_console(FONT_LOG, "\Error:web subdirectory is missing\n");
 		return;
 	}
 
 	if(output)
-		output[0] = 0;
+		output[0] = 0;	
   while ((dir = readdir(d)) != NULL) {
 		char *p = dir->d_name;
 		int len = strlen(p);
@@ -69,7 +69,7 @@ void macro_list(char *output){
 void macro_label(int fn_key, char *label){
 	*label = 0;
 
-	for (int i = 0; i < MACRO_MAX; i++){
+	for (int i = 0; i < MACRO_MAX; i++){	
 		if (macro_table[i].fn_key == fn_key){
 			strcpy(label, macro_table[i].label);
 			if (is_running)
@@ -78,12 +78,9 @@ void macro_label(int fn_key, char *label){
 	}
 }
 
-int  macro_load(const char *filename, char *output){
-	if (!filename || !filename[0])
-		return -2;
-
+int  macro_load(char *filename, char *output){
 	char macro_line[255];
-	char full_path[PATH_MAX];
+	char full_path[200];	//dangerous, find the MAX_PATH and replace 200 with it
 
 	char *home_path = getenv("HOME");
 	strcpy(full_path, home_path);
@@ -96,7 +93,7 @@ int  macro_load(const char *filename, char *output){
 		return -1;
 
 	memset(macro_table, 0, sizeof(macro_table));
-	int i = 0;
+	int i = 0; 
 	while (i < MACRO_MAX){
 		if (fgets(macro_line, sizeof(macro_line) - 1, pf) == NULL)
 			break;
@@ -106,10 +103,10 @@ int  macro_load(const char *filename, char *output){
 			continue;
 		macro_table[i].fn_key = atoi(p);
 
-		//now, skip to beyond the key identifier
+		//now, skip to beyond the key identifier 
 		while(*p != ' ' && *p)
 			p++;
-
+		
 		//skip the following spaces to the start of button label
 		while(*p == ' ' && *p)
 			p++;
@@ -118,8 +115,8 @@ int  macro_load(const char *filename, char *output){
 		for (j = 0; j < MACRO_MAX_LABEL; j++){
 			if (*p  && *p != ',')
 				macro_table[i].label[j] = *p++;
-			else
-				break;
+			else	
+				break;		
 		}
 		macro_table[i].label[j] = 0;
 
@@ -128,7 +125,7 @@ int  macro_load(const char *filename, char *output){
 			//printf("Macro loading %s, Expected a comma before [%s]\n", full_path, p);
 			continue;
 		}
-
+		
 		strcpy(macro_table[i].text, ++p);
 		i++;
 	}
@@ -141,7 +138,6 @@ int  macro_load(const char *filename, char *output){
 		field_set(button, label);
 	}
 
-	printf("loaded macros from %s\n", full_path);
 	return 0;
 }
 
@@ -200,7 +196,7 @@ static char *macro_expand_var(char *var, char *s){
 		macro_get_var(var, s);
 	else if (!strcmp(var, "GRIDSQUARE"))
 		macro_get_var(var, s);
-	return s + strlen(s);
+	return s + strlen(s);	
 }
 
 static char *macro_expand_short_var(char v, char *dest){
@@ -211,7 +207,7 @@ static char *macro_expand_short_var(char v, char *dest){
 	else if (v == '#')
 		return macro_expand_var("EXCH", dest);
 	else if (v == '@')
-		return macro_expand_var("FREQ", dest);
+		return macro_expand_var("FREQ", dest); 
 	return dest;
 }
 
@@ -224,7 +220,7 @@ int macro_exec(int key, char *dest){
 	int i;
 	for(i = 0; i < MACRO_MAX; i++)
 		if (macro_table[i].fn_key == key){
-			m = macro_table + i;
+			m = macro_table + i; 
 			//if(is_running)
 				break;
 		}
@@ -239,13 +235,13 @@ int macro_exec(int key, char *dest){
 	char *p = m->text;
 	char var[20];
 	char in_var = 0;
-
+	
 	var[0] = 0;
 	//we end at the string end, newline, etc.
 	while (*p >= ' '){
 		//the sequency of if-else-if is imp.
 		if (*p == '!' || *p == '*' || *p == '@' || *p == '#'){
-			q = macro_expand_short_var(*p++, q);
+			q = macro_expand_short_var(*p++, q);		
 		}
 		else if (*p == '}'){
 			q = macro_expand_var(var, q);
@@ -254,9 +250,9 @@ int macro_exec(int key, char *dest){
 			in_var = 0;
 		}
 		else if (in_var == 1){
-			int l = strlen(var);
+			int l = strlen(var);	
 			var[l++] = *p++;
-			var[l++] = 0;
+			var[l++] = 0;	
 		}
 		else if (*p == '{'){
 			in_var = 1;
@@ -265,7 +261,7 @@ int macro_exec(int key, char *dest){
 		else{
 			*q++ = *p++;
 			*q = 0;
-		}
+		} 
 	}
 	return 0;
 }
