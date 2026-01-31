@@ -65,6 +65,7 @@ extern struct rx *rx_list;
 extern char *cw_get_stats(char *buf, size_t len);
 /* VSWR trip flag Clear on band change so previous trips don't persist. */
 extern int vswr_tripped;
+extern int vu;
 void change_band(char *request);
 void highlight_band_field(int new_band);
 /* command  buffer for commands received from the remote */
@@ -2704,8 +2705,74 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 	cairo_line_to(gfx, f->x + f->width, f->y + 2*gh);
 	cairo_move_to(gfx, f->x, f->y + 8*gh);
 	cairo_line_to(gfx, f->x + f->width, f->y + 8*gh);	
-	cairo_stroke(gfx);	
+	cairo_stroke(gfx);
+		
+	struct field *mode_f = get_field("r1:mode");   //  VU meter
+	if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "AM"))
+		{
+		const char *vu_text = "VU";
+		cairo_set_font_size(gfx, STYLE_SMALL);	
+		int vu_text_width = measure_text(gfx, (char *)vu_text, STYLE_SMALL);
+		// Position and draw the text in gray
+		int vu_text_x = f->x + 5;
+		int vu_text_y = f->y + 7;
 
+		// Draw text
+		cairo_set_source_rgb(gfx, 0.9, 0.9, 0.0);  // Yellow text
+		cairo_move_to(gfx, vu_text_x, vu_text_y);
+		cairo_show_text(gfx, vu_text);
+			
+				// Draw LED indicators
+		int box_width = 10;
+		int box_height = 5;
+		int spacing = 2;
+		int led_y = vu_text_y - 5;
+		int led_x = vu_text_x + vu_text_width + 5;
+
+		// Draw LED background
+		cairo_save(gfx);
+		cairo_set_source_rgba(gfx, 0.3, 0.3, 0.3, 0.9);
+		cairo_rectangle(gfx, led_x - 2, led_y - 2, (box_width + spacing) * 10 + 2,  // 5
+						box_height + 4);
+		cairo_fill(gfx);
+		
+//		int vu_value=max(1,vu-2);	
+				// Draw 10 LEDs
+		for (int i = 0; i < 10; i++) {
+			cairo_rectangle(gfx, led_x + i * (box_width + spacing), led_y, box_width,
+							box_height);
+
+			// Set LED color based on vu value and position
+			if (i == 0 && vu > 1) {  // Far below
+			cairo_set_source_rgb(gfx, 0.0, 0.4, 0.0);
+			} else if (i == 1 && vu > 2) {  // very low
+			cairo_set_source_rgb(gfx, 0.0, 0.5, 0.0);
+			} else if (i == 2 && vu > 3) {  // 
+			cairo_set_source_rgb(gfx, 0.0, 0.6, 0.0);
+			} else if (i == 3 && vu > 5) {  // 
+			cairo_set_source_rgb(gfx, 0.0, 0.7, 0.0);
+			} else if (i == 4 && vu > 6) {  // 
+			cairo_set_source_rgb(gfx, 0.0, 0.8, 0.0);
+			} else if (i == 5 && vu > 7) {  // 
+			cairo_set_source_rgb(gfx, 0.0, 0.9, 0.0);
+			} else if (i == 6 && vu > 8) {  // 
+			cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0);						
+			} else if (i == 7 && vu > 9) {  // 
+			cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);	// close		
+			} else if (i == 8 && vu > 10) {  
+			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
+			} else if (i == 9 && vu > 11) {  // far above			
+			cairo_set_source_rgb(gfx, 1.0, 0.2, 0.2);						
+			} else {
+			// Inactive background color
+			cairo_set_source_rgb(gfx, 0.13, 0.13, 0.13);
+			}
+
+			cairo_fill(gfx);
+		}	
+			
+	}
+	
 	// start the plot
 	cairo_set_source_rgb(gfx, palette[SPECTRUM_PLOT][0],
 						 palette[SPECTRUM_PLOT][1], palette[SPECTRUM_PLOT][2]);
@@ -3496,6 +3563,8 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);  // Red
 		cairo_show_text(gfx, s);  //swr_msg
 	}
+	
+
 
 	if (zero_beat_enabled) {
 		// --- Zero Beat indicator
