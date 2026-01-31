@@ -1690,7 +1690,7 @@ void tx_process(
 	int m = 0;
 	int j = 0;
 	double i_sample_max = 0.0;
-	
+	double i_sample_old = 0.0;
 	// double max = -10.0, min = 10.0;
 	// gather the samples into a time domain array
 	for (i = MAX_BINS / 2; i < MAX_BINS; i++)
@@ -1729,6 +1729,8 @@ void tx_process(
 		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM)
 		{
 			i_sample_max = fmax(i_sample, i_sample_max); // find peak value
+			i_sample_max = 0.5 * i_sample_max + 0.5 * i_sample_old;
+			i_sample_old =  i_sample_max;  // do exponential smoothing
 			
 			if (i_sample < (-1.0 * voice_clip_level))
 				i_sample = -1.0 * voice_clip_level;
@@ -1772,7 +1774,7 @@ void tx_process(
 		if (i_sample_max > voice_clip_level)
 			printf("\n");
 */			
-		vu = i_sample_max/.004;
+		vu = i_sample_max/(0.1 * voice_clip_level);
 		
 		i_sample_max=0.0;
 	}
