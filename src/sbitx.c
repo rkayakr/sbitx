@@ -114,7 +114,7 @@ double notch_freq = 0;		   // Notch frequency in Hz W2JON
 double notch_bandwidth = 0;	   // Notch bandwidth in Hz W2JON
 int compression_control_level; // Audio Compression level W2JON
 int txmon_control_level;	   // TX Monitor level W2JON
-int vu=0;   // vu meter
+float vmax=0.0;   // vu meter
 int get_rx_gain(void)
 {
 	// printf("rx_gain %d\n", rx_gain);
@@ -1767,14 +1767,8 @@ void tx_process(
 		__real__ fft_in[i] = i_sample;
 		__imag__ fft_in[i] = q_sample;
 		m++;
-/*		
-		if (i_sample_max > .01)
-			vu = i_sample_max/.004;
-			printf(" %.4f %d ",i_sample_max, vu); // print max in block
-		if (i_sample_max > voice_clip_level)
-			printf("\n");
-*/			
-		vu = i_sample_max/(0.1 * voice_clip_level);
+			
+		vmax = i_sample_max*1.0/voice_clip_level; // scale to 1.0
 		
 		i_sample_max=0.0;
 	}

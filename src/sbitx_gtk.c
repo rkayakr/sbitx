@@ -65,7 +65,8 @@ extern struct rx *rx_list;
 extern char *cw_get_stats(char *buf, size_t len);
 /* VSWR trip flag Clear on band change so previous trips don't persist. */
 extern int vswr_tripped;
-extern int vu;
+extern float vmax; // vlevel meter, now with log voltage levels - not power
+float vlevels[12]= {.1, .126, .158, .2, .25, .316, .398, .5, .631, .794, 1.0, 1.26};
 void change_band(char *request);
 void highlight_band_field(int new_band);
 /* command  buffer for commands received from the remote */
@@ -2710,7 +2711,7 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 	struct field *mode_f = get_field("r1:mode");   //  VU meter
 	if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "AM"))
 		{
-		const char *vu_text = "Vol";
+		const char *vu_text = "VLEVEL";
 		cairo_set_font_size(gfx, STYLE_SMALL);	
 		int vu_text_width = measure_text(gfx, (char *)vu_text, STYLE_SMALL);
 		// Position and draw the text in gray
@@ -2732,36 +2733,40 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 		// Draw LED background
 		cairo_save(gfx);
 		cairo_set_source_rgba(gfx, 0.3, 0.3, 0.3, 0.9);
-		cairo_rectangle(gfx, led_x - 2, led_y - 2, (box_width + spacing) * 10 + 2,  // 5
+		cairo_rectangle(gfx, led_x - 2, led_y - 2, (box_width + spacing) * 12 + 2,  // 5
 						box_height + 4);
 		cairo_fill(gfx);
 		
 //		int vu_value=max(1,vu-2);	
 				// Draw 10 LEDs
-		for (int i = 0; i < 10; i++) {
+		for (int i = 0; i < 12; i++) {
 			cairo_rectangle(gfx, led_x + i * (box_width + spacing), led_y, box_width,
 							box_height);
 
-			// Set LED color based on vu value and position
-			if (i == 0 && vu > 1) {  // Far below
-			cairo_set_source_rgb(gfx, 0.0, 0.4, 0.0);
-			} else if (i == 1 && vu > 2) {  // very low
-			cairo_set_source_rgb(gfx, 0.0, 0.5, 0.0);
-			} else if (i == 2 && vu > 3) {  // 
+			// Set LED color based on vmax value and position
+			if (i == 0 && vmax > vlevels[i]) {  // Far below
 			cairo_set_source_rgb(gfx, 0.0, 0.6, 0.0);
-			} else if (i == 3 && vu > 5) {  // 
+			} else if (i == 1 && vmax > vlevels[i]) {  // very low
+			cairo_set_source_rgb(gfx, 0.0, 0.6, 0.0);
+			} else if (i == 2 && vmax > vlevels[i]) {  // 
+			cairo_set_source_rgb(gfx, 0.0, 0.6, 0.0);
+			} else if (i == 3 && vmax > vlevels[i]) {  // 
+			cairo_set_source_rgb(gfx, 0.0, 0.6, 0.0);
+			} else if (i == 4 && vmax > vlevels[i]) {  // 
+			cairo_set_source_rgb(gfx, 0.0, 0.6, 0.0);
+			} else if (i == 5 && vmax > vlevels[i]) {  // 
 			cairo_set_source_rgb(gfx, 0.0, 0.7, 0.0);
-			} else if (i == 4 && vu > 6) {  // 
+			} else if (i == 6 && vmax > vlevels[i]) {  // 
 			cairo_set_source_rgb(gfx, 0.0, 0.8, 0.0);
-			} else if (i == 5 && vu > 7) {  // 
-			cairo_set_source_rgb(gfx, 0.0, 0.9, 0.0);
-			} else if (i == 6 && vu > 8) {  // 
-			cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0);						
-			} else if (i == 7 && vu > 9) {  // 
-			cairo_set_source_rgb(gfx, 1.0, 1.0, 0.0);	// close		
-			} else if (i == 8 && vu > 10) {  
+			} else if (i == 7 && vmax > vlevels[i]) {  // 
+			cairo_set_source_rgb(gfx, 0.0, 0.9, 0.0);			
+			} else if (i == 8 && vmax > vlevels[i]) {  // 
+			cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0);												
+			} else if (i == 9 && vmax > vlevels[i]) {  // 
+			cairo_set_source_rgb(gfx, 0.8, 0.8, 0.0);	// close		
+			} else if (i == 10 && vmax > vlevels[i]) {  // above
 			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
-			} else if (i == 9 && vu > 11) {  // far above			
+			} else if (i == 11 && vmax > vlevels[i]) {  // far above			
 			cairo_set_source_rgb(gfx, 1.0, 0.2, 0.2);						
 			} else {
 			// Inactive background color
