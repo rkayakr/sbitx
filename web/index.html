@@ -2129,9 +2129,20 @@
         }
         ctx.strokeStyle = "#333";
         ctx.stroke();
+ 
+  
 
         // Plot spectrum
         if (update.startsWith("TX")) {
+            
+        ctx.beginPath();       // added reccomended audio limit kines
+        ctx.moveTo(0, drawHeight * 2 / 10);
+        ctx.lineTo(width, drawHeight * 2 / 10); 
+        ctx.moveTo(0, drawHeight * 8 / 10);
+        ctx.lineTo(width, drawHeight * 8 / 10);                      
+        ctx.strokeStyle = "#ff0000";
+        ctx.stroke();          
+            
             ctx.beginPath();
             const centerY = drawHeight * 4.5/8; // Exactly between the middle grid lines
             // Get the first sample value normalized to -1 to 1 range

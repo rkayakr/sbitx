@@ -160,7 +160,7 @@ static int jitter_buffer_read = 0;
 static int jitter_buffer_samples = 0;
 static pthread_mutex_t jitter_buffer_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-FILE *pf_record;
+FILE *pf_record = NULL;
 int16_t record_buffer[1024];
 int32_t modulation_buff[MAX_BINS];
 
@@ -2469,8 +2469,10 @@ void sdr_request(char *request, char *response)
 	{
 		if (!strcmp(value, "off"))
 		{
-			fclose(pf_record);
-			pf_record = NULL;
+      if (pf_record) {
+  			fclose(pf_record);
+  			pf_record = NULL;
+      }
 		}
 		else
 			pf_record = wav_start_writing(value);
@@ -2589,4 +2591,3 @@ void sdr_request(char *request, char *response)
 	/* else
 		  printf("*Error request[%s] not accepted\n", request); */
 }
-

@@ -2697,6 +2697,14 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 		cairo_line_to(gfx, f->x + i, f->y + grid_height);
 	}
 	cairo_stroke(gfx);
+	
+	int gh=grid_height/10;   // added reccomended audio limit lines	
+	cairo_set_source_rgb(gfx, 1,0,0);
+	cairo_move_to(gfx, f->x, f->y + 2*gh);
+	cairo_line_to(gfx, f->x + f->width, f->y + 2*gh);
+	cairo_move_to(gfx, f->x, f->y + 8*gh);
+	cairo_line_to(gfx, f->x + f->width, f->y + 8*gh);	
+	cairo_stroke(gfx);	
 
 	// start the plot
 	cairo_set_source_rgb(gfx, palette[SPECTRUM_PLOT][0],
@@ -10191,7 +10199,7 @@ void do_control_action(char *cmd)
 	}
 	else if (!strcmp(request, "REC OFF"))
 	{
-		sdr_request("record", "off");
+		sdr_request("record=off", response);
 		if (record_start != 0)
 			write_console(STYLE_LOG, "Recording stopped\n");
 		record_start = 0;
