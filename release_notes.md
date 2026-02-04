@@ -1,3 +1,8 @@
+# v5.301
+**Bug Fixes:**
+- Fixed blank logbook in web GUI
+- Fixed REC function for wav file generation
+
 # v5.3
 **New Features:**
 - Added tune option for CW mode
