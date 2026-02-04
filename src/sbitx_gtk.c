@@ -2711,7 +2711,7 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 	struct field *mode_f = get_field("r1:mode");   //  VU meter
 	if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "AM"))
 		{
-		const char *vu_text = "VLEVEL";
+		const char *vu_text = "APM";
 		cairo_set_font_size(gfx, STYLE_SMALL);	
 		int vu_text_width = measure_text(gfx, (char *)vu_text, STYLE_SMALL);
 		// Position and draw the text in gray
