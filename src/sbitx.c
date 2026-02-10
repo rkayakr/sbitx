@@ -114,6 +114,7 @@ double notch_freq = 0;		   // Notch frequency in Hz W2JON
 double notch_bandwidth = 0;	   // Notch bandwidth in Hz W2JON
 int compression_control_level; // Audio Compression level W2JON
 int txmon_control_level;	   // TX Monitor level W2JON
+float vmax=0.0;   // vu meter
 int get_rx_gain(void)
 {
 	// printf("rx_gain %d\n", rx_gain);
@@ -1688,7 +1689,8 @@ void tx_process(
 
 	int m = 0;
 	int j = 0;
-
+	double i_sample_max = 0.0;
+	double i_sample_old = 0.0;
 	// double max = -10.0, min = 10.0;
 	// gather the samples into a time domain array
 	for (i = MAX_BINS / 2; i < MAX_BINS; i++)
@@ -1726,6 +1728,10 @@ void tx_process(
 		// clip the overdrive to prevent damage up the processing chain, PA
 		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM)
 		{
+			i_sample_max = fmax(i_sample, i_sample_max); // find peak value
+			i_sample_max = 0.5 * i_sample_max + 0.5 * i_sample_old;
+			i_sample_old =  i_sample_max;  // do exponential smoothing
+			
 			if (i_sample < (-1.0 * voice_clip_level))
 				i_sample = -1.0 * voice_clip_level;
 			else if (i_sample > voice_clip_level)
@@ -1761,6 +1767,10 @@ void tx_process(
 		__real__ fft_in[i] = i_sample;
 		__imag__ fft_in[i] = q_sample;
 		m++;
+			
+		vmax = i_sample_max*1.0/voice_clip_level; // scale to 1.0
+		
+		i_sample_max=0.0;
 	}
 
 	// push the samples to the remote audio queue, decimated to 16000 samples/sec
