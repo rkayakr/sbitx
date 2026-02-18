@@ -7731,7 +7731,7 @@ gboolean check_plugin_controls(gpointer data)
 		if (!strcmp(apf_stat->value, "ON"))
 		{
 
-			printf(" apf_stat \n");
+//			printf(" apf_stat \n");
 			struct field *apf_gain_field = get_field("#apf_gain");
 			struct field *apf_width_field = get_field("#apf_width");
 			if ( ((abs(apf1.gain - (float)atoi(apf_gain_field->value))) > 1e-9) || // only if changed
