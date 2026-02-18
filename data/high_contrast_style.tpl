@@ -79,7 +79,7 @@ rgb=0.137, 0.682, 0.157
 
 [font:STYLE_LOG]
 index=0
-family=Sans
+family=Mono
 size=12
 color=0.67, 0.67, 0.67
 weight=normal
