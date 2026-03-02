@@ -28,7 +28,7 @@ struct encoder {
 
 // External variables from sbitx.c and sbitx_gtk.c
 extern struct power_settings band_power[];
-extern int fwdpower;
+extern float fwdpower;  // never used  RLB
 extern struct encoder enc_a;
 extern int in_tx;
 

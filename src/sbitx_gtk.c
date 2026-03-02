@@ -37,6 +37,7 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include <errno.h>
 #include <wiringPi.h>
 #include <wiringSerial.h>
+#include <pthread.h>
 #include "ftx_rules.h"
 #include "sdr.h"
 #include "sound.h"
@@ -56,18 +57,16 @@ The initial sync between the gui values, the core radio values, settings, et al 
 #include "ntputil.h"
 #include "para_eq.h"
 #include "eq_ui.h"
-#include "style_config.h"
 #include "calibration_ui.h"
 #include "swr_monitor.h"
 #include <time.h>
 extern int get_rx_gain(void);
 extern int calculate_s_meter(struct rx *r, double rx_gain);
+extern int cur_band;
 extern struct rx *rx_list;
 extern char *cw_get_stats(char *buf, size_t len);
 /* VSWR trip flag Clear on band change so previous trips don't persist. */
 extern int vswr_tripped;
-extern float vmax; // vlevel meter, now with log voltage levels - not power
-float vlevels[12]= {.1, .126, .158, .2, .25, .316, .398, .5, .631, .794, 1.0, 1.26};
 void change_band(char *request);
 void highlight_band_field(int new_band);
 /* command  buffer for commands received from the remote */
@@ -87,6 +86,7 @@ int main_ui_encoders_enabled = 1;  // Flag to disable encoders when calibration 
 
 static float wf_min = 1.0f; // Default to 100%
 static float wf_max = 1.0f; // Default to 100%
+pthread_mutex_t wf_buffer_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 int scope_avg = 10; // Default value for SCOPEAVG
 float sp_baseline = 0;
@@ -156,9 +156,6 @@ static int mouse_down = 0;
 static int last_mouse_x = -1;
 static int last_mouse_y = -1;
 
-// Font-Style Config
-static StyleConfig global_style_config;
-
 // MFK timeout state
 static int mfk_locked_to_volume = 0;
 static unsigned long mfk_last_ms = 0;
@@ -223,7 +220,8 @@ int screen_width = 800, screen_height = 480;
 
 // we just use a look-up table to define the fonts used
 // the struct field indexes into this table
-struct font_style {
+struct font_style
+{
 	int index;
 	float r, g, b;
 	char name[32];
@@ -265,7 +263,6 @@ struct font_style font_table[] = {
 	{STYLE_TELNET, 0, 1, 0, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 
 	// non-semantic styles, for other fields and UI elements
-	{STYLE_HIGHLIGHT, 1, 1, 1, "Mono", 11, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_FIELD_LABEL, 0, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_FIELD_VALUE, 1, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
 	{STYLE_LARGE_FIELD, 0, 1, 1, "Mono", 14, CAIRO_FONT_WEIGHT_NORMAL, CAIRO_FONT_SLANT_NORMAL},
@@ -304,7 +301,6 @@ uint32_t console_last_row = 0; // increments indefinitely; goes into spans[s].st
 int console_current_line = 0; // index in console_stream
 int console_selected_line = -1; // index
 time_t console_current_time = 0;
-static int console_scroll_offset = 0;  // 0 = tail (follow live), higher = lines above tail
 
 // max power and swr from most recent transmission, for the log
 int last_fwdpower = 0;
@@ -891,7 +887,7 @@ struct field main_controls[] = {
 	 "", 100, 99999, 100, 0},
 	{"mouse_pointer", NULL, 1000, -1000, 50, 50, "MP", 40, "LEFT", FIELD_SELECTION, STYLE_FIELD_VALUE,
 	 "BLANK/LEFT/RIGHT/CROSSHAIR", 0, 0, 0, 0},
-	{"recent_qso_age", NULL, 1000, -1000, 50, 50, "RECENT_QSO_AGE", 40, "24", FIELD_NUMBER, STYLE_FIELD_VALUE,
+	{"recent_qso_age", NULL, 1000, -1000, 50, 50, "RCT_QSO_AGE", 40, "24", FIELD_NUMBER, STYLE_FIELD_VALUE,
 	 "", 0, 99999, 1, 0}, // age in hours that we consider "recent" enough to avoid calling again
 
 	// parametric 5-band eq controls  ( BX[F|G|B] = Band# Frequency | Gain | Bandwidth W2JON
@@ -1493,7 +1489,6 @@ void console_init()
 	assert(f);
 	f->is_dirty = TRUE;
 	console_current_line = 0;
-	console_scroll_offset = 0;
 }
 
 // this is an alternative to calling console_init() that
@@ -1615,15 +1610,6 @@ int console_init_next_line()
 		console_current_line = 0;
 	memset(&console_stream[console_current_line], 0, sizeof(struct console_line));
 	return console_current_line;
-}
-
-// compute start line accounting for scrollback and wrapping ring buffer
-static int console_start_line(int visible_lines)
-{
-	int head = console_current_line;
-	int view_line = (head - console_scroll_offset + MAX_CONSOLE_LINES) % MAX_CONSOLE_LINES;
-	int start_line = (view_line - visible_lines + MAX_CONSOLE_LINES) % MAX_CONSOLE_LINES;
-	return start_line;
 }
 
 struct console_line *console_get_line(int line)
@@ -1763,11 +1749,9 @@ void draw_console(cairo_t* gfx, struct field* f)
 	int y = f->y;
 	int j = 0;
 
-	int start_line = console_start_line(n_lines);
+	int start_line = console_current_line - n_lines;
 	if (start_line < 0)
 		start_line += MAX_CONSOLE_LINES;
-
-	const char *logger_call = field_str("CALL");
 
 	for (int i = 0; i <= n_lines; i++) {
 		struct console_line* line = console_stream + start_line;
@@ -1817,14 +1801,7 @@ void draw_console(cairo_t* gfx, struct field* f)
 				break; // don't draw this span
 			}
 			buf[wlen] = 0;
-			int sem = line->spans[span].semantic;
-			if (logger_call[0] && (sem == STYLE_CALLER || sem == STYLE_CALLEE || sem == STYLE_RECENT_CALLER)) {
-				// If a callsign in the console starts with the prefix typed into the logger CALL field,
-				// or if it matches it completely, draw with the highlight color.
-				if (!strncasecmp(buf, logger_call, strlen(logger_call)))
-					sem = STYLE_HIGHLIGHT;
-			}
-			x += draw_text(gfx, f->x + 2 + x, y, buf, sem);
+			x += draw_text(gfx, f->x + 2 + x, y, buf, line->spans[span].semantic);
 			//~ printf("   drew span %d col %d len %d style %d end @ %d px: '%s' from '%s'\n",
 				//~ span, line->spans[span].start_column, len, line->spans[span].semantic, x, buf, line->text);
 		}
@@ -1956,7 +1933,8 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 	int line_height = font_table[f->font_index].height;
 	int n_lines = (f->height / line_height) - 1;
 	int l = 0;
-	int start_line = console_start_line(n_lines);
+	int start_line = console_current_line - n_lines;
+
 	switch (event)
 	{
 	case FIELD_DRAW:
@@ -1991,21 +1969,10 @@ int do_console(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		break;
 	}
 	case FIELD_EDIT:
-		if (a == MIN_KEY_UP || a == MIN_KEY_DOWN) {
-			int max_offset = MAX_CONSOLE_LINES - n_lines - 1;
-			if (max_offset < 0) max_offset = 0;
-
- 		  if (a == MIN_KEY_UP && console_scroll_offset < max_offset) {
-				console_scroll_offset++;
-			} else if (a == MIN_KEY_DOWN && console_scroll_offset > 0) {
-				console_scroll_offset--;
-			}
-
-			// Keep selection in view (top line when scrolling)
-			start_line = console_start_line(n_lines);
-			console_selected_line = start_line;
-			f->is_dirty = 1;
-		}
+		if (a == MIN_KEY_UP && console_selected_line > start_line)
+			console_selected_line--;
+		else if (a == MIN_KEY_DOWN && console_selected_line < start_line + n_lines - 1)
+			console_selected_line++;
 		break;
 	}
 	return 0;
@@ -2188,9 +2155,7 @@ void save_user_settings(int forced)
 	{
 		// Skip #band and #band_stack_pos - these are computed fields, not saved
 		// The band stack index is saved per-band in the [80M], [40M], etc. sections
-		if (!strcmp(active_layout[i].cmd, "#band") || 
-			!strcmp(active_layout[i].cmd, "#band_stack_pos") ||
-			!strcmp(active_layout[i].cmd, "#ftx_auto"))
+		if (!strcmp(active_layout[i].cmd, "#band") || !strcmp(active_layout[i].cmd, "#band_stack_pos"))
 			continue;
 		fprintf(f, "%s=%s\n", active_layout[i].cmd, active_layout[i].value);
 	}
@@ -2349,9 +2314,7 @@ static int user_settings_handler(void *user, const char *section,
 
 		// Skip #band and #band_stack_pos - these are computed fields from the old implementation
 		// They should not be loaded from settings
-		if (!strcmp(cmd, "#band") || 
-			!strcmp(cmd, "#band_stack_pos") ||
-			!strcmp(cmd, "#ftx_auto"))  // ftx_auto needs to be reset to default on launch
+		if (!strcmp(cmd, "#band") || !strcmp(cmd, "#band_stack_pos"))
 		{
 			return 1;
 		}
@@ -2733,85 +2696,7 @@ void draw_modulation(struct field *f, cairo_t *gfx)
 		cairo_line_to(gfx, f->x + i, f->y + grid_height);
 	}
 	cairo_stroke(gfx);
-	
-	int gh=grid_height/10;   // added reccomended audio limit lines	
-	cairo_set_source_rgb(gfx, 1,0,0);
-	cairo_move_to(gfx, f->x, f->y + 2*gh);
-	cairo_line_to(gfx, f->x + f->width, f->y + 2*gh);
-	cairo_move_to(gfx, f->x, f->y + 8*gh);
-	cairo_line_to(gfx, f->x + f->width, f->y + 8*gh);	
-	cairo_stroke(gfx);
-		
-	struct field *mode_f = get_field("r1:mode");   //  VU meter
-	if (!strcmp(mode_f->value, "USB") || !strcmp(mode_f->value, "LSB") || !strcmp(mode_f->value, "AM"))
-		{
-		const char *vu_text = "APM";
-		cairo_set_font_size(gfx, STYLE_SMALL);	
-		int vu_text_width = measure_text(gfx, (char *)vu_text, STYLE_SMALL);
-		// Position and draw the text in gray
-		int vu_text_x = f->x + 5;
-		int vu_text_y = f->y + 7;
 
-		// Draw text
-		cairo_set_source_rgb(gfx, 0.9, 0.9, 0.0);  // Yellow text
-		cairo_move_to(gfx, vu_text_x, vu_text_y);
-		cairo_show_text(gfx, vu_text);
-			
-				// Draw LED indicators
-		int box_width = 10;
-		int box_height = 5;
-		int spacing = 2;
-		int led_y = vu_text_y - 5;
-		int led_x = vu_text_x + vu_text_width + 5;
-
-		// Draw LED background
-		cairo_save(gfx);
-		cairo_set_source_rgba(gfx, 0.3, 0.3, 0.3, 0.9);
-		cairo_rectangle(gfx, led_x - 2, led_y - 2, (box_width + spacing) * 12 + 2,  // 5
-						box_height + 4);
-		cairo_fill(gfx);
-		
-//		int vu_value=max(1,vu-2);	
-				// Draw 10 LEDs
-		for (int i = 0; i < 12; i++) {
-			cairo_rectangle(gfx, led_x + i * (box_width + spacing), led_y, box_width,
-							box_height);
-
-			// Set LED color based on vmax value and position
-			if (i == 0 && vmax > vlevels[i]) {  // Far below
-			cairo_set_source_rgb(gfx, 0.0, 0.6, 0.0);
-			} else if (i == 1 && vmax > vlevels[i]) {  // very low
-			cairo_set_source_rgb(gfx, 0.0, 0.6, 0.0);
-			} else if (i == 2 && vmax > vlevels[i]) {  // 
-			cairo_set_source_rgb(gfx, 0.0, 0.6, 0.0);
-			} else if (i == 3 && vmax > vlevels[i]) {  // 
-			cairo_set_source_rgb(gfx, 0.0, 0.6, 0.0);
-			} else if (i == 4 && vmax > vlevels[i]) {  // 
-			cairo_set_source_rgb(gfx, 0.0, 0.6, 0.0);
-			} else if (i == 5 && vmax > vlevels[i]) {  // 
-			cairo_set_source_rgb(gfx, 0.0, 0.7, 0.0);
-			} else if (i == 6 && vmax > vlevels[i]) {  // 
-			cairo_set_source_rgb(gfx, 0.0, 0.8, 0.0);
-			} else if (i == 7 && vmax > vlevels[i]) {  // 
-			cairo_set_source_rgb(gfx, 0.0, 0.9, 0.0);			
-			} else if (i == 8 && vmax > vlevels[i]) {  // 
-			cairo_set_source_rgb(gfx, 0.0, 1.0, 0.0);												
-			} else if (i == 9 && vmax > vlevels[i]) {  // 
-			cairo_set_source_rgb(gfx, 0.8, 0.8, 0.0);	// close		
-			} else if (i == 10 && vmax > vlevels[i]) {  // above
-			cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);
-			} else if (i == 11 && vmax > vlevels[i]) {  // far above			
-			cairo_set_source_rgb(gfx, 1.0, 0.2, 0.2);						
-			} else {
-			// Inactive background color
-			cairo_set_source_rgb(gfx, 0.13, 0.13, 0.13);
-			}
-
-			cairo_fill(gfx);
-		}	
-			
-	}
-	
 	// start the plot
 	cairo_set_source_rgb(gfx, palette[SPECTRUM_PLOT][0],
 						 palette[SPECTRUM_PLOT][1], palette[SPECTRUM_PLOT][2]);
@@ -2886,6 +2771,7 @@ void init_waterfall()
 	// Print dimensions for debugging -W2ON
 	// printf("Waterfall dimensions: width = %d, height = %d\n", f->width, f->height);
 
+	pthread_mutex_lock(&wf_buffer_mutex);
 	if (wf)
 	{
 		free(wf);
@@ -2898,6 +2784,8 @@ void init_waterfall()
 		exit(0);
 	}
 	memset(wf, 0, (MAX_BINS / 2) * f->height * sizeof(int));
+	pthread_mutex_unlock(&wf_buffer_mutex);
+
 
 	if (waterfall_map)
 	{
@@ -3041,6 +2929,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 
 	int index = 0;
 	static float wf_offset = 0;
+	pthread_mutex_lock(&wf_buffer_mutex);
 	for (int i = 0; i < f->width; i++)
 	{
 		// Scale the input value (original behavior restored)
@@ -3101,6 +2990,7 @@ void draw_waterfall(struct field *f, cairo_t *gfx)
 			waterfall_map[index++] = 0;						 // Blue
 		}
 	}
+	pthread_mutex_unlock(&wf_buffer_mutex);
 
 	// Use the same baseline that had been calculated for the spectrum
 	// This gives good results as it's averaged, hence less noisy
@@ -3602,8 +3492,6 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		cairo_set_source_rgb(gfx, 1.0, 0.0, 0.0);  // Red
 		cairo_show_text(gfx, s);  //swr_msg
 	}
-	
-
 
 	if (zero_beat_enabled) {
 		// --- Zero Beat indicator
@@ -3928,9 +3816,11 @@ void draw_spectrum(struct field *f_spectrum, cairo_t *gfx)
 		cairo_line_to(gfx, f->x + f->width - (int)x, f->y + grid_height - enhanced_y);
 
 		// Fill the waterfall with the original (unchanged) y value
+		pthread_mutex_lock(&wf_buffer_mutex);
 		for (int k = 0; k <= 1 + (int)x_step; k++)
 			wf[k + f->width - (int)x] = (y * 100) / grid_height; // Use original y for waterfall
 
+		pthread_mutex_unlock(&wf_buffer_mutex);
 		x += x_step;
 		if (f->width <= x)
 			x = f->width - 1;
@@ -5079,6 +4969,7 @@ struct band *get_band_by_frequency(int frequency)
 		// Use the start and stop fields to define the band edges
 		if (frequency >= band_stack[i].start && frequency <= band_stack[i].stop)
 		{
+			cur_band = i;
 			return &band_stack[i]; // Return a pointer to the matching band
 		}
 	}
@@ -5382,7 +5273,6 @@ void call_wipe()
 
 	// Reset cmd/comment field
 	set_field("#text_in", "");
-	soft_console_init(); // undo any highlighting
 }
 
 void update_titlebar()
@@ -5569,11 +5459,6 @@ int do_text(struct field *f, cairo_t *gfx, int event, int a, int b, int c)
 		f->is_dirty = 1;
 		f->update_remote = 1;
 		f_last_text = f;
-		if (f == get_field("#contact_callsign")) {
-			if (a == MIN_KEY_ESC)
-				f->value[0] = 0;
- 			soft_console_init();
-		}
 		return 1;
 	}
 	else if (event == FIELD_DRAW)
@@ -7730,8 +7615,8 @@ gboolean check_plugin_controls(gpointer data)
 	{
 		if (!strcmp(apf_stat->value, "ON"))
 		{
-
-//			printf(" apf_stat \n");
+/*
+			printf(" apf_stat \n");
 			struct field *apf_gain_field = get_field("#apf_gain");
 			struct field *apf_width_field = get_field("#apf_width");
 			if ( ((abs(apf1.gain - (float)atoi(apf_gain_field->value))) > 1e-9) || // only if changed
@@ -7740,8 +7625,9 @@ gboolean check_plugin_controls(gpointer data)
 				apf1.gain = (float)atoi(apf_gain_field->value);
 				apf1.width = (float)atoi(apf_width_field->value);
 				apf1.ison = 1;
+				init_apf();
 			}
-			init_apf();
+*/
 			apf1.ison = 1;
 		}
 		else if (!strcmp(apf_stat->value, "OFF"))
@@ -10312,7 +10198,7 @@ void do_control_action(char *cmd)
 	}
 	else if (!strcmp(request, "REC OFF"))
 	{
-		sdr_request("record=off", response);
+		sdr_request("record", "off");
 		if (record_start != 0)
 			write_console(STYLE_LOG, "Recording stopped\n");
 		record_start = 0;
@@ -10597,14 +10483,8 @@ void cmd_exec(char *cmd)
 	{
 		console_init();
 	}
-	else if (!strcasecmp(exec, "savestyle")) {
-	char style_path[PATH_MAX];
-	char *home_path = getenv("HOME");
-	sprintf(style_path, "%s/sbitx/data/current_style.tpl", home_path);
-	save_default_style_config(style_path);
-	write_console(STYLE_LOG, "Current style saved to current_style.tpl\n");
-	}
-	else if (!strcasecmp(exec, "maxvswr"))
+
+		else if (!strcasecmp(exec, "maxvswr"))
 	{
 		char msg[128];
 		if (strlen(args) > 0)
@@ -11087,24 +10967,7 @@ int main(int argc, char *argv[])
 	active_layout = main_controls;
 
 	// ensure_single_instance();
-  
-	// Load style configuration
-	char style_path[PATH_MAX];
-	char *home_path = getenv("HOME");
-		
-	// Try to load user's custom style first
-	sprintf(style_path, "%s/sbitx/data/user_style.tpl", home_path);
-	if (load_style_config(style_path, &global_style_config) < 0) {
-		// Fall back to default style
-		sprintf(style_path, "%s/sbitx/data/default_style.tpl", home_path);
-		if (load_style_config(style_path, &global_style_config) < 0) {
-			printf("No style config found, using built-in defaults\n");
-		}
-	}
-    
-	// Apply the loaded style configuration
-	apply_style_config(&global_style_config);
-  
+
 	// unlink any pending ft8 transmission
 	unlink("/home/pi/sbitx/ft8tx_float.raw");
 	call_wipe();
@@ -11284,6 +11147,4 @@ void cleanup_on_exit() {
 	udp_broadcast_close();
 
 	clear_ftx_rules();
-
-	logbook_close();
 }
