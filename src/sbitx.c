@@ -1747,7 +1747,7 @@ void tx_process(
 		else if (r->mode == MODE_CW || r->mode == MODE_FT8 || r->mode == MODE_FT4)
 			i_sample = modem_next_sample(r->mode) / 3;
 		else if (r->mode  == MODE_CWR)
-			i_sample = modem_next_sample(r->mode) / 3.5;	// reduce CWR to CW level KD8CGH			
+			i_sample = modem_next_sample(r->mode) * .285; //  reduce CWR to CW level KD8CGH			
 		else if (r->mode == MODE_AM)
 		{
 			// double modulation = (1.0 * vfo_read(&tone_a)) / 1073741824.0;
@@ -1769,6 +1769,9 @@ void tx_process(
 			} else {
 				i_sample = (1.0 * input_mic[j]) / 2000000000.0;
 			}
+			if (r->mode  == MODE_LSB)
+			i_sample = i_sample * .71;	// reduce LSB to USB level KD8CGH			
+			
 		}
 
 		// clip the overdrive to prevent damage up the processing chain, PA
