@@ -107,6 +107,8 @@ static int bridge_compensation = 100;
 static double voice_clip_level = 0.04;
 static int in_calibration = 1; // this turns off alc, clipping et al
 static double ssb_val = 1.0;   // W9JES
+static double cw_bal = 1.0;   // KD8CGH
+static double ssb_bal = 1.0;  // KD8CGH
 int dsp_enabled = 0;		   // dsp W2JON
 int anr_enabled = 0;		   // anr W2JON
 int notch_enabled = 0;		   // notch filter W2JON
@@ -1700,8 +1702,10 @@ void tx_process(
 			i_sample = (1.0 * (vfo_read(&tone_a) + vfo_read(&tone_b))) / 50000000000.0;
 		else if (r->mode == MODE_CALIBRATE)
 			i_sample = (1.0 * (vfo_read(&tone_a))) / 30000000000.0;
-		else if (r->mode == MODE_CW || r->mode == MODE_CWR || r->mode == MODE_FT8 || r->mode == MODE_FT4)
+		else if (r->mode == MODE_CW || r->mode == MODE_FT8 || r->mode == MODE_FT4)
 			i_sample = modem_next_sample(r->mode) / 3;
+		else if (r->mode  == MODE_CWR)
+			i_sample = (modem_next_sample(r->mode) /3) * cw_bal; //  reduce CWR to CW level KD8CGH			
 		else if (r->mode == MODE_AM)
 		{
 			// double modulation = (1.0 * vfo_read(&tone_a)) / 1073741824.0;
@@ -1723,6 +1727,8 @@ void tx_process(
 			} else {
 				i_sample = (1.0 * input_mic[j]) / 2000000000.0;
 			}
+			if (r->mode  == MODE_LSB)
+				i_sample = i_sample * ssb_bal;	// reduce LSB to USB level KD8CGH		
 		}
 
 		// clip the overdrive to prevent damage up the processing chain, PA
@@ -2072,6 +2078,10 @@ static int hw_settings_handler(void *user, const char *section,
 	// Add variable for SSB/CW Power Factor Adjustment W9JES
 	if (!strcmp(name, "ssb_val"))
 		ssb_val = atof(value);
+	if (!strcmp(name, "ssb_bal"))
+		ssb_bal = atof(value);
+	if (!strcmp(name, "cw_bal"))
+		cw_bal = atof(value);
 	// Add TCXO Calibration W9JES/KK4DAS
 	if (!strcmp(section, "tcxo"))
 	{
