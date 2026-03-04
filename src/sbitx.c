@@ -1856,8 +1856,8 @@ void tx_process(
 	if (r->mode == MODE_LSB || r->mode ==MODE_USB)  // adjust SSB modulation power factor KD8CGH
 	for (i = 0; i < MAX_BINS / 2; i++)
 	{
-		__real__ fft_out[i] = __real__ fft_out[i] * ssb_val;
-		__imag__ fft_out[i] = __imag__ fft_out[i] * ssb_val;
+		__real__ fft_out[i] = __real__ fft_out[i] * ssb_bal;
+		__imag__ fft_out[i] = __imag__ fft_out[i] * ssb_bal;
 	}
 
 	// now rotate to the tx_bin
@@ -2116,8 +2116,8 @@ static int hw_settings_handler(void *user, const char *section,
 	if (!strcmp(name, "bfo_freq"))
 		bfo_freq = atoi(value);
 	// Add variable for SSB/CW Power Factor Adjustment W9JES
-	if (!strcmp(name, "ssb_val"))
-		ssb_val = atof(value);
+	if (!strcmp(name, "ssb_bal"))
+		ssb_bal = atof(value);
 	// Add TCXO Calibration W9JES/KK4DAS
 	if (!strcmp(section, "tcxo"))
 	{
