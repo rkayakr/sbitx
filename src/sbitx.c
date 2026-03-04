@@ -1,4 +1,3 @@
-
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -51,9 +50,13 @@ FILE *pf_debug = NULL;
 #define SBITX_V2 (1)
 
 int sbitx_version = SBITX_V2;
-int fwdpower, vswr;
-int fwdpower_calc;
-int fwdpower_cnt;
+int fwdpower = 0;
+float watts = 0.0;
+float fwdvoltage = 0.0; 
+float vrms = 0.0; 
+int vswr = 0;
+int cur_band;
+
 
 float fft_bins[MAX_BINS]; // spectrum ampltiudes
 float spectrum_window[MAX_BINS];
@@ -63,6 +66,13 @@ fftw_plan plan_spectrum;
 
 void set_rx1(int frequency);
 void tr_switch(int tx_on);
+
+static inline uint64_t now_ns(void) {
+    struct timespec ts;
+    // Prefer RAW if supported; otherwise use CLOCK_MONOTONIC.
+    clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+}
 
 // Wisdom Defines for the FFTW and FFTWF libraries
 // Options for WISDOM_MODE from least to most rigorous are FFTW_ESTIMATE, FFTW_MEASURE, FFTW_PATIENT, and FFTW_EXHAUSTIVE
@@ -105,7 +115,7 @@ static int tr_relay = 0;
 static int rx_pitch = 700; // used only to offset the lo for CW,CWR
 static int bridge_compensation = 100;
 static double voice_clip_level = 0.04;
-static int in_calibration = 1; // this turns off alc, clipping et al
+static int in_calibration = 0; // cal off, turns on alc, clipping et al
 static double ssb_val = 1.0;   // W9JES
 int dsp_enabled = 0;		   // dsp W2JON
 int anr_enabled = 0;		   // anr W2JON
@@ -173,20 +183,22 @@ struct power_settings
 {
 	int f_start;
 	int f_stop;
-	int max_watts;
+	float max_watts;
 	double scale;
 };
 
 struct power_settings band_power[] = {
-	{3500000, 4000000, 37, 0.002},
+	{3500000, 4000000, 40, 0.002},
 	{5251500, 5360000, 40, 0.0015},
 	{7000000, 7300009, 40, 0.0015},
-	{10000000, 10200000, 35, 0.0019},
-	{14000000, 14300000, 35, 0.0025},
-	{18000000, 18200000, 20, 0.0023},
+	{10000000, 10200000, 40, 0.0019},
+	{14000000, 14300000, 30, 0.0025},
+	{18000000, 18200000, 25, 0.0023},
 	{21000000, 21450000, 20, 0.003},
-	{24800000, 25000000, 20, 0.0034},
-	{28000000, 29700000, 20, 0.0037}};
+	{24800000, 25000000, 15, 0.0034},
+	{28000000, 29700000, 12, 0.0037}};
+	
+extern int mwatts_index;  // assign for use in alc
 
 #define CMD_TX (2)
 #define CMD_RX (3)
@@ -1146,7 +1158,6 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 {
 	int i = 0;
 	double i_sample;
-
 	// STEP 1: First add the previous M samples
 	// memcpy to replace for loop, ffts are 16 bytes
 	memcpy(fft_in, fft_m, MAX_BINS / 2 * 8 * 2);
@@ -1531,9 +1542,23 @@ void read_power()
 	uint8_t response[4];
 	int16_t vfwd, vref;
 	int fwdpw;
+	float rfwatts;
+	char msg[50];
+	static int last_vfwd = 0;  // check for change
 
-	char buff[20];
-
+/*	
+ 	static uint64_t last_ns = 0;  // timing
+	uint64_t delta_ns;				
+    uint64_t t = now_ns();
+ 	static float read_dt; 
+ 	float dt_ms=0.0;  
+    if (last_ns != 0) {
+        delta_ns = t - last_ns;
+//        printf("Δt = %.3f ms\n", delta_ns / 1e6);
+    }
+    last_ns = t;	
+	dt_ms = delta_ns / 1e6;
+*/	
 	if (!in_tx)
 		return;
 	if (i2cbb_read_i2c_block_data(0x8, 0, 4, response) == -1)
@@ -1541,10 +1566,16 @@ void read_power()
 
 	vfwd = vref = 0;
 
-	memcpy(&vfwd, response, 2);
+	memcpy(&vfwd, response, 2);  // raw reads
 	memcpy(&vref, response + 2, 2);
-	//	printf("%d:%d\n", vfwd, vref);
+//	printf("%d %d %.1f\n", vfwd, last_vfwd, dt_ms);
+//	read_dt += dt_ms;
+	if ( vfwd == last_vfwd) return;  // no change so do nothing
+	
+	last_vfwd = vfwd;
+	
 
+	
 	// Very low power readings may spoil the swr calculation, especially in CW modes between symbols
 	// Better not to calculate the swr at all if the measured power is under a very minimal level
 	if (vfwd > 3) {
@@ -1556,35 +1587,42 @@ void read_power()
 
 	// here '400' is the scaling factor as our ref power output is 40 watts
 	// this calculates the power as 1/10th of a watt, 400 = 40 watts
-	int fwdvoltage = (vfwd * 40) / bridge_compensation;
-
-	// Implement a simple "hold" algorithm in order to show
-	// readable and meaningful power readings that should be the pep power
-	fwdpw = (fwdvoltage * fwdvoltage) / 400;
-	if (fwdpw > fwdpower_calc) {
-		fwdpower_calc = fwdpw;
+	
+	fwdvoltage = (vfwd * 40.0) / bridge_compensation;  
+	fwdpw = (fwdvoltage * fwdvoltage) / 400; // watts*10
+	if ( fwdpw > 0 ) {  // displayed power expoential smoothing a=.5 
+	fwdpower = (2*fwdpw + 2*fwdpower)/4;  
+	}	else  {
+		fwdpower = fwdpw;  // start 
 	}
-	if (!fwdpower_cnt) {
-		fwdpower = fwdpower_calc;
-		fwdpower_calc = fwdpw;
-	}
-	if (!fwdpower)
-		fwdpower = fwdpw;
-	fwdpower_cnt = ++fwdpower_cnt % 100;
+//	fwdpower = fwdpw; 
+	if (vfwd > 1020) {   // check global limit by raw voltage read, max 1023
+		alc_level = 0.5;
+		snprintf(msg, sizeof(msg), "\nglobal ALC tripped at 42 watts\n");
+		write_console(STYLE_LOG, msg);
+		return;		
+	}			
+//	printf("fwdvoltage %.1f vrms %.1f fwdpw %d fwdpower %d \n",fwdvoltage,vrms,fwdpw,fwdpower);	
 
-	int rf_v_p2p = (fwdvoltage * 126) / 400;
-	//	printf("rf volts: %d, alc %g, %d watts ", rf_v_p2p, alc_level, fwdpower/10);
-	if (rf_v_p2p > 135 && !in_calibration)
+	vrms = (vfwd * 40.0 * 0.1118) / bridge_compensation; // not smoothed
+	rfwatts = vrms * vrms/50;  // now, not smoothed
+//	printf("rfwatts %.1f fwdpw %d vfwd %d alc %4f read_dt %.1f\n",rfwatts, fwdpw, vfwd, alc_level, read_dt);
+	if ( rfwatts > band_power[cur_band].max_watts && !in_calibration)
 	{
-		alc_level *= 135.0 / (1.0 * rf_v_p2p);
-		printf("ALC tripped, to %d percent\n", (int)(100 * alc_level));
-	}
-	/*	else if (alc_level < 0.95){
-			printf("alc releasing to ");
-			alc_level *= 1.02;
+		alc_level = alc_level-.06;
+//		printf("max_watts %f rfwatts %f ALC tripped %f vfwd %d\n",band_power[cur_band].max_watts,
+//		rfwatts, alc_level,vfwd);
+		snprintf(msg, sizeof(msg), "\nband ALC at %.1f watts limit\n", band_power[cur_band].max_watts);
+		write_console(STYLE_LOG, msg);		
+		
+	}	else if (alc_level < 0.991){
+			alc_level += .01;
+//			snprintf(msg, sizeof(msg), "\n ALC releasing to %.2f\n", alc_level);
+//			write_console(STYLE_LOG, msg);				
+//			printf("alc releasing to %f \n",alc_level);
 		}
-	*/
-	//	printf("alc: %g\n", alc_level);
+//	read_dt=0.0; // reset  timer
+//	printf("in_calibratn %d\n", in_calibration);
 }
 
 static int tx_process_restart = 0;
@@ -1690,7 +1728,7 @@ void tx_process(
 	int m = 0;
 	int j = 0;
 	double i_sample_max = 0.0;
-	double i_sample_old = 0.0;
+	double i_samples = 0.0;
 	// double max = -10.0, min = 10.0;
 	// gather the samples into a time domain array
 	for (i = MAX_BINS / 2; i < MAX_BINS; i++)
@@ -1700,8 +1738,10 @@ void tx_process(
 			i_sample = (1.0 * (vfo_read(&tone_a) + vfo_read(&tone_b))) / 50000000000.0;
 		else if (r->mode == MODE_CALIBRATE)
 			i_sample = (1.0 * (vfo_read(&tone_a))) / 30000000000.0;
-		else if (r->mode == MODE_CW || r->mode == MODE_CWR || r->mode == MODE_FT8 || r->mode == MODE_FT4)
+		else if (r->mode == MODE_CW || r->mode == MODE_FT8 || r->mode == MODE_FT4)
 			i_sample = modem_next_sample(r->mode) / 3;
+		else if (r->mode  == MODE_CWR)
+			i_sample = modem_next_sample(r->mode) * .285; //  reduce CWR to CW level KD8CGH			
 		else if (r->mode == MODE_AM)
 		{
 			// double modulation = (1.0 * vfo_read(&tone_a)) / 1073741824.0;
@@ -1723,14 +1763,17 @@ void tx_process(
 			} else {
 				i_sample = (1.0 * input_mic[j]) / 2000000000.0;
 			}
+			if (r->mode  == MODE_LSB)
+			i_sample = i_sample * .71;	// reduce LSB to USB level KD8CGH			
+			
 		}
 
 		// clip the overdrive to prevent damage up the processing chain, PA
 		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM)
 		{
 			i_sample_max = fmax(i_sample, i_sample_max); // find peak value
-			i_sample_max = 0.5 * i_sample_max + 0.5 * i_sample_old;
-			i_sample_old =  i_sample_max;  // do exponential smoothing
+//			i_sample_max = 0.4 * i_sample_max + 0.6 * i_samples; // do exponential smoothing on max
+//			i_samples =  i_sample_max;  
 			
 			if (i_sample < (-1.0 * voice_clip_level))
 				i_sample = -1.0 * voice_clip_level;
@@ -1768,10 +1811,10 @@ void tx_process(
 		__imag__ fft_in[i] = q_sample;
 		m++;
 			
-		vmax = i_sample_max*1.0/voice_clip_level; // scale to 1.0
-		
-		i_sample_max=0.0;
+
 	}
+	vmax = i_sample_max*1.0/voice_clip_level; // scale to 1.0	
+
 
 	// push the samples to the remote audio queue, decimated to 16000 samples/sec
 	for (i = 0; i < MAX_BINS / 2; i += 6) {
@@ -1809,7 +1852,8 @@ void tx_process(
 			__real__ fft_out[i] = 0;
 			__imag__ fft_out[i] = 0;
 		}
-	// adjust USB/CW modulation power factor W9JES
+	
+	if (r->mode == MODE_LSB || r->mode ==MODE_USB)  // adjust SSB modulation power factor KD8CGH
 	for (i = 0; i < MAX_BINS / 2; i++)
 	{
 		__real__ fft_out[i] = __real__ fft_out[i] * ssb_val;
@@ -1849,7 +1893,7 @@ void tx_process(
 			max = output_tx[i];
 		// output_tx[i] = 0;
 	}
-	//	printf("min %d, max %d\n", min, max);
+//		printf("alc_level %f  ", alc_level);
 
 	read_power();
 
@@ -2065,6 +2109,8 @@ static int hw_settings_handler(void *user, const char *section,
 		band_power[hw_init_index].f_start = atoi(value);
 	if (!strcmp(name, "f_stop"))
 		band_power[hw_init_index].f_stop = atoi(value);
+	if (!strcmp(name, "max_watts"))
+		band_power[hw_init_index].max_watts = atof(value);
 	if (!strcmp(name, "scale"))
 		band_power[hw_init_index++].scale = atof(value);
 	if (!strcmp(name, "bfo_freq"))
@@ -2153,16 +2199,16 @@ void calibrate_band_power(struct power_settings *b)
 		set_tx_power_levels();
 		delay(50); // let the new power levels take hold
 
-		int avg = 0;
+		float avg = 0;
 		// take many readings to get a peak
 		for (j = 0; j < 10; j++)
 		{
 			delay(20);
-			avg += fwdpower / 10; // fwdpower in 1/10th of a watt
-								  //			printf("  avg %d, fwd %d scale %g\n", avg, fwdpower, b->scale);
+			avg += fwdpower; // fwdpower in  watts								  
+			//	printf("  avg %d, fwd %d scale %g\n", avg, fwdpower, b->scale);
 		}
-		avg /= 10;
-		printf("*%d, f %d : avg %d, max = %d\n", i, b->f_start, avg, b->max_watts);
+		avg /= 10.0;
+		printf("*%d, f %d : avg %f, max = %f\n", i, b->f_start, avg, b->max_watts);
 		if (avg >= b->max_watts)
 			break;
 	}
@@ -2191,8 +2237,9 @@ void save_hw_settings()
 	// now save the band stack
 	for (int i = 0; i < sizeof(band_power) / sizeof(struct power_settings); i++)
 	{
-		fprintf(f, "[tx_band]\nf_start=%d\nf_stop=%d\nscale=%g\n\n",
-				band_power[i].f_start, band_power[i].f_stop, band_power[i].scale);
+		fprintf(f, "[tx_band]\nf_start=%d\nf_stop=%d\nmax_watts=%f\nscale=%g\n\n",
+				band_power[i].f_start, band_power[i].f_stop, 
+				band_power[i].max_watts, band_power[i].scale);
 	}
 
 	fclose(f);
@@ -2263,10 +2310,7 @@ void tr_switch(int tx_on) {
     spectrum_reset();
 
     // Also reset the hold counter for showing the output power
-    fwdpower_cnt = 0;
-    fwdpower_calc = 0;
     fwdpower = 0;
-
   } else {                       // switch to receive
     in_tx = 0;                   // lower the transmit flag
     sound_mixer(audio_card, "Master", 0);  // mute audio while switching to receive
@@ -2283,9 +2327,9 @@ void tr_switch(int tx_on) {
     spectrum_reset();
 
     // Also reset the hold counter for showing the output power
-    fwdpower_cnt = 0;
-    fwdpower_calc = 0;
     fwdpower = 0;
+    alc_level = 1.0; // reset alc KD8CGH
+ //   printf("\nalc level reset to %f\n",alc_level);
   }
 }
 

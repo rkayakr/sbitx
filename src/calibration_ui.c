@@ -12,7 +12,7 @@
 struct power_settings {
     int f_start;
     int f_stop;
-    int max_watts;
+    float max_watts;
     double scale;
 };
 
