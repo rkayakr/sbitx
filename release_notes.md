@@ -20,9 +20,19 @@
 	+ Swapped button placement on main display
 	+ Moved eptt & vfolock to menu 2
 	+ Menu 1 is resevered for mostly audio related controls
+- CW Decoder
+	+ fixed colors of sent and received text on console, use new lines when doing T/R switch
+	+ only display cw stats (WPM, dot/dash ratio) when they are meaningful
+	+ much less garbage ouput when only noise is present
+	+ replace sliding window in denoise with EMA filter
+	+ improved accuracy, better weak signal performance
+	+ replaced viterbi with simpler classifier
+	+ simplified code of own TX decode
+	+ Set BW to `50` when using decoder is recommended
 **Fixes**
+- APF init Bug
 - Audio Cleanup
-	+ Made a small change to cleanup the static between TX to RX
+	+ Made a small change to cleanup the static between TX to RX 
 
 # v5.301
 **Bug Fixes:**
