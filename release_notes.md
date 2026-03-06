@@ -14,7 +14,7 @@
 	+ If the `user_style.tpl` file is not found then it will load `default_style.tpl` if it is present.
 	+ If none of these files are located, then it will load the factory style we are all used to.
 	+ There are sample styles in the data folder that can be loaded. Just have to rename one of them to user_style.tpl
-**Changes**
+**Changes:**
 - GUI Changes
 	+ Moved Direct Frequency Keypad to a new button called PAD and added quick buttons
 	+ Swapped button placement on main display
@@ -29,7 +29,7 @@
 	+ replaced viterbi with simpler classifier
 	+ simplified code of own TX decode
 	+ Set BW to `50` when using decoder is recommended
-**Fixes**
+**Fixes:**
 - APF init Bug
 - Audio Cleanup
 	+ Made a small change to cleanup the static between TX to RX 
