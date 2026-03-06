@@ -16,11 +16,11 @@
 	+ There are sample styles in the data folder that can be loaded. Just have to rename one of them to user_style.tpl
   
 **Changes:**
-- GUI Changes
+- GUI
 	+ Moved Direct Frequency Keypad to a new button called PAD and added quick buttons
 	+ Swapped button placement on main display
 	+ Moved eptt & vfolock to menu 2
-	+ Menu 1 is resevered for mostly audio related controls
+	+ Menu 1 is reserved for mostly audio related controls
 - CW Decoder
 	+ fixed colors of sent and received text on console, use new lines when doing T/R switch
 	+ only display cw stats (WPM, dot/dash ratio) when they are meaningful
