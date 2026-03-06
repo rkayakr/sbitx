@@ -22,13 +22,13 @@
 	+ Moved eptt & vfolock to menu 2
 	+ Menu 1 is reserved for mostly audio related controls
 - CW Decoder
-	+ fixed colors of sent and received text on console, use new lines when doing T/R switch
-	+ only display cw stats (WPM, dot/dash ratio) when they are meaningful
-	+ much less garbage ouput when only noise is present
-	+ replace sliding window in denoise with EMA filter
-	+ improved accuracy, better weak signal performance
-	+ replaced viterbi with simpler classifier
-	+ simplified code of own TX decode
+	+ Fixed colors of sent and received text on console, use new lines when doing T/R switch
+	+ Only displays cw stats (WPM, dot/dash ratio) when they are meaningful
+	+ Less garbage ouput when only noise is present
+	+ Replace sliding window in denoise function with EMA filter
+	+ Improved accuracy with better weak signal performance
+	+ Replaced viterbi with simpler classifier
+	+ Simplified code of own TX decode process
 	+ Set BW to `50` when using decoder is recommended
   
 **Fixes:**
