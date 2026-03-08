@@ -4592,7 +4592,6 @@ static void layout_ui()
 
     // TUNE control is offscreen in this mode
     field_move("TUNE", 1000, -1000, 40, 40);
-    field_move("PAD", 1000, -1000, 40, 40);
     break;
 
   case MODE_CW:

@@ -77,6 +77,18 @@ rgb=1.00, 0.80, 0.40
 index=17
 rgb=0.40, 0.27, 0.00
 
+[color:WATERFALL_LOW]
+index = 18
+rgb = 0.00, 0.00, 1.00
+
+[color:WATERFALL_MID]
+index = 19
+rgb = 0.00, 1.00, 0.00
+
+[color:WATERFALL_HIGH]
+index = 20
+rgb = 1.00, 0.00, 0.00
+
 [font:STYLE_LOG]
 index=0
 family=Monospace
