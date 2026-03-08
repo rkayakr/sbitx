@@ -1036,6 +1036,10 @@ struct field main_controls[] = {
 	{"#vfo_lock", do_toggle_option, 1000, -1000, 40, 40, "VFOLK", 40, "OFF", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "ON/OFF", 0, 0, 0, 0},
 
+	// Command Help Reference Button
+	{"#help_cmd", NULL, 1000, -1000, 40, 40, "HELP", 1, "", FIELD_BUTTON, STYLE_FIELD_VALUE,
+	 "", 0, 0, 0, 0, COMMON_CONTROL},
+
 	// Full Screen Waterfall Option ON/OFF
 	{"#waterfall_option", do_toggle_option, 1000, -1000, 40, 40, "SPECT", 40, "NORM", FIELD_TOGGLE, STYLE_FIELD_VALUE,
 	 "FULL/NORM", 0, 0, 0, 0},
@@ -2443,6 +2447,84 @@ static int user_settings_handler(void *user, const char *section,
 			band_stack[band].index = atoi(value);
 	}
 	return 1;
+}
+
+// Function to show the sBitx command reference help dialog.
+// Help text is loaded from ~/sbitx/data/help_commands.txt so it can be
+// edited at any time without recompiling. The file is plain text; one
+// command per line. Lines starting with '#' are treated as section
+// headers and rendered bold; all other lines are rendered normally.
+void show_help_dialog()
+{
+	// Build path to help file: ~/sbitx/data/help_commands.txt
+	char help_path[512];
+	const char *home = getenv("HOME");
+	if (!home) home = "/home/pi";
+	snprintf(help_path, sizeof(help_path), "%s/sbitx/data/help_commands.txt", home);
+
+	// Read the file into a GString, rendering '#' lines as bold headers
+	GString *markup = g_string_new(NULL);
+	FILE *fp = fopen(help_path, "r");
+	if (fp) {
+		char line[1024];
+		while (fgets(line, sizeof(line), fp)) {
+			// Strip trailing newline/CR
+			size_t len = strlen(line);
+			while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r'))
+				line[--len] = '\0';
+			gchar *escaped = g_markup_escape_text(line, -1);
+			if (line[0] == '#') {
+				// Section header: skip the '#' and render bold
+				g_string_append_printf(markup, "\n<b><big>%s</big></b>\n", escaped + 1);
+			} else if (line[0] == '*') {
+				// Command entry: bold the part before the first space after the command
+				// Just render the whole line, escaping special chars
+				g_string_append_printf(markup, "%s\n", escaped);
+			} else {
+				g_string_append_printf(markup, "%s\n", escaped);
+			}
+			g_free(escaped);
+		}
+		fclose(fp);
+	} else {
+		g_string_append_printf(markup,
+			"<b>Help file not found.</b>\n\n"
+			"Expected location:\n"
+			"  %s\n\n"
+			"Create or restore that file to see the command reference.",
+			help_path);
+	}
+
+	// Build the dialog
+	GtkWidget *dialog = gtk_dialog_new_with_buttons("sBitx HELP Reference",
+													 NULL,
+													 GTK_DIALOG_MODAL,
+													 "Close",
+													 GTK_RESPONSE_CLOSE,
+													 NULL);
+	gtk_window_set_default_size(GTK_WINDOW(dialog), 720, 400);
+
+	GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
+	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled),
+		GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+	gtk_widget_set_size_request(scrolled, 680, 460);
+
+	GtkWidget *label = gtk_label_new(NULL);
+	gtk_label_set_markup(GTK_LABEL(label), markup->str);
+	gtk_label_set_line_wrap(GTK_LABEL(label), TRUE);
+	gtk_label_set_xalign(GTK_LABEL(label), 0.0);
+	gtk_widget_set_margin_start(label, 12);
+	gtk_widget_set_margin_end(label, 12);
+	gtk_widget_set_margin_top(label, 10);
+	gtk_widget_set_margin_bottom(label, 10);
+
+	gtk_container_add(GTK_CONTAINER(scrolled), label);
+	gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), scrolled);
+
+	gtk_widget_show_all(dialog);
+	gtk_dialog_run(GTK_DIALOG(dialog));
+	gtk_widget_destroy(dialog);
+	g_string_free(markup, TRUE);
 }
 
 // Function to shut down with PWR-DWN button on Menu 2
@@ -4418,6 +4500,7 @@ void menu2_display(int show) {
 
 		// Only show WFCALL if option is ON and mode is not FTx, CW, or CWR
 		const char *current_mode = field_str("MODE");
+		field_move("HELP", screen_width - SC(250), screen_height - SC(40), SC(45), SC(37)); // HELP left of VFOLK
 		field_move("VFOLK", screen_width - SC(200), screen_height - SC(40), SC(45), SC(37)); // VFOLK under ePTT
 		if (!strcmp(field_str("WFCALLOPT"), "ON") &&
 		    strncmp(current_mode, "FT", 2) != 0 &&
@@ -10197,6 +10280,10 @@ void do_control_action(char *cmd)
 	else if (!strcmp(request, "WFCALL"))
 	{
 		on_wf_call_button_click(NULL, NULL);
+	}
+	else if (!strcmp(request, "HELP"))
+	{
+		show_help_dialog();
 	}
 
 	else if (!strcmp(request, "LOG"))
