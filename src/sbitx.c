@@ -1767,11 +1767,11 @@ void tx_process(
 		__real__ fft_in[i] = i_sample;
 		__imag__ fft_in[i] = q_sample;
 		m++;
+
+	}	
 			
-		vmax = i_sample_max*1.0/voice_clip_level; // scale to 1.0
-		
-		i_sample_max=0.0;
-	}
+	vmax = i_sample_max*1.0/voice_clip_level; // scale to 1.0		
+	i_sample_max=0.0;
 
 	// push the samples to the remote audio queue, decimated to 16000 samples/sec
 	for (i = 0; i < MAX_BINS / 2; i += 6) {
