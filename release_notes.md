@@ -1,7 +1,8 @@
 # NEXT RELEASE
 **New Features:**
 - Text console can scroll back to view and work with up to 500 lines of history, in all modes 
-
+** Improvement **
+  - Improved updating the APM level
 # v5.301
 **Bug Fixes:**
 - Fixed blank logbook in web GUI
