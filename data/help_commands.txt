@@ -1,11 +1,11 @@
 #sBitx Reference
 
-Welcome to the sBitx software-defined transceiver. This reference covers every control,
-command, and keyboard shortcut available in the sBitx interface.
+Welcome to the sBitx software-defined transceiver. This reference covers controls,
+commands, and keyboard shortcuts available in the sBitx interface.
 
 HOW TO ENTER COMMANDS
   The sBitx has a built-in command system. To enter a command, click in the TEXT field
-  at the bottom of the screen and type your command, then press Enter.
+  on the main screen and type your command, then press Enter.
   On the sBitx built-in touchscreen keyboard, the CMD prefix key is the backslash \ key.
   On an external USB keyboard you can also type \ directly.
   Commands that begin with \ are typed directly into the text field.
