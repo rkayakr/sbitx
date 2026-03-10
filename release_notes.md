@@ -35,6 +35,7 @@
 - APF init Bug
 - Audio Cleanup
 	+ Made a small change to cleanup the static between TX to RX 
+- APM sampling improved for better regularity
 
 # v5.301
 **Bug Fixes:**
