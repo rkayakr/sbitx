@@ -4506,7 +4506,7 @@ void menu2_display(int show) {
 		    strncmp(current_mode, "FT", 2) != 0 &&
 		    strcmp(current_mode, "CW") != 0 != 0 &&
 		    strcmp(current_mode, "CWR") != 0) {
-			field_move("WFCALL", screen_width - SC(75), screen_height - SC(40), SC(70), SC(37)); // Add WFCALL
+			field_move("WFCALL", screen_width - SC(150), screen_height - SC(40), SC(70), SC(37)); // Add WFCALL
 		}
 
 	} else {
