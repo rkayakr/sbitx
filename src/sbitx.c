@@ -1730,6 +1730,8 @@ void tx_process(
 			if (r->mode  == MODE_LSB)
 				i_sample = i_sample * ssb_bal;	// reduce LSB to USB level KD8CGH		
 		}
+		if (r->mode  == MODE_LSB || r->mode == MODE_USB)
+				i_sample = i_sample * ssb_val;	// reduce SSB levels KD8CGH			
 
 		// clip the overdrive to prevent damage up the processing chain, PA
 		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM)
@@ -1815,12 +1817,6 @@ void tx_process(
 			__real__ fft_out[i] = 0;
 			__imag__ fft_out[i] = 0;
 		}
-	// adjust USB/CW modulation power factor W9JES
-	for (i = 0; i < MAX_BINS / 2; i++)
-	{
-		__real__ fft_out[i] = __real__ fft_out[i] * ssb_val;
-		__imag__ fft_out[i] = __imag__ fft_out[i] * ssb_val;
-	}
 
 	// now rotate to the tx_bin
 	// rememeber the AM is already a carrier modulated at 24 KHz
