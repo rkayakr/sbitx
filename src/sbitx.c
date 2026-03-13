@@ -27,6 +27,14 @@
 
 #define DEBUG 0
 
+int txcap=0;
+int txcount=0;
+float avg = 0.0;
+float peak = 0.0;
+float peaka = 0.0;
+float avgpwr = 0.0;
+float peakpwr = 0.0;
+
 int bandtweak = 4;		// Band power array index the \bs command will target -n1qm
 int ext_ptt_enable = 0; // ADDED BY KF7YDU.
 char audio_card[32];
@@ -1145,6 +1153,19 @@ void rx_linear(int32_t *input_rx, int32_t *input_mic,
 {
 	int i = 0;
 	double i_sample;
+	
+	if (txcap == 1) {  //  RLB
+		txcap=0;
+		avg = avg/txcount;
+		avgpwr = avgpwr/txcount;
+		printf(" peak %f peaka %f avgpwr %.1f peakpwr %.1f count %d\n",peak, peaka,  avgpwr/10, peakpwr/10, txcount);
+		avg=0.0;
+		peak = 0.0;
+		peaka = 0.0;
+		txcount = 0;
+		avgpwr =- 0.0;
+		peakpwr = 0.0;
+	}
 
 	// STEP 1: First add the previous M samples
 	// memcpy to replace for loop, ffts are 16 bytes
@@ -1560,6 +1581,10 @@ void read_power()
 	// Implement a simple "hold" algorithm in order to show
 	// readable and meaningful power readings that should be the pep power
 	fwdpw = (fwdvoltage * fwdvoltage) / 400;
+	
+	avgpwr +=  fwdpw;  //       RLB
+	if (fwdpw > peakpwr) peakpwr = fwdpw;
+	
 	if (fwdpw > fwdpower_calc) {
 		fwdpower_calc = fwdpw;
 	}
@@ -1595,6 +1620,9 @@ void tx_process(
 {
 	int i;
 	double i_sample, q_sample, i_carrier;
+	
+	if (txcap == 0) txcap = 1;  // RLB
+	txcount++;
 
 	// Check if browser microphone is active and use it instead of physical mic
 	int32_t browser_mic_samples[n_samples];
@@ -1694,6 +1722,7 @@ void tx_process(
 	for (i = MAX_BINS / 2; i < MAX_BINS; i++)
 	{
 
+		
 		if (r->mode == MODE_2TONE)
 			i_sample = (1.0 * (vfo_read(&tone_a) + vfo_read(&tone_b))) / 50000000000.0;
 		else if (r->mode == MODE_CALIBRATE)
@@ -1722,6 +1751,9 @@ void tx_process(
 				i_sample = (1.0 * input_mic[j]) / 2000000000.0;
 			}
 		}
+		
+		avg += (float)i_sample;     // RLB
+		if (i_sample > peak) peak = i_sample;		
 
 		// clip the overdrive to prevent damage up the processing chain, PA
 		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM)
@@ -1731,6 +1763,8 @@ void tx_process(
 			else if (i_sample > voice_clip_level)
 				i_sample = voice_clip_level;
 		}
+		
+		if (i_sample > peaka) peaka = i_sample;   // RLB
 
 		// Don't echo the voice modes
 		if (r->mode == MODE_USB || r->mode == MODE_LSB || r->mode == MODE_AM || r->mode == MODE_NBFM)
