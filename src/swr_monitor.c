@@ -9,6 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <gtk/gtk.h>
+#include <time.h>
 
 
 /*
@@ -43,6 +44,10 @@ int vswr_tripped = 0;
 // Flag indicating if feature enabled (0 = disabled, 1 = enabled)
 int vswr_on=1;
 
+#define SWR_ALERT_TIMEOUT_SECS 10
+
+static time_t vswr_trip_time = 0;
+
 /**
  * Check VSWR and handle reduction/recovery
  * vswr parameter: SWR * 10 (e.g., 30 means 3.0) - project convention
@@ -54,6 +59,14 @@ void check_and_handle_vswr(int vswr)
 	float swr = vswr / 10.0f;
 	// Check if VSWR exceeds threshold and not already tripped
 	call_count++;
+	if (vswr_tripped == 1 && vswr_trip_time != 0) {
+		time_t now = time(NULL);
+		if (difftime(now, vswr_trip_time) >= SWR_ALERT_TIMEOUT_SECS) {
+			vswr_tripped = 0;
+			vswr_trip_time = 0;
+			write_console(STYLE_LOG, "\n *SWR alert timed out\n");
+		}
+	}
 	if (swr > max_vswr && vswr_tripped == 0 && vswr_on==1) { // 
 
 		char response[100];
@@ -63,6 +76,7 @@ void check_and_handle_vswr(int vswr)
 		
 		// Set tripped flag
 		vswr_tripped = 1;
+		vswr_trip_time = time(NULL);
 //		printf(" tripped %d\n",vswr_tripped);  //				
 			set_field("tx_power", "1");			
 			// Write warning to console
@@ -77,6 +91,7 @@ void check_and_handle_vswr(int vswr)
 	else if (swr <= max_vswr && vswr_tripped == 1) {
 		// Clear tripped flag
 		vswr_tripped = 0;
+		vswr_trip_time = 0;
 		
 		// Write info to console
 		char info_msg[128];
@@ -94,6 +109,7 @@ void init_vswr_monitor(void)
 {
 	// Ensure tripped flag is off, feature activated
 	vswr_tripped = 0;
+	vswr_trip_time = 0;
 	vswr_on=1;
 }
 
