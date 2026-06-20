@@ -59,12 +59,16 @@ void check_and_handle_vswr(int vswr)
 	float swr = vswr / 10.0f;
 	// Check if VSWR exceeds threshold and not already tripped
 	call_count++;
-	if (vswr_tripped == 1 && vswr_trip_time != 0) {
-		time_t now = time(NULL);
-		if (difftime(now, vswr_trip_time) >= SWR_ALERT_TIMEOUT_SECS) {
-			vswr_tripped = 0;
-			vswr_trip_time = 0;
-			write_console(STYLE_LOG, "\n *SWR alert timed out\n");
+	if (vswr_tripped == 1) {
+		if (vswr_trip_time == 0)
+			vswr_trip_time = time(NULL);
+		else {
+			time_t now = time(NULL);
+			if (difftime(now, vswr_trip_time) >= SWR_ALERT_TIMEOUT_SECS) {
+				vswr_tripped = 0;
+				vswr_trip_time = 0;
+				write_console(STYLE_LOG, "\n *SWR alert timed out\n");
+			}
 		}
 	}
 	if (swr > max_vswr && vswr_tripped == 0 && vswr_on==1) { // 
