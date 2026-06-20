@@ -85,7 +85,7 @@ void reset_vswr_tripped(void)
  * Check VSWR and handle reduction/recovery
  * vswr parameter: SWR * 10 (e.g., 30 means 3.0) - project convention
  */
- int call_count = 0;
+static int call_count = 0;
 void check_and_handle_vswr(int vswr)
 {
 	// Convert from integer representation to float (vswr / 10.0)

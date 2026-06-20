@@ -9885,6 +9885,7 @@ void handleButton2Press()
 gboolean ui_tick(gpointer gook)
 {
 	int static ticks = 0;
+	/* Start at -1 so the first tick forces one overlay redraw sync. */
 	static int last_vswr_trip_state = -1;
 
 	ticks++;
