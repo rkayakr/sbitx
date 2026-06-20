@@ -9885,8 +9885,17 @@ void handleButton2Press()
 gboolean ui_tick(gpointer gook)
 {
 	int static ticks = 0;
+	static int last_vswr_trip_state = -1;
 
 	ticks++;
+	poll_vswr_alert_timeout();
+	if (in_tx)
+		check_and_handle_vswr(vswr);
+	if (last_vswr_trip_state != vswr_tripped) {
+		update_field(get_field("spectrum"));
+		update_field(get_field("waterfall"));
+		last_vswr_trip_state = vswr_tripped;
+	}
 
 	while (q_length(&q_remote_commands) > 0)
 	{
@@ -10011,7 +10020,6 @@ gboolean ui_tick(gpointer gook)
 			set_field("#fwdpower", buff);
 			sprintf(buff, "%d", vswr);
 			set_field("#vswr", buff);
-			check_and_handle_vswr(vswr);
 		}
 		if (layout_needs_refresh)
 		{
@@ -10577,7 +10585,7 @@ void change_band(char *request)
 			stack = 0;
 		band_stack[new_band].index = stack;
 	} else {
-		vswr_tripped = 0;  // clear vswr_tripped
+		reset_vswr_tripped();
 	}
 	stack = band_stack[new_band].index;
 	int mode_ix = band_stack[new_band].mode[stack];

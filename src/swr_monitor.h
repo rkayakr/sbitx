@@ -16,6 +16,8 @@ void init_vswr_monitor(void);
 // vswr parameter: SWR * 10 (e.g., 30 means 3.0) - project convention
 void check_and_handle_vswr(int vswr);
 
+int poll_vswr_alert_timeout(void);
+
 // Reset VSWR tripped state and clear UI
 void reset_vswr_tripped(void);
 

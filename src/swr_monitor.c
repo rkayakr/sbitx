@@ -48,6 +48,39 @@ int vswr_on=1;
 
 static time_t vswr_trip_time = 0;
 
+static void clear_vswr_trip(const char *message)
+{
+	vswr_tripped = 0;
+	vswr_trip_time = 0;
+	if (message)
+		write_console(STYLE_LOG, message);
+}
+
+int poll_vswr_alert_timeout(void)
+{
+	time_t now;
+
+	if (vswr_tripped == 0) {
+		vswr_trip_time = 0;
+		return 0;
+	}
+
+	if (vswr_trip_time == 0)
+		return 0;
+
+	now = time(NULL);
+	if (difftime(now, vswr_trip_time) < SWR_ALERT_TIMEOUT_SECS)
+		return 0;
+
+	clear_vswr_trip("\n *SWR alert timed out\n");
+	return 1;
+}
+
+void reset_vswr_tripped(void)
+{
+	clear_vswr_trip(NULL);
+}
+
 /**
  * Check VSWR and handle reduction/recovery
  * vswr parameter: SWR * 10 (e.g., 30 means 3.0) - project convention
@@ -59,18 +92,7 @@ void check_and_handle_vswr(int vswr)
 	float swr = vswr / 10.0f;
 	// Check if VSWR exceeds threshold and not already tripped
 	call_count++;
-	if (vswr_tripped == 1) {
-		if (vswr_trip_time == 0)
-			vswr_trip_time = time(NULL);
-		else {
-			time_t now = time(NULL);
-			if (difftime(now, vswr_trip_time) >= SWR_ALERT_TIMEOUT_SECS) {
-				vswr_tripped = 0;
-				vswr_trip_time = 0;
-				write_console(STYLE_LOG, "\n *SWR alert timed out\n");
-			}
-		}
-	}
+	poll_vswr_alert_timeout();
 	if (swr > max_vswr && vswr_tripped == 0 && vswr_on==1) { // 
 
 		char response[100];
@@ -94,8 +116,7 @@ void check_and_handle_vswr(int vswr)
 	// Check if VSWR has fallen below threshold and was previously tripped
 	else if (swr <= max_vswr && vswr_tripped == 1) {
 		// Clear tripped flag
-		vswr_tripped = 0;
-		vswr_trip_time = 0;
+		reset_vswr_tripped();
 		
 		// Write info to console
 		char info_msg[128];
@@ -112,8 +133,7 @@ void check_and_handle_vswr(int vswr)
 void init_vswr_monitor(void)
 {
 	// Ensure tripped flag is off, feature activated
-	vswr_tripped = 0;
-	vswr_trip_time = 0;
+	reset_vswr_tripped();
 	vswr_on=1;
 }
 
