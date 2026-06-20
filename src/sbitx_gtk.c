@@ -9886,16 +9886,16 @@ gboolean ui_tick(gpointer gook)
 {
 	int static ticks = 0;
 	/* Start at -1 so the first tick forces one overlay redraw sync. */
-	static int last_vswr_trip_state = -1;
+	static int last_vswr_tripped = -1;
 
 	ticks++;
 	poll_vswr_alert_timeout();
 	if (in_tx)
 		check_and_handle_vswr(vswr);
-	if (last_vswr_trip_state != vswr_tripped) {
+	if (last_vswr_tripped != vswr_tripped) {
 		update_field(get_field("spectrum"));
 		update_field(get_field("waterfall"));
-		last_vswr_trip_state = vswr_tripped;
+		last_vswr_tripped = vswr_tripped;
 	}
 
 	while (q_length(&q_remote_commands) > 0)
