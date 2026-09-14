@@ -43,6 +43,9 @@ Suggested deployment variables:
 
 Use `mike` when you want versioned docs and a `latest` alias.
 
+> Note: This scaffold does not yet add a Material version selector configuration in `mkdocs.yml`.
+> The commands below still publish versioned directories and aliases, but selector UI setup can be added later if needed.
+
 ```bash
 # Example: deploy version 4.301 and update latest alias
 mike deploy 4.301 latest --update-aliases
