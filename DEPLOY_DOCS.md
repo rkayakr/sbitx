@@ -30,7 +30,7 @@ The generated site output is in `site/`.
 
 ```bash
 mkdocs build
-scp -r site/. ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
+scp -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes -r site/. ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
 ```
 
 Suggested deployment variables:
@@ -67,6 +67,10 @@ on:
       - 'docs/mkdocs/**'
       - 'mkdocs.yml'
       - 'docs/requirements.txt'
+      - 'docs/RxEQ.odt'
+      - 'docs/apfdoc.pdf'
+      - 'docs/Using the QSSTV-sBitx Edition.pdf'
+      - 'docs/Wiki-Resources/**'
       - '.github/workflows/docs.yml'
       - 'DEPLOY_DOCS.md'
   workflow_dispatch:
@@ -106,7 +110,10 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          scp -i ~/.ssh/deploy_key -r site/. "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
+          scp -i ~/.ssh/deploy_key \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o StrictHostKeyChecking=yes \
+            -r site/. "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
 ```
 
 Required repository secrets:
