@@ -30,7 +30,7 @@ The generated site output is in `site/`.
 
 ```bash
 mkdocs build
-scp -r site/* ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
+scp -r site/. ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
 ```
 
 Suggested deployment variables:
@@ -106,7 +106,7 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
-          scp -i ~/.ssh/deploy_key -r site/* "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
+          scp -i ~/.ssh/deploy_key -r site/. "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
 ```
 
 Required repository secrets:
