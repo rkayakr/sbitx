@@ -43,6 +43,7 @@ docs/mkdocs/
   reference/
     hardware.md             Hardware pinout/circuit references
     disassembly.md          Placeholder for disassembly migration
+  files/                    Legacy ODT/PDF copies for direct download links
   img/                      Image assets copied from Wiki-Resources
   releases.md               Release notes copy for docs site
 ```

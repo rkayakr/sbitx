@@ -8,6 +8,8 @@ on:
       - 'docs/mkdocs/**'
       - 'mkdocs.yml'
       - 'docs/requirements.txt'
+      - '.github/workflows/docs.yml'
+      - 'DEPLOY_DOCS.md'
   workflow_dispatch:
 
 jobs:
