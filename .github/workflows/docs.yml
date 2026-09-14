@@ -57,4 +57,5 @@ jobs:
           scp -i ~/.ssh/deploy_key \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o StrictHostKeyChecking=yes \
+            -o IdentitiesOnly=yes \
             -r site/. "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"

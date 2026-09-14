@@ -54,7 +54,7 @@ docs/mkdocs/
 2. Add it to the `nav:` section in `/mkdocs.yml`.
 3. Run `mkdocs serve` and verify navigation, links, and formatting.
 
-If a file is not listed in `nav:`, it will not appear in the main docs menu.
+If a file is not listed in `nav:`, it will not appear in the main docs menu (though it can still be built and reached by direct link).
 
 ## Deployment
 
