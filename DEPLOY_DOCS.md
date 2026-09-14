@@ -89,12 +89,13 @@ jobs:
       - name: Configure SSH key
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
           mkdir -p ~/.ssh
           echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+          echo "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
 
       - name: Deploy via SCP
         env:
@@ -111,6 +112,7 @@ Required repository secrets:
 - `DEPLOY_USER`
 - `DEPLOY_KEY`
 - `DEPLOY_PATH`
+- `DEPLOY_KNOWN_HOSTS` (pinned known_hosts entry for your deployment host)
 
 ## Notes
 
