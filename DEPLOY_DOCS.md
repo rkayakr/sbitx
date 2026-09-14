@@ -31,7 +31,8 @@ The generated site output is in `site/`.
 ```bash
 mkdocs build
 ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes ${DEPLOY_USER}@${DEPLOY_HOST} "mkdir -p '${DEPLOY_PATH}'"
-scp -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -r site/. ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
+REMOTE_PATH_ESCAPED=$(printf '%q' "${DEPLOY_PATH}")
+scp -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -r site/. ${DEPLOY_USER}@${DEPLOY_HOST}:${REMOTE_PATH_ESCAPED}/
 ```
 
 Suggested deployment variables:
@@ -114,6 +115,8 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
+          REMOTE_PATH_ESCAPED=$(printf '%q' "${DEPLOY_PATH}")
+          REMOTE_TARGET="${DEPLOY_USER}@${DEPLOY_HOST}:${REMOTE_PATH_ESCAPED}/"
           ssh -i ~/.ssh/deploy_key \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o StrictHostKeyChecking=yes \
@@ -123,7 +126,7 @@ jobs:
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o StrictHostKeyChecking=yes \
             -o IdentitiesOnly=yes \
-            -r site/. "${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/"
+            -r site/. "${REMOTE_TARGET}"
 ```
 
 Required repository secrets:
