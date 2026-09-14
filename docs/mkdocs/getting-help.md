@@ -17,6 +17,6 @@ If these enhancements are valuable to you, please consider supporting ongoing de
 
 ## Contributors and credits
 
-Special thanks to the many contributors recognized in the root repository README:
+Special thanks to the many contributors recognized in the repository README:
 
-- [Contributors & Credits in README](https://github.com/rkayakr/sbitx/blob/mkdoc/README.md#-contributors--credits)
+- [sBitx repository README](https://github.com/rkayakr/sbitx)

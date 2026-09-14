@@ -53,7 +53,7 @@ mike set-default latest
 
 ## GitHub Actions Example (`.github/workflows/docs.yml`)
 
-The workflow below builds and deploys docs on pushes to `mkdoc` when docs sources change.
+The workflow below builds and deploys docs on pushes to `mkdoc` and `main` when docs sources change.
 
 ```yaml
 name: Deploy Docs
@@ -62,6 +62,7 @@ on:
   push:
     branches:
       - mkdoc
+      - main
     paths:
       - 'docs/mkdocs/**'
       - 'mkdocs.yml'
@@ -115,6 +116,8 @@ Required repository secrets:
 - `DEPLOY_KEY`
 - `DEPLOY_PATH`
 - `DEPLOY_KNOWN_HOSTS` (pinned known_hosts entry for your deployment host)
+
+You can adjust the `branches:` list to match your preferred publishing flow.
 
 ## Notes
 
