@@ -1,0 +1,8 @@
+# RX EQ
+
+The RX EQ guide currently exists as an ODT document and is pending Markdown migration.
+
+- Current source: [RxEQ.odt](https://github.com/rkayakr/sbitx/blob/mkdoc/docs/RxEQ.odt)
+
+!!! note
+    TODO: Convert `docs/RxEQ.odt` into a Markdown page in this guide section.
