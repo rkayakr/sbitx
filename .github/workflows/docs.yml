@@ -1,0 +1,68 @@
+name: Deploy Docs
+
+on:
+  push:
+    branches:
+      - mkdoc
+      - main
+    paths:
+      - 'docs/mkdocs/**'
+      - 'mkdocs.yml'
+      - 'docs/requirements.txt'
+      - 'docs/RxEQ.odt'
+      - 'docs/apfdoc.pdf'
+      - 'docs/Using the QSSTV-sBitx Edition.pdf'
+      - 'docs/Wiki-Resources/**'
+      - '.github/workflows/docs.yml'
+      - 'DEPLOY_DOCS.md'
+  workflow_dispatch:
+
+jobs:
+  deploy-docs:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r docs/requirements.txt
+
+      - name: Build docs
+        run: mkdocs build
+
+      - name: Configure SSH key
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy via SCP
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          REMOTE_PATH_ESCAPED=$(printf '%q' "${DEPLOY_PATH}")
+          REMOTE_TARGET="${DEPLOY_USER}@${DEPLOY_HOST}:${REMOTE_PATH_ESCAPED}/"
+          ssh -i ~/.ssh/deploy_key \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o StrictHostKeyChecking=yes \
+            -o IdentitiesOnly=yes \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '${DEPLOY_PATH}'"
+          scp -i ~/.ssh/deploy_key \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o StrictHostKeyChecking=yes \
+            -o IdentitiesOnly=yes \
+            -r site/. "${REMOTE_TARGET}"

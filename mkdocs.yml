@@ -1,0 +1,40 @@
+site_name: sBitx
+repo_url: https://github.com/rkayakr/sbitx
+docs_dir: docs/mkdocs
+site_dir: site
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - toc.follow
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Quick Start: quick-start.md
+  - Getting Help: getting-help.md
+  - Guide:
+    - Controls: guide/controls.md
+    - RX EQ: guide/rx-eq.md
+    - QSSTV: guide/qsstv.md
+    - APF: guide/apf.md
+  - Reference:
+    - Hardware: reference/hardware.md
+    - Disassembly: reference/disassembly.md
+  - Releases: releases.md
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
