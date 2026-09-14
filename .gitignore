@@ -20,3 +20,4 @@ docs/Wiki-Resources/Disassembly
 *.o
 data/big-cty.url
 data/cty.dat
+site/

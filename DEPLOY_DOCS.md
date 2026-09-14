@@ -30,6 +30,7 @@ The generated site output is in `site/`.
 
 ```bash
 mkdocs build
+ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes ${DEPLOY_USER}@${DEPLOY_HOST} "mkdir -p '${DEPLOY_PATH}'"
 scp -o UserKnownHostsFile=~/.ssh/known_hosts -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -r site/. ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
 ```
 
@@ -113,6 +114,11 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
+          ssh -i ~/.ssh/deploy_key \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o StrictHostKeyChecking=yes \
+            -o IdentitiesOnly=yes \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '${DEPLOY_PATH}'"
           scp -i ~/.ssh/deploy_key \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o StrictHostKeyChecking=yes \

@@ -54,6 +54,11 @@ jobs:
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
         run: |
+          ssh -i ~/.ssh/deploy_key \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o StrictHostKeyChecking=yes \
+            -o IdentitiesOnly=yes \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '${DEPLOY_PATH}'"
           scp -i ~/.ssh/deploy_key \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o StrictHostKeyChecking=yes \
